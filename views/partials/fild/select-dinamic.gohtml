@@ -1,0 +1,95 @@
+{{ define "select-dynamic" }}
+<fieldset class="fieldset w-full" {{ if .ShowCondition }} x-show="{{ .ShowCondition }}" x-transition {{ end }} x-data="{
+        isInvalid: false,
+        errorMsg: '',
+        
+        validate() {
+            // Cek apakah required secara statis atau dinamis
+            const isRequired = 
+                {{ if .Required }}
+                    true
+                {{ else if .RequiredBinding }}
+                    {{ .RequiredBinding }}
+                {{ else }}
+                    false
+                {{ end }};
+
+            // Logika Validasi: Jika required tapi model kosong (atau '0' jika ID numerik)
+            if (isRequired && (!this.{{ .Model }} || this.{{ .Model }} == '' || this.{{ .Model }} == '0')) {
+                this.isInvalid = true;
+                this.errorMsg = 'Field ini wajib dipilih.';
+                return false;
+            }
+
+            this.isInvalid = false;
+            this.errorMsg = '';
+            return true;
+        },
+
+        init() {
+            // Set nilai awal dari Go Template ke Alpine Model jika ada
+            {{ if .Value }}
+            if (!this.{{ .Model }}) {
+                this.{{ .Model }} = '{{ .Value }}';
+            }
+            {{ end }}
+
+            // Watcher untuk membersihkan error saat user memilih sesuatu
+            this.$watch('{{ .Model }}', (val) => {
+                if (val) {
+                    this.isInvalid = false;
+                    this.errorMsg = '';
+                }
+            });
+
+            // Watcher khusus untuk RequiredBinding agar error hilang jika kondisi required tidak terpenuhi
+            {{ if .RequiredBinding }}
+            this.$watch(() => {{ .RequiredBinding }}, (val) => {
+                if (!val) {
+                    this.isInvalid = false;
+                    this.errorMsg = '';
+                }
+            });
+            {{ end }}
+
+            // Reset error jika field disembunyikan
+            {{ if .ShowCondition }}
+this.$watch(() => {{ .ShowCondition }}, (val) => {
+    if (!val) {
+        this.isInvalid = false;
+        this.errorMsg = '';
+    }
+});
+{{ end }}
+        }
+    }" @validate-me="validate()">
+
+    {{ if .Label }}
+    <label class="label ">
+        <span class="text-xs font-bold text-base-content opacity-60">
+            {{ .Label }}
+            {{ if or .Required .RequiredBinding }}
+            <span class="text-error font-bold ml-0.5">*</span>
+            {{ end }}
+        </span>
+    </label>
+    {{ end }}
+
+    <select name="{{ .Name }}" x-model="{{ .Model }}" @change="validate()" @invalid.prevent="validate()" {{ if .Required }} required {{ end }} {{ if .RequiredBinding }} :required="{{ .RequiredBinding }}" {{ end }}
+        :class="isInvalid ? 'border-error text-error font-semibold' : 'focus:border-info'"
+        class="select select-bordered select-xs w-full focus:outline-none leading-normal focus:ring-0 appearance-none">
+        <option value="">{{ .DefaultText }}</option>
+
+        <template x-for="item in {{ .OptionsArray }}" :key="item.ID">
+            <option :value="item.ID" x-text="item.name" :selected="item.ID == '{{ .Value }}'"></option>
+        </template>
+    </select>
+
+    <!-- ERROR MESSAGE -->
+    <template x-if="isInvalid">
+        <div class="mt-1">
+            <p class="text-error text-[9px] font-semibold leading-none" x-text="errorMsg"></p>
+        </div>
+    </template>
+</fieldset>
+{{ end }}

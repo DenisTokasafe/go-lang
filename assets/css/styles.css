@@ -1,0 +1,129 @@
+@import "tailwindcss";
+@plugin "daisyui";
+/* Import Flatpickr Dasar */
+@import "flatpickr/dist/flatpickr.min.css";
+@import "air-datepicker/air-datepicker.css";
+/* WAJIB: Import CSS khusus untuk MonthSelect Plugin */
+@import "flatpickr/dist/plugins/monthSelect/style.css";
+@plugin "daisyui/theme" {
+  name: "lazylol";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(96% 0.007 247.896);
+  --color-base-200: oklch(92% 0.013 255.508);
+  --color-base-300: oklch(86% 0.022 252.894);
+  --color-base-content: oklch(21% 0.006 56.043);
+  --color-primary: oklch(60% 0.118 184.704);
+  --color-primary-content: oklch(26% 0.051 172.552);
+  --color-secondary: oklch(64% 0.222 41.116);
+  --color-secondary-content: oklch(92% 0 0);
+  --color-accent: oklch(44% 0.11 240.79);
+  --color-accent-content: oklch(97% 0.014 254.604);
+  --color-neutral: oklch(44% 0.03 256.802);
+  --color-neutral-content: oklch(98% 0.001 106.423);
+  --color-info: oklch(58% 0.158 241.966);
+  --color-info-content: oklch(30% 0.056 229.695);
+  --color-success: oklch(79% 0.209 151.711);
+  --color-success-content: oklch(26% 0.065 152.934);
+  --color-warning: oklch(75% 0.183 55.934);
+  --color-warning-content: oklch(26% 0.079 36.259);
+  --color-error: oklch(58% 0.253 17.585);
+  --color-error-content: oklch(94% 0.03 12.58);
+  --radius-selector: 0.25rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.21875rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 1;
+}
+
+.flatpickr-calendar {
+  z-index: 999999 !important;
+}
+
+.toastify {
+  padding: 12px 20px;
+  color: #fff;
+  display: inline-block;
+  box-shadow:
+    0 3px 6px -1px rgba(0, 0, 0, 0.12),
+    0 10px 36px -4px rgba(77, 96, 232, 0.3);
+  background: -webkit-linear-gradient(315deg, #73a5ff, #5477f5);
+  background: linear-gradient(135deg, #73a5ff, #5477f5);
+  position: fixed;
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(0.215, 0.61, 0.355, 1);
+  border-radius: 2px;
+  cursor: pointer;
+  text-decoration: none;
+  max-width: calc(50% - 20px);
+  z-index: 2147483647;
+}
+.toastify.on {
+  opacity: 1;
+}
+.toast-close {
+  background: 0 0;
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1em;
+  opacity: 0.4;
+  padding: 0 5px;
+}
+.toastify-right {
+  right: 15px;
+}
+.toastify-left {
+  left: 15px;
+}
+.toastify-top {
+  top: -150px;
+}
+.toastify-bottom {
+  bottom: -150px;
+}
+.toastify-rounded {
+  border-radius: 25px;
+}
+.toastify-avatar {
+  width: 1.5em;
+  height: 1.5em;
+  margin: -7px 5px;
+  border-radius: 2px;
+}
+.toastify-center {
+  margin-left: auto;
+  margin-right: auto;
+  left: 0;
+  right: 0;
+  max-width: fit-content;
+  max-width: -moz-fit-content;
+}
+@media only screen and (max-width: 360px) {
+  .toastify-left,
+  .toastify-right {
+    margin-left: auto;
+    margin-right: auto;
+    left: 0;
+    right: 0;
+    max-width: fit-content;
+  }
+}
+.ck.ck-editor__main > .ck-editor__editable {
+  background: var(--color-base-100) !important;
+  color: var(--color-base-content) !important;
+  border-color: var(--color-base-300) !important;
+
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+.ck.ck-toolbar {
+  border: none !important;
+  background: var(--color-base-200) !important;
+  border-color: var(--color-base-300) !important;
+}

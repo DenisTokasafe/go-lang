@@ -1,0 +1,226 @@
+{{ define "content" }}
+<div class="px-4 w-full" x-data="{ 
+    isEdit: false, 
+    id: '', 
+    code: '',
+    name: '',
+    category_group: '{{ .GroupFilter }}',
+    parent_id: '',
+    status: '',
+    showUpload: false,
+    
+    init() {
+        this.checkFlash();
+    },
+
+    checkFlash() {
+        const getCookie = (name) => {
+            let value = `; ${document.cookie}`;
+            let parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        const msg = getCookie('flash_msg');
+        const type = getCookie('flash_type');
+
+        if (msg) {
+            const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+            if (window.showToast) {
+                window.showToast(decodedMsg, type || 'success');
+            }
+            document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+            document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+        }
+    },
+
+    getAction() {
+        return this.isEdit ? '/administration/event-category/update' : '/administration/event-category/store';
+    },
+    openCreate() {
+        this.isEdit = false;
+        this.id = '';
+        this.code = '';
+        this.name = '';
+        this.parent_id = '';
+        this.status = '';
+        event_category_modal.showModal();
+    },
+    openEdit(id, code, name, group, parent_id, status) {
+        this.isEdit = true;
+        this.id = id;
+        this.code = code;
+        this.name = name;
+        this.category_group = group;
+        this.parent_id = parent_id;
+        this.status = status;
+        event_category_modal.showModal();
+    }
+}">
+  <div class="flex items-center gap-2 mb-2">
+    <h1 class="text-sm font-bold text-base-content uppercase tracking-wider">
+      Daftar Kategori {{ if eq .GroupFilter "lead" }}Hazard (Lead){{ else }}Incident{{ end }}
+    </h1>
+  </div>
+
+  <div class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-4">
+    <div class="flex gap-2 w-full sm:w-auto">
+      <button class="btn btn-accent btn-xs px-4" @click="openCreate()">
+        {{ lucide "plus" (dict "class" "size-4") }}
+        <span>Tambah Data</span>
+      </button>
+
+      <div class="join" x-data="{
+        switchTab(group) {
+            let url = new URL(window.location.href);
+            url.searchParams.set('group', group);
+            // url.searchParams.set('page', '1'); // Opsional: reset ke hal 1 setiap ganti tab
+            window.location.href = url.toString();
+        }
+    }">
+        <button @click="switchTab('lead')" class="join-item btn btn-xs {{ if eq .GroupFilter "lead" }}btn-primary{{ else }}btn-secondary{{ end }}"> Lead </button>
+
+        <button @click="switchTab('incident')" class="join-item btn btn-xs {{ if eq .GroupFilter "incident" }}btn-primary{{ else }}btn-secondary{{ end }}">
+          Incident
+        </button>
+      </div>
+    </div>
+
+    <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto" x-data="{ 
+        searchQuery: '{{ .Search }}',
+        parentQuery: '{{ .ParentFilter }}',
+        groupQuery: '{{ .GroupFilter }}',
+        doSearch() {
+            let url = new URL(window.location.origin + '/administration/event-category');
+            url.searchParams.set('page', '1');
+            url.searchParams.set('group', this.groupQuery);
+            
+            if(this.searchQuery) url.searchParams.set('search', this.searchQuery);
+            if(this.parentQuery) url.searchParams.set('parent', this.parentQuery);
+            
+            window.location.href = url.toString();
+        }
+      }">
+      <select x-model="parentQuery" @change="doSearch()"
+        class="select select-bordered select-xs w-full focus:outline-none focus:ring-1 focus:ring-info">
+        <option value="">-- Semua Event Type --</option>
+        {{ range .Parents }}
+        <option value="{{ .ID }}">{{ .Name }}</option>
+        {{ end }}
+      </select>
+
+      <div class="w-full sm:w-64">
+        {{ template "input-floating" (dict "Label" "Cari Code atau Nama" "Name" "search" "Placeholder" "Ketik untuk mencari..." "Attr" "x-model='searchQuery' @input.debounce.750ms='doSearch()'autofocus" ) }}
+      </div>
+    </div>
+  </div>
+
+  <dialog id="event_category_modal" class="modal">
+    <div class="modal-box p-0 border border-base-300 shadow-2xl">
+      <form :action="getAction()" method="POST">
+        <div class="card bg-base-100 card-xs shadow-sm">
+          <div class="card-body gap-4">
+            <h2 class="card-title text-base-content font-semibold mb-2"
+              x-text="isEdit ? 'Edit Kategori' : 'Tambah Kategori'"></h2>
+
+            <input type="hidden" name="id" x-model="id" />
+            <input type="hidden" name="category_group" x-model="category_group" />
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {{ template "input-floating" (dict "Label" "Kode (e.g. INJ-01)" "Name" "code" "Placeholder" "Isi Kode" "Required" true "Attr" "x-model='code'" ) }}
+
+              {{ template "select_input" (dict "Name" "parent_id" "Model" "parent_id" "Placeholder" "Set sebagai Induk" "Options" .Parents ) }}
+
+            </div>
+
+            <div class="grid grid-cols-1 gap-4">
+              {{ template "input-floating" (dict "Label" "Nama Kategori" "Name" "name" "Placeholder" "Isi Nama" "Required" true "Attr" "x-model='name'" ) }}
+
+              <div class="form-control w-full">
+                <label class="label py-1"><span
+                    class="label-text text-[10px] font-bold opacity-50 uppercase">Status</span></label>
+                {{ $manualOptions := list (dict "ID" "enabled" "Name" "Enabled") (dict "ID" "disabled" "Name" "Disabled") }}
+
+                {{ template "select_input" (dict "Name" "status" "Model" "status" "Placeholder" "Pilih Status" "Options" $manualOptions ) }}
+              </div>
+            </div>
+          </div>
+          <div class="modal-action p-4 bg-base-200/50 gap-2">
+            <button type="button" class="btn btn-ghost btn-xs" @click="event_category_modal.close()">Batal</button>
+            <button type="submit" class="btn btn-primary btn-xs px-6">
+              {{ lucide "save" (dict "class" "size-4") }} Simpan
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  {{ template "card_scroll" . }}
+</div>
+{{ end }}
+
+{{ define "slot" }}
+{{ template "pagination" . }}
+<div class="overflow-x-auto bg-base-100 shadow-lg rounded-lg my-4 border border-base-300">
+  <table class="table table-zebra table-xs">
+    <thead class="bg-base-300/50 uppercase text-[10px]">
+      <tr>
+        <th class="w-10 text-center">#</th>
+        <th class="w-24">Code</th>
+        <th>Nama Kategori</th>
+        <th>Group</th>
+        <th>Status</th>
+        <th class="text-center w-32">Aksi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range $index, $ec := .EventCategories }}
+      <tr x-data="{ show: false }" x-init="setTimeout(() => show = true, 50)" x-show="show" x-transition.duration.300ms>
+        <td class="text-center opacity-50 font-mono italic">
+          {{ add (mul (sub $.CurrentPage 1) 20) (add $index 1) }}
+        </td>
+        <td class="font-bold text-primary">{{ $ec.Code }}</td>
+        <td>
+          <div class="flex flex-col">
+            <span class="font-medium">{{ $ec.Name }}</span>
+            {{ if $ec.ParentID }}
+            <span class="text-[9px] opacity-50 italic">Sub-type of ID: {{ $ec.ParentID }}</span>
+            {{ else }}
+            <span class="text-[9px] text-accent font-bold uppercase">Main Event Type</span>
+            {{ end }}
+          </div>
+        </td>
+        <td class="uppercase text-[10px] font-bold">{{ $ec.CategoryGroup }}</td>
+        <td>
+          <span class="badge {{ if eq $ec.Status " enabled" }}badge-success{{ else }}badge-error{{ end }} badge-xs
+            text-[9px] uppercase font-bold px-2">
+            {{ $ec.Status }}
+          </span>
+        </td>
+        <td class="flex justify-center gap-2">
+          <button type="button" class="btn btn-square btn-warning btn-xs shadow-sm"
+            @click="openEdit('{{ .ID }}', '{{ $ec.Code }}', '{{ $ec.Name }}', '{{ $ec.CategoryGroup }}', '{{ if $ec.ParentID }}{{ $ec.ParentID }}{{ end }}', '{{ $ec.Status }}')">
+            {{ lucide "pencil" (dict "class" "size-3.5") }}
+          </button>
+
+          <form action="/administration/event-category/delete" method="POST"
+            @submit.prevent="if(confirm('Hapus kategori {{ $ec.Name }}?')) $el.submit()">
+            <input type="hidden" name="id" value="{{ .ID }}" />
+            <button type="submit" class="btn btn-square btn-error btn-xs shadow-sm">
+              {{ lucide "trash-2" (dict "class" "size-3.5") }}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {{ else }}
+      <tr>
+        <td colspan="6" class="text-center py-10 italic text-base-content/40">
+          Data tidak ditemukan.
+        </td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{ template "pagination" . }}
+{{ end }}

@@ -1,0 +1,255 @@
+{{ define "content" }}
+<div class="px-4 w-full" x-data="{
+    isEdit: false,
+    id: '',
+    departmentId: '',
+    contractorId: '',
+    showUpload: false,
+
+    init() {
+        this.checkFlash();
+    },
+
+    checkFlash() {
+        const getCookie = (name) => {
+            let value = `; ${document.cookie}`;
+            let parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        const msg = getCookie('flash_msg');
+        const type = getCookie('flash_type');
+
+        if (msg) {
+            const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+            if (window.showToast) {
+                window.showToast(decodedMsg, type || 'success');
+            }
+            document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+            document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+        }
+    },
+
+    getAction() {
+        return this.isEdit ? '/administration/custodian/update' : '/administration/custodian/store';
+    },
+
+    openCreate() {
+        this.isEdit = false;
+        this.id = '';
+        this.departmentId = '';
+        this.contractorId = '';
+        create_custodian.showModal();
+    },
+
+    openEdit(id, departmentId, contractorId) {
+        this.isEdit = true;
+        this.id = id;
+        this.departmentId = departmentId;
+        this.contractorId = contractorId;
+        create_custodian.showModal();
+    }
+}">
+    <h1 class="text-sm font-bold mb-2 text-base-content uppercase tracking-wider">Daftar Kustodian</h1>
+
+    <div class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-4">
+        <div class="flex space-x-2 w-full sm:w-auto">
+            <button class="btn btn-accent btn-xs px-4" @click="openCreate()">
+                {{ lucide "plus" (dict "class" "size-4") }}
+                <span>Tambah Data</span>
+            </button>
+            <button class="btn btn-warning btn-xs px-4" @click="showUpload = true">
+                {{ lucide "file-up" (dict "class" "size-4") }}
+                <span>Upload Excel</span>
+            </button>
+        </div>
+
+        <div class="w-full sm:w-auto" x-data="{
+            searchQuery: '{{ .Search }}',
+            doSearch() {
+                if (this.searchQuery === '{{ .Search }}') return;
+                window.location.href = '/administration/custodian?page=1&search=' + encodeURIComponent(this.searchQuery);
+            }
+        }">
+            {{ template "input-floating" (dict
+            "Label" "Cari Department / Contractor"
+            "Name" "search"
+            "Placeholder" "Ketik untuk mencari..."
+            "Attr" "x-model='searchQuery' @input.debounce.750ms='doSearch()' x-init='$el.focus()'"
+            ) }}
+        </div>
+    </div>
+
+    <dialog id="create_custodian" class="modal">
+        <div class="modal-box p-0 border border-base-300 shadow-2xl overflow-visible">
+            <form :action="getAction()" method="POST">
+                <div class="card bg-base-100 card-xs shadow-sm">
+                    <div class="card-body">
+                        <h2 class="card-title text-base-content font-semibold mb-3"
+                            x-text="isEdit ? 'Edit Kustodian' : 'Tambah Kustodian'">
+                        </h2>
+
+                        <input type="hidden" name="id" x-model="id">
+
+                        <div class="relative" x-show="!isEdit">
+                            {{ template "select-search" (dict
+                            "Label" "Department"
+                            "Name" "department_id"
+                            "Placeholder" "Cari department..."
+                            "DefaultText" "-- Pilih Department --"
+                            "Options" .Departments
+                            "Value" ""
+                            "Required" true
+                            "Multiple" false
+                            ) }}
+                        </div>
+
+                        <div class="relative mt-3" x-show="!isEdit">
+                            {{ template "select-search" (dict
+                            "Label" "Contractor"
+                            "Name" "contractor_ids[]"
+                            "Placeholder" "Cari contractor..."
+                            "DefaultText" "-- Pilih Contractor --"
+                            "Options" .Contractors
+                            "Value" ""
+                            "Required" true
+                            "Multiple" true
+                            ) }}
+                        </div>
+
+                        <div class="relative" x-show="isEdit">
+                            <fieldset class="fieldset">
+                                <label class="text-xs font-semibold text-base-content">Department</label>
+                                <select name="department_id"
+                                    class="select select-xs w-full focus:outline-none focus:border-info appearance-none"
+                                    x-model="departmentId" :required="isEdit">
+                                    <option value="" disabled>-- Pilih Department --</option>
+                                    {{ range .Departments }}
+                                    <option value="{{ .ID }}">{{ .Name }}</option>
+                                    {{ end }}
+                                </select>
+                            </fieldset>
+                        </div>
+
+                        <div class="relative mt-2" x-show="isEdit">
+                            <fieldset class="fieldset">
+                                <label class="text-xs font-semibold text-base-content">Contractor</label>
+                                <select name="contractor_id_edit"
+                                    class="select select-xs w-full focus:outline-none focus:border-info appearance-none"
+                                    x-model="contractorId" :required="isEdit">
+                                    <option value="" disabled>-- Pilih Contractor --</option>
+                                    {{ range .Contractors }}
+                                    <option value="{{ .ID }}">{{ .Name }}</option>
+                                    {{ end }}
+                                </select>
+                            </fieldset>
+                        </div>
+                    </div>
+
+                    <div class="modal-action p-4 bg-base-200/50 gap-2">
+                        <button type="button" class="btn btn-ghost btn-xs"
+                            @click="create_custodian.close()">Batal</button>
+                        <button type="submit" class="btn btn-primary btn-xs px-6">
+                            {{ lucide "save" (dict "class" "size-4") }} Simpan
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <dialog id="upload_modal" class="modal" :class="{ 'modal-open': showUpload }" x-cloak>
+        <div class="modal-box p-0 border border-base-300 shadow-2xl">
+            <form action="/administration/custodian/upload" method="POST" enctype="multipart/form-data"
+                x-data="{ importing: false }" @submit="importing = true">
+
+                <div class="card bg-base-100 card-xs shadow-sm">
+                    <div class="card-body">
+                        <h2 class="card-title text-base-content font-semibold mb-3">Upload Kustodian</h2>
+
+                        <div class="bg-info/10 p-3 rounded-lg mb-4 border border-info/20">
+                            <p class="text-[10px] leading-relaxed text-info flex gap-2 items-start">
+                                {{ lucide "info" (dict "class" "size-4 shrink-0") }}
+                                <span>Gunakan format <b>.xlsx</b>. <b>Kolom A:</b> Nama Department, <b>Kolom B:</b> Nama
+                                    Contractor.</span>
+                            </p>
+                        </div>
+
+                        <input type="file" name="excel_file" required
+                            class="file-input file-input-bordered file-input-xs file-input-accent w-full focus:outline-hidden" />
+                    </div>
+
+                    <div class="modal-action p-4 bg-base-200/50 gap-2">
+                        <button type="button" class="btn btn-ghost btn-xs" @click="showUpload = false"
+                            :disabled="importing">Batal</button>
+                        <button type="submit" class="btn btn-accent btn-xs px-6"
+                            :class="importing ? 'loading loading-spinner' : ''" :disabled="importing">
+                            <template x-if="!importing">
+                                <span class="flex items-center gap-2">{{ lucide "upload" (dict "class" "size-4") }}
+                                    Mulai Import</span>
+                            </template>
+                            <template x-if="importing"><span>Memproses...</span></template>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop bg-black/40" @click="showUpload = false"><button>close</button>
+        </form>
+    </dialog>
+
+    {{ template "card_scroll" . }}
+
+</div>
+{{ end }}
+
+{{ define "slot" }}
+{{ template "pagination" . }}
+<div class="overflow-x-auto bg-base-100 shadow-lg rounded-lg my-4 border border-base-300">
+    <table class="table table-zebra table-xs">
+        <thead class="bg-base-300/50">
+            <tr>
+                <th class="w-20">NO</th>
+                <th>Department</th>
+                <th>Contractor</th>
+                <th class="text-center w-32">Aksi</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ range $index, $item := .Custodians }}
+            <tr x-data="{ show: false }" x-init="setTimeout(() => show = true, 50)" x-show="show"
+                x-transition:enter="transition ease-out duration-500"
+                x-transition:enter-start="opacity-0 transform -translate-y-2"
+                x-transition:enter-end="opacity-100 transform translate-y-0">
+
+                <td class="opacity-50 font-mono italic">{{ add $index 1 }}</td>
+                <td class="font-medium text-primary">{{ $item.Department.Name }}</td>
+                <td>{{ $item.Contractor.Name }}</td>
+                <td class="flex justify-center gap-2">
+                    <button type="button" class="btn btn-square btn-warning btn-xs shadow-sm"
+                        @click="openEdit('{{ $item.ID }}', '{{ $item.DepartmentID }}', '{{ $item.ContractorID }}')">
+                        {{ lucide "pencil" (dict "class" "size-4") }}
+                    </button>
+
+                    <form action="/administration/custodian/delete" method="POST"
+                        @submit.prevent="if(confirm('Hapus relasi {{ $item.Department.Name }} - {{ $item.Contractor.Name }}?')) $el.submit()">
+                        <input type="hidden" name="id" value="{{ $item.ID }}">
+                        <button type="submit" class="btn btn-square btn-error btn-xs shadow-sm">
+                            {{ lucide "trash-2" (dict "class" "size-4") }}
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {{ else }}
+            <tr>
+                <td colspan="4" class="text-center py-10 italic text-base-content/40">
+                    {{ if .Search }} Data tidak ditemukan untuk "<span class="font-bold">{{ .Search }}</span>" {{ else
+                    }} Belum ada data. {{ end }}
+                </td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</div>
+{{ template "pagination" . }}
+{{ end }}

@@ -1,0 +1,80 @@
+{{ define "ckeditor" }}
+<div class="mt-2" x-data="{ isInvalid: false }">
+
+    {{ if .Label }}
+    <label class="label">
+        <span class="text-xs font-bold text-base-content opacity-60">
+            {{ .Label }}
+
+            {{ if or .Required .RequiredBinding }}
+            <span class="text-error font-bold ml-0.5">*</span>
+            {{ end }}
+
+        </span>
+    </label>
+    {{ end }}
+
+    <div class="border rounded-md overflow-hidden" :class="isInvalid ? 'border-error' : 'border-base-300'">
+
+        <div x-init="
+            (async () => {
+                try {
+
+                    // Tunggu Promise dari window.ClassicEditor selesai (Lazy Load)
+                    const ClassicEditor = await window.ClassicEditor;
+
+                    const editor = await ClassicEditor.create($refs.editor, {
+                        toolbar: [
+                            'heading',
+                            '|',
+                            'bold',
+                            'italic',
+                            'link',
+                            'bulletedList',
+                            'numberedList',
+                            'blockQuote'
+                        ]
+                    });
+
+                    // Set nilai awal dari Go Template
+                   editor.setData(
+                        {{ if .Value }}
+                            '{{ .Value }}'
+                        {{ else }}
+                            {{ .AlpineVar }}
+                        {{ end }}
+                    );
+
+                    // Sinkronisasi data ke textarea agar bisa divalidasi native HTML5
+                    editor.model.document.on('change:data', () => {
+
+                        $refs.editor.value = editor.getData();
+
+                        isInvalid = false;
+
+                        // Trigger event input manual agar Alpine/Browser sadar ada perubahan
+                        $refs.editor.dispatchEvent(
+                            new Event('input')
+                        );
+                    });
+
+                } catch (error) {
+                    console.error('CKEditor Error:', error);
+                }
+            })()
+        ">
+
+            <textarea id="{{ .ID }}" x-ref="editor" name="{{ .Name }}" class="hidden"   {{ .Attr }} {{ if .Required }} required {{ end }} {{ if .RequiredBinding }} x-bind:required="{{ .RequiredBinding }}" {{ end }}
+                @invalid.prevent="isInvalid = true" @input="isInvalid = false"
+                aria-label="{{ .Label }}">{{ .Value }}</textarea>
+
+        </div>
+    </div>
+
+    <div x-show="isInvalid" x-cloak class="text-error text-[9px] font-semibold leading-none mt-1">
+
+        Field {{ .Label }} wajib diisi.
+
+    </div>
+</div>
+{{ end }}

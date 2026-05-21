@@ -1,0 +1,674 @@
+{{ define "content" }}
+
+<div class="px-4 w-full" x-data="{
+    // =========================
+    // BASIC STATE
+    // =========================
+    type_error: false,
+    status: '{{ .Data.Status }}',
+    status_area: '', // default value
+    status_area_error: false,
+    description: '',
+    corrective_action: '',
+
+    dokumentasi_desc: [],
+    dokumentasi_corrective: [],
+
+    // =========================
+    // EVENT DATA
+    // =========================
+    event_category_id: '',
+    event_type_id: '',
+    scat_option_id: '',
+
+    location_id: '{{ .Data.LocationID }}',
+    location_specific: '',
+    event_date: '',
+
+    // =========================
+    // RISK MATRIX
+    // =========================
+    risk_matrix_id: '',
+    consequence_id: '',
+    likelihood_id: '',
+    assessment_id: '',
+
+    matrices: {{ json .Matrices }},
+    consequences: {{ json .Consequences }},
+    likelihoods: {{ json .Likelihoods }},
+    assessments: {{ json .Assessments }},
+
+    isManualMatrixSelect: false,
+
+    // =========================
+    // PIC & WORK TYPE
+    // =========================
+    work_type: 'department',
+    department_id: '',
+    contractor_id: '',
+    pic_id: '',
+    all_pics: [],
+    // =========================
+    // CORRECTIVE ACTION
+    // =========================
+    corrective_action_type: 'department',
+    department_terkait_id: '',
+    contractor_terkait_id: '',
+    pic_terkait_id: '',
+    due_date_lanjutan: '',      // Target perbaikan selesai
+    completion_date_lanjutan: '', // Tanggal benar-benar selesai
+    followup_action: '',
+    all_pics_terkait: [],
+
+    // =========================
+    // DYNAMIC DATA
+    // =========================
+    all_types: [],
+    selected_units: [],
+    filteredPics: [],
+    
+         checkFlash() {
+        const getCookie = (name) => {
+            let value = `; ${document.cookie}`;
+            let parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        const msg = getCookie('flash_msg');
+        const type = getCookie('flash_type');
+
+        if (msg) {
+            // Decode pesan agar spasi dan karakter khusus terbaca benar
+            const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+            
+            // Panggil fungsi global showToast dari app.js
+            if (window.showToast) {
+                window.showToast(decodedMsg, type || 'success');
+            }
+
+            // Hapus cookie agar tidak muncul lagi saat refresh manual
+            document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+            document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+        }
+    },
+
+    // =========================
+    // INIT
+    // =========================
+    init() {
+    this.checkFlash()
+    // =========================
+    // AUTO STATUS
+    // =========================
+    if (this.status_area === 'sementara') {
+        this.status = 'in_progress'
+    }
+
+    this.$watch('status_area', (value) => {
+
+        if (value === 'sementara') {
+        // kembali ke default database 
+        this.status = '{{ .Data.Status }}'
+        } else {
+            
+                this.status = 'closed'
+            
+        }
+    })
+    
+        // Watch matrix dependency
+        this.$watch('consequence_id', () => this.findMatrix())
+        this.$watch('likelihood_id', () => this.findMatrix())
+
+        // Watch work type
+        this.handleWorkTypeChange(this.work_type)
+
+        this.$watch('work_type', (value) => {
+            this.handleWorkTypeChange(value)
+        })
+        // Watch work type
+        this.handleCorrectiveActionType(this.corrective_action_type)
+
+        this.$watch('corrective_action_type', (value) => {
+            this.handleCorrectiveActionType(value)
+        })
+    },
+
+    // =========================
+    // MATRIX LOGIC
+    // =========================
+    findMatrix() {
+        if (!this.consequence_id || !this.likelihood_id) {
+            this.resetMatrix()
+            return
+        }
+
+        const matrix = this.matrices.find((item) =>
+            String(item.risk_consequence_id) === String(this.consequence_id) &&
+            String(item.risk_likelihood_id) === String(this.likelihood_id)
+        )
+
+        this.risk_matrix_id = matrix?.id || ''
+        this.assessment_id = matrix?.risk_assessment_id || ''
+    },
+
+    resetMatrix() {
+        this.risk_matrix_id = ''
+        this.assessment_id = ''
+    },
+
+    openEdit(id, consequenceId, likelihoodId, assessmentId) {
+        this.risk_matrix_id = id
+        this.consequence_id = consequenceId
+        this.likelihood_id = likelihoodId
+        this.assessment_id = assessmentId
+
+        this.$dispatch('field-updated', {
+            field: 'consequence_id'
+        })
+
+        this.$dispatch('field-updated', {
+            field: 'likelihood_id'
+        })
+    },
+
+    // =========================
+    // UI HELPERS
+    // =========================
+    getConsequenceDesc() {
+        const consequence = this.consequences.find((item) =>
+            String(item.ID) === String(this.consequence_id)
+        )
+
+        return consequence ? consequence.description : ''
+    },
+
+    getLikelihoodNotes() {
+        const likelihood = this.likelihoods.find((item) =>
+            String(item.ID) === String(this.likelihood_id)
+        )
+
+        return likelihood ? likelihood.notes : ''
+    },
+
+    getAssessment() {
+        return this.assessments.find((item) =>
+            String(item.ID) === String(this.assessment_id)
+        ) || {}
+    },
+
+    // =========================
+    // WORK TYPE LOGIC
+    // =========================
+    handleWorkTypeChange(value) {
+        if (value === 'department') {
+            this.contractor_id = ''
+            this.syncData('contractor_id', '')
+            return
+        }
+
+        this.department_id = ''
+        this.syncData('department_id', '')
+    },
+    handleCorrectiveActionType(value) {
+        if (value === 'department') {
+            this.contractor_terkait_id = ''
+            this.syncData('contractor_terkait_id', '')
+            return
+        }
+
+        this.department_terkait_id = ''
+        this.syncData('department_terkait_id', '')
+    },
+
+    // =========================
+    // FORM SUBMIT
+    // =========================
+    handleSubmit() {
+
+    // 1. trigger semua input custom (fileDropzone, dll)
+    this.$dispatch('validate-me')
+
+    // 2. kasih waktu Alpine update state
+    setTimeout(() => {
+
+        const form = this.$refs.form
+        if (!form) return
+                // reset error
+        this.status_area_error = false
+
+        // validate status_area
+        if (!this.status_area) {
+            this.status_area_error = true
+
+            const el = this.$refs.statusAreaWrapper
+
+            if (el) {
+                el.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                })
+            }
+
+            return
+        }
+        // 3. native validation HTML
+        if (!form.checkValidity()) {
+
+            const firstInvalid = form.querySelector(':invalid')
+
+            if (firstInvalid) {
+                firstInvalid.focus()
+                firstInvalid.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                })
+            }
+
+            return
+        }
+
+        // 4. prevent double submit
+        if (form.dataset.submitting === 'true') return
+
+        form.dataset.submitting = 'true'
+
+        // 5. optional UX lock (button disable bisa tambah ini)
+        // this.isSubmitting = true
+
+        // 6. submit real form (multipart safe)
+        form.submit()
+
+    }, 50) // 👈 sedikit delay lebih stabil dari 0
+},
+
+    // =========================
+    // BACKEND SYNC
+    // =========================
+    async syncData(name, value) {
+        this[name] = value
+
+        if (name === 'reporter_name') {
+            return
+        }
+
+        const formData = new FormData()
+
+        formData.append('name', name)
+        formData.append('value', value)
+
+        try {
+            const response = await fetch('/hazards/sync', {
+                method: 'POST',
+                body: formData
+            })
+
+            const result = await response.json()
+
+            if (result.status !== 'success') {
+                return
+            }
+
+            // Event Types
+            if (name === 'event_category_id') {
+                this.all_types = result.types || []
+                this.event_type_id = ''
+            }
+
+            // PICs
+            if (
+                name === 'department_id' ||
+                name === 'contractor_id'
+            ) {
+                this.all_pics = result.pics || []
+                this.pic_id = ''
+            }
+            // PICs TERKAIT
+            if (
+                name === 'department_terkait_id' ||
+                name === 'contractor_terkait_id'
+            ) {
+                this.all_pics_terkait = result.pics_terkait || []
+                this.pic_terkait_id = ''
+            }
+
+        } catch (error) {
+            console.error('Sync error:', error)
+        }
+    }
+}">
+    <h1 class=" text-sm font-bold mb-2 text-base-content uppercase tracking-wider">Buat Laporan Hazard</h1>
+    {{ template "card_scroll" . }}
+</div>
+{{ end }}
+{{ define "slot" }}
+<form x-ref="form" action="/hazard/store" method="POST" enctype="multipart/form-data" @submit.prevent="handleSubmit">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-2 ">
+        <div class="relative " @change="syncData('event_category_id', $event.detail)">
+            {{ template "select-search" (dict "Label" "Tipe Bahaya" "Name" "event_category_id" "Options" .EventCategories "Required" true "DefaultText" "-- Pilih Tipe Bahaya --") }}
+        </div>
+        {{ template "select-dynamic" (dict "Label" "Jenis bahaya" "Name" "event_type_id" "Model" "event_type_id" "OptionsArray" "all_types" "ShowCondition" "event_category_id" "DefaultText" "-- Pilih Type --" "Required" true ) }}
+        {{ template "select_input" (dict "Label" "Kategori Bahaya" "Name" "scat_option_id" "ShowType" true "Model" "scat_option_id" "Placeholder" "Pilih Kategory Bahaya" "Options" .ScatOptions "Required" true ) }}
+        <div class="relative my-select-field" @change="location_id = $event.detail">
+            {{ template "select-search" (dict "Label" "Lokasi" "Name" "location_id" "Options" .Locations "Required" true "DefaultText" "-- Pilih Lokasi --" "Attr" "x-model='location_id'" ) }}
+        </div>
+        <div x-show="location_id" x-transition>
+            {{ template "input" (dict "Label" "Lokasi spesifik" "Name" "location_specific" "Placeholder" "Isi Lokasi spesifik..." "Required" true "Attr" "x-model='location_specific'" ) }}
+        </div>
+        <div class="relative ">
+            {{ template "select-user-search" (dict "Label" "Nama Pelapor" "Options" .Users "Value" .AuthUser.ID "SelectedLabel" .AuthUser.Name "DefaultValue" .AuthUser.ID "DefaultText" "-- Pilih atau Ketik Nama --" "Attr" "x-model='reporter_id'" "Required" true ) }}
+        </div>
+        {{ template "input-date" (dict "Label" "Tanggal & Waktu Kejadian" "Type" "datetime-local" "Name" "event_date" "Id" "event_date" "Placeholder" "Pilih Tanggal" "Required" true "Attr" "x-model=event_date" ) }}
+    </div>
+    <fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border px-2">
+        <legend class="fieldset-legend">Penanggung Jawab</legend>
+        <div class="flex flex-col md:flex-row items-center gap-2 ">
+            <fieldset class="w-full">
+                <input id="draft" class="peer/draft" type="radio" value="department" name="work_type"
+                    x-model="work_type" checked />
+                <label for="draft"
+                    class="peer-checked/draft:text-sky-500 text-sm font-semibold text-base-content opacity-60 mb-1 ">Department</label>
+
+                <input id="published" class="peer/published" type="radio" name="work_type" value="contractor"
+                    x-model="work_type" />
+                <label for="published"
+                    class="peer-checked/published:text-sky-500 text-sm font-semibold mb-1 text-base-content opacity-60">Contractor</label>
+
+                <div class="hidden peer-checked/draft:block relative"
+                    @change="syncData('department_id', $event.detail)">
+                    {{ template "select-search" (dict "Label" "" "Name" "department_id" "ModelName" "department_id" "Options" .Departments "DefaultText" "-- Pilih Department --" "Attr" "x-model='department_id' aria-label='Pilih Department'" "RequiredBinding" "work_type === 'department'" ) }}
+                </div>
+
+                <div class="hidden peer-checked/published:block relative"
+                    @change="syncData('contractor_id', $event.detail)">
+                    {{ template "select-search" (dict "Label" "" "Name" "contractor_id" "ModelName" "contractor_id" "Options" .Contractors "DefaultText" "-- Pilih Contractor --" "Attr" "x-model='contractor_id' aria-label='Pilih Kontraktor'" "RequiredBinding" "work_type === 'contractor'" ) }}
+                </div>
+            </fieldset>
+            {{ template "select-dynamic" (dict "Label" "Person In Charge (PIC)" "Name" "pic_id" "Model" "pic_id" "OptionsArray" "all_pics" "ShowCondition" "work_type" "DefaultText" "-- Pilih PIC --" "Required" true) }}
+        </div>
+    </fieldset>
+    {{ template "ckeditor" dict "ID" "hazardDescription" "Label" "Deskripsi Bahaya" "Name" "description" "AlpineVar" "hazardDescription" "Value" "" "Required" true }}
+    {{ template "input-file" (dict "Label" "Upload Dokumen (PNG/PDF, Max 2MB)" "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "Attr" "" ) }}
+
+    {{ template "ckeditor" dict "ID" "hazardCorrective_action" "Label" "Tindakan Perbaikan Langsung" "Name" "corrective_action" "AlpineVar" "hazardCorrective_action" "Value" "" "Required" true }}
+    {{ template "input-file" (dict "Label" "Upload Dokumen (PNG/PDF, Max 2MB)" "Name" "dokumentasi_corrective" "Id" "dokumentasi_corrective" "Required" true "Attr" "" ) }}
+
+
+
+
+    <div class="flex flex-col md:flex-row gap-2 ">
+        <div class="col-span-2 md:grow">
+            {{ template "select_input" (dict "Label" "Consequences" "Name" "consequence_id" "Model" "consequence_id" "Placeholder" "Pilih Consequences" "Class" "max-w-sm" "Options" .Consequences "Required" true ) }}
+            <div x-show="consequence_id" x-transition>
+                <textarea class="textarea textarea-bordered w-full" x-text="getConsequenceDesc()" readonly></textarea>
+            </div>
+            {{ template "select_input" (dict "Label" "Likelihood" "Name" "likelihood_id" "Model" "likelihood_id" "Placeholder" "Pilih Likelihood" "Class" "max-w-sm" "Options" .Likelihoods "Required" true ) }}
+            <div x-show="likelihood_id" x-transition>
+                <textarea class="textarea textarea-bordered w-full" x-text="getLikelihoodNotes()" readonly>
+                    </textarea>
+            </div>
+        </div>
+        <div class="md:flex-none">
+            <div class=" flex flex-col items-center max-w-md ">
+                <table class="border-collapse border border-base-300 text-[10px]">
+                    <caption class="caption-top font-bold text-center bg-base-200 border border-base-300">RISK MATRIX
+                        GRID</caption>
+                    <thead>
+                        <tr>
+                            <th rowspan="2" colspan="2" class="border border-base-300 p-2 bg-base-200 italic">
+                                Likelihood
+                            </th>
+                            <th colspan="5" class="border border-base-300 p-1 bg-base-200">
+                                Consequence
+                            </th>
+                        </tr>
+                        <tr class="bg-base-200 text-center">
+                            {{ range $c := $.Consequences }}
+                            <th class="border border-base-300 p-1 w-24">{{ $c.Name }}</th>
+
+                            {{ end }}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{ range $l := .Likelihoods }}
+                        <tr>
+                            <td class="border border-base-300 bg-base-200 p-2 font-bold ">
+                                {{ $l.Sequence }}
+                            </td>
+                            <td class="border border-base-300 bg-base-200 p-2 font-medium w-full max-w-xs">
+                                {{ $l.Name }}
+                            </td>
+                            {{ range $c := $.Consequences }}
+                            {{ $mID := getMatrixID $.Matrices $c.ID $l.ID }}
+                            {{ $aID := getMatrixAssessmentID $.Matrices $c.ID $l.ID }}
+                            <td class="border border-base-300 text-center font-bold text-base-content uppercase shadow-inner cursor-pointer hover:opacity-80 hover:scale-[1.02] transition-all"
+                                :class="risk_matrix_id == '{{ $mID }}' ? 'ring-2 ring-black ring-inset scale-105 z-10 '  : ''"
+                                style="background-color: {{ getMatrixColor $.Matrices $c.ID $l.ID }};"
+                                @click="if('{{ $mID }}' !== '0') { openEdit('{{ $mID }}', '{{ $c.ID }}', '{{ $l.ID }}', '{{ $aID }}')   }">
+                                {{ firstChar (getMatrixName $.Matrices $c.ID $l.ID) }}
+                                <input type="hidden" name="risk_matrix_id" x-model="risk_matrix_id">
+                            </td>
+                            {{ end }}
+                        </tr>
+                        {{ end }}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="assessment_id" x-transition class="my-3 overflow-x-auto">
+
+        <table class="table table-xs table-zebra w-full border border-base-300 rounded-box">
+            <tbody>
+
+                <tr>
+                    <td class="font-semibold w-40">Assessment</td>
+                    <td>
+                        <span class="font-bold" x-text="getAssessment().name || '-'"></span>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="font-semibold">Notes</td>
+                    <td>
+                        <div class="whitespace-pre-line text-sm" x-text="getAssessment().notes || '-'"></div>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="font-semibold">Investigation Required</td>
+                    <td>
+                        <div class="whitespace-pre-line text-sm" x-text="getAssessment().investigation_reqd || '-'">
+                        </div>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="font-semibold">Reporting Obligation</td>
+                    <td>
+                        <span x-text="getAssessment().reporting_obligation || '-'"></span>
+                    </td>
+                </tr>
+
+            </tbody>
+        </table>
+
+    </div>
+
+    <!-- Bagian Status Area (DaisyUI + Alpine.js) -->
+<div class="mt-4 p-4 bg-base-100 rounded-xl border border-base-300">
+    <h2 class="text-sm font-bold mb-3 flex items-center gap-2">
+        <span class="bg-primary/10 p-1 rounded-lg">
+            {{ lucide "activity" (dict "class" "size-4 text-primary") }}
+        </span>
+        Status Area Saat Ini?
+    </h2>
+
+    <!-- WRAPPER VALIDATION -->
+    <div x-ref="statusAreaWrapper" class="space-y-2">
+
+        <!-- RADIO GROUP -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 p-2 rounded-xl transition-all duration-200"
+            :class="status_area_error
+                ? 'border-2 border-error bg-error/5'
+                : 'border border-transparent'">
+
+            <!-- Opsi 1: Aman Total -->
+            <label
+                class="flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all duration-200"
+                :class="status_area === 'aman'
+                    ? 'bg-success/10 border-success shadow-sm'
+                    : 'bg-base-200 border-transparent'">
+
+                <div class="flex items-center gap-3">
+                    <span class="text-xl">✅</span>
+
+                    <div>
+                        <p class="font-bold text-sm"
+                            :class="status_area === 'aman' ? 'text-success' : ''">
+                            Sudah Aman Total
+                        </p>
+
+                        <p class="text-[10px] opacity-60 italic">
+                            Masalah selesai di tempat
+                        </p>
+                    </div>
+                </div>
+
+                <input
+                    type="radio"
+                    name="status_area"
+                    value="aman"
+                    x-model="status_area"
+                    @change="status_area_error = false"
+                    class="radio radio-success radio-sm"
+                />
+            </label>
+
+            <!-- Opsi 2: Aman Sementara -->
+            <label
+                class="flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all duration-200"
+                :class="status_area === 'sementara'
+                    ? 'bg-warning/10 border-warning shadow-sm'
+                    : 'bg-base-200 border-transparent'">
+
+                <div class="flex items-center gap-3">
+                    <span class="text-xl">⚠️</span>
+
+                    <div>
+                        <p class="font-bold text-sm"
+                            :class="status_area === 'sementara' ? 'text-warning' : ''">
+                            Aman Sementara
+                        </p>
+
+                        <p class="text-[10px] opacity-60 italic">
+                            Perlu perbaikan lebih lanjut
+                        </p>
+                    </div>
+                </div>
+
+                <input
+                    type="radio"
+                    name="status_area"
+                    value="sementara"
+                    x-model="status_area"
+                    @change="status_area_error = false"
+                    class="radio radio-warning radio-sm"
+                />
+            </label>
+        </div>
+
+        <!-- ERROR MESSAGE -->
+        <p
+            x-show="status_area_error"
+            x-transition
+            class="text-error text-xs font-semibold"
+        >
+            Silakan pilih status area terlebih dahulu
+        </p>
+    </div>
+
+    <!-- Field Lanjutan -->
+    <div x-show="status_area === 'sementara'"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 transform -translate-y-2"
+        x-transition:enter-end="opacity-100 transform translate-y-0"
+        class="mt-4 space-y-3 pt-3 border-t border-dashed border-base-300">
+        
+        {{ template "ckeditor" dict "ID" "followup_action" "Label" "Detail Perbaikan Lanjutan" "Name" "followup_action" "AlpineVar" "followup_action" "Value" "" "RequiredBinding" "status_area === 'sementara'" }}
+
+        <fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border px-2">
+            <legend class="fieldset-legend">
+                Target Departemen/Kontraktor Terkait:
+            </legend>
+
+            <div class="flex flex-col md:flex-row items-center gap-2 ">
+
+                <fieldset class="w-full">
+
+                    <input
+                        id="draft"
+                        class="peer/draft"
+                        type="radio"
+                        value="department"
+                        name="corrective_action_type"
+                        x-model="corrective_action_type"
+                        checked
+                    />
+
+                    <label
+                        for="draft"
+                        class="peer-checked/draft:text-sky-500 text-sm font-semibold text-base-content opacity-60 mb-1 ">
+                        Department
+                    </label>
+
+                    <input
+                        id="published"
+                        class="peer/published"
+                        type="radio"
+                        name="corrective_action_type"
+                        value="contractor"
+                        x-model="corrective_action_type"
+                    />
+
+                    <label
+                        for="published"
+                        class="peer-checked/published:text-sky-500 text-sm font-semibold mb-1 text-base-content opacity-60">
+                        Contractor
+                    </label>
+
+                    <div
+                        class="hidden peer-checked/draft:block relative"
+                        @change="syncData('department_terkait_id', $event.detail)">
+
+                        {{ template "select-search" (dict "Label" "" "Name" "department_terkait_id" "ModelName" "department_terkait_id" "Options" .Departments "DefaultText" "-- Pilih Department --" "Attr" "x-model='department_terkait_id' aria-label='Pilih Department'" "RequiredBinding" "status_area === 'sementara' && corrective_action_type === 'department'" ) }}
+                    </div>
+
+                    <div
+                        class="hidden peer-checked/published:block relative"
+                        @change="syncData('contractor_terkait_id', $event.detail)">
+
+                        {{ template "select-search" (dict "Label" "" "Name" "contractor_terkait_id" "ModelName" "contractor_terkait_id" "Options" .Contractors "DefaultText" "-- Pilih Contractor --" "Attr" "x-model='contractor_terkait_id' aria-label='Pilih Kontraktor'" "RequiredBinding" "status_area === 'sementara' && corrective_action_type === 'contractor'" ) }}
+                    </div>
+
+                </fieldset>
+
+                {{ template "select-dynamic" (dict "Label" "Person In Charge (PIC)" "Name" "pic_terkait_id" "Model" "pic_terkait_id" "OptionsArray" "all_pics_terkait" "ShowCondition" "status_area === 'sementara'" "DefaultText" "-- Pilih PIC --" "RequiredBinding" "status_area === 'sementara'" ) }}
+
+                {{ template "input-date" ( dict "Label" "Due Date (Target Selesai)" "Type" "date" "Name" "due_date_lanjutan" "Id" "due_date_lanjutan" "Placeholder" "Pilih Tanggal" "RequiredBinding" "status_area === 'sementara'" "Attr" "x-model=due_date_lanjutan" ) }}
+
+                {{ template "input-date" (dict "Label" "Completed On (Selesai Pada)" "Type" "date" "Name" "completion_date_lanjutan" "Id" "completion_date_lanjutan" "Placeholder" "Pilih Tanggal" "Attr" "x-model=completion_date_lanjutan" ) }}
+
+            </div>
+        </fieldset>
+    </div>
+</div>
+
+    <div class="justify-self-end w-full max-w-md">
+        <button type="submit" class="btn btn-primary btn-sm px-6 mt-4 btn-block">
+            {{ lucide "save" (dict "class" "size-4") }} Simpan
+        </button>
+    </div>
+</form>
+{{ end }}

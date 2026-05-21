@@ -1,0 +1,41 @@
+{{ define "pagination" }}
+<div class="flex flex-col sm:flex-row justify-between items-center gap-4 my-4 px-4" x-data="{ loading: false }">
+    <div class="text-xs text-base-content/60 italic">
+        Menampilkan halaman {{ .CurrentPage }} dari {{ .TotalPages }}
+    </div>
+
+    <div class="join   ">
+        {{ if .HasPrev }}
+        <a href="?page={{ sub .CurrentPage 1 }}&search={{ .Search }}" 
+           class="join-item btn btn-xs px-2" 
+           @click="loading = true">«</a>
+        {{ else }}
+        <button class="join-item btn btn-xs btn-disabled px-2">«</button>
+        {{ end }}
+
+        {{ range $p := iterate 1 .TotalPages }}
+            {{ if or (eq $p 1) (eq $p $.TotalPages) (and (ge $p (sub $.CurrentPage 2)) (le $p (add $.CurrentPage 2))) }}
+                <a href="?page={{ $p }}&search={{ $.Search }}" 
+                   class="join-item btn btn-xs px-3 {{ if eq $p $.CurrentPage }}btn-accent text-white{{ end }}"
+                   @click="loading = true">
+                    {{ $p }}
+                </a>
+            {{ else if or (eq $p (sub $.CurrentPage 3)) (eq $p (add $.CurrentPage 3)) }}
+                <button class="join-item btn btn-xs btn-disabled px-2">...</button>
+            {{ end }}
+        {{ end }}
+
+        {{ if .HasNext }}
+        <a href="?page={{ add .CurrentPage 1 }}&search={{ .Search }}" 
+           class="join-item btn btn-xs px-2" 
+           @click="loading = true">»</a>
+        {{ else }}
+        <button class="join-item btn btn-xs btn-disabled px-2">»</button>
+        {{ end }}
+    </div>
+
+    <div x-show="loading" x-transition.opacity class="fixed inset-0 bg-base-100/40 backdrop-blur-[2px] flex items-center justify-center z-50">
+        <span class="loading loading-spinner loading-md text-primary"></span>
+    </div>
+</div>
+{{ end }}

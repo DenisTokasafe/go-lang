@@ -1,0 +1,12 @@
+{{- define "btn-action" -}}
+<button 
+    type="{{ if .Type }}{{ .Type }}{{ else }}button{{ end }}" 
+    class="btn {{ if .Class }}{{ .Class }}{{ else }}btn-primary{{ end }} btn-xs flex items-center gap-1"
+    {{ if .OnClick }}onclick="{{ .OnClick }}"{{ end }} 
+>
+    {{ if .Icon }}
+        {{ lucide .Icon (dict "class" "size-4") }}
+    {{ end }}
+    <span>{{ .Label }}</span>
+</button>
+{{ end }}

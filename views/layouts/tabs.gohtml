@@ -1,0 +1,59 @@
+{{ define "tabs" }}
+
+<div class="tabs tabs-lift">
+{{ if hasPrefix .CurrentPath "/administration/department-group" }}
+    <a href="/administration/department-group" class="tab border-primary  {{ if eq .CurrentPath "/administration/department-group"}}tab-active text-primary-content font-semibold [--tab-bg:var(--color-primary)] 
+                [--tab-border-color:var(--color-primary)] 
+                /* Menggunakan Primary Content agar teks tetap terbaca jelas */
+                [--tab-color:var(--color-primary-content)]
+                text-[var(--tab-color)] {{end}}">Department Group</a>
+    <a href="/administration/department-group/group" class="tab border-primary {{ if eq .CurrentPath "/administration/department-group/group"}}tab-active text-primary-content font-semibold [--tab-bg:var(--color-primary)] 
+                [--tab-border-color:var(--color-primary)] 
+                /* Menggunakan Primary Content agar teks tetap terbaca jelas */
+                [--tab-color:var(--color-primary-content)]
+                text-[var(--tab-color)]  {{end}}"> Group</a>
+
+                {{end}}
+{{ if hasPrefix .CurrentPath "/administration/risk" }}
+    <a href="/administration/risk/matrix" class="tab border-primary  {{ if eq .CurrentPath "/administration/risk/matrix"}}tab-active text-primary-content font-semibold [--tab-bg:var(--color-primary)] 
+                [--tab-border-color:var(--color-primary)] 
+                /* Menggunakan Primary Content agar teks tetap terbaca jelas */
+                [--tab-color:var(--color-primary-content)]
+                text-[var(--tab-color)] {{end}}">Risk Matrix</a>
+    <a href="/administration/risk/assessment" class="tab border-primary  {{ if eq .CurrentPath "/administration/risk/assessment"}}tab-active text-primary-content font-semibold [--tab-bg:var(--color-primary)] 
+                [--tab-border-color:var(--color-primary)] 
+                /* Menggunakan Primary Content agar teks tetap terbaca jelas */
+                [--tab-color:var(--color-primary-content)]
+                text-[var(--tab-color)] {{end}}">Risk Assessment</a>
+    <a href="/administration/risk/consequence" class="tab border-primary {{ if eq .CurrentPath "/administration/risk/consequence"}}tab-active text-primary-content font-semibold [--tab-bg:var(--color-primary)] 
+                [--tab-border-color:var(--color-primary)] 
+                /* Menggunakan Primary Content agar teks tetap terbaca jelas */
+                [--tab-color:var(--color-primary-content)]
+                text-[var(--tab-color)]  {{end}}"> Risk Consequence</a>
+    <a href="/administration/risk/likelihood" class="tab border-primary {{ if eq .CurrentPath "/administration/risk/likelihood"}}tab-active text-primary-content font-semibold [--tab-bg:var(--color-primary)] 
+                [--tab-border-color:var(--color-primary)] 
+                /* Menggunakan Primary Content agar teks tetap terbaca jelas */
+                [--tab-color:var(--color-primary-content)]
+                text-[var(--tab-color)]  {{end}}"> Risk Likelihood</a>
+
+                {{end}}
+    <div class="tab-content border-primary bg-base-100 p-4 block w-full">
+        <div class="z-30 flex items-start max-md:flex-col">
+    <div class="self-stretch flex-1 max-md:pt-2">
+        <div class="flex w-full flex-1 flex-col gap-4 inset-shadow-sm h-full 
+                    max-h-[calc(100vh-16rem)] sm:max-h-[calc(100vh-16rem)] 
+                    md:max-h-[calc(100vh-14rem)] lg:max-h-[calc(100vh-14rem)] 
+                    2xl:max-h-[calc(100vh-14rem)] relative">
+            <div class="flex-1 h-full p-4 overflow-x-hidden overflow-y-auto  
+                        bg-base-100">
+                <div class="w-full max-w-full">
+                    {{ template "tab" . }}
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+    </div>
+</div>
+{{ end }}

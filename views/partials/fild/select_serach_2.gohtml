@@ -1,0 +1,12 @@
+{{ define "select_input_2" }}
+<select
+    name="{{ .Name }}"
+    x-model="{{ .Model }}"
+    {{ if .Attr }}{{ .Attr | htmlattr }}{{ end }}
+    class="select select-bordered select-xs w-full focus:outline-none focus:border-info leading-normal focus:ring-info appearance-none {{ .Class }}">
+    <option value="">-- {{ .Placeholder }} --</option>
+    {{ range .Options }}
+    <option value="{{ .ID }}">{{ .Name }}</option>
+    {{ end }}
+</select>
+{{ end }}

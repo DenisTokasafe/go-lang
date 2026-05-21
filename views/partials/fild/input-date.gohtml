@@ -1,0 +1,136 @@
+{{ define "input-date" }}
+<fieldset
+    class="fieldset"
+
+    x-data="{
+        value: '{{ .Value }}',
+        isInvalid: false,
+        errorMsg: '',
+
+        isFuture(val) {
+            if (!val) return false;
+
+            const inputDate = new Date(val);
+            const now = new Date();
+
+            return inputDate > now;
+        },
+
+        validate() {
+
+            // REQUIRED
+            const isRequired =
+                {{ if .Required }}
+                    true
+                {{ else if .RequiredBinding }}
+                    {{ .RequiredBinding }}
+                {{ else }}
+                    false
+                {{ end }};
+
+            if (
+                isRequired &&
+                (!this.value || this.value.trim() === '')
+            ) {
+                this.isInvalid = true;
+                this.errorMsg = '{{ .Label }} wajib diisi.';
+                return false;
+            }
+
+            // FUTURE CHECK
+            if (this.value && this.isFuture(this.value)) {
+                this.isInvalid = true;
+                this.errorMsg = 'Tanggal tidak boleh melebihi waktu sekarang.';
+                return false;
+            }
+
+            this.isInvalid = false;
+            this.errorMsg = '';
+
+            return true;
+        },
+
+        init() {
+
+            // ✅ SYNC KE X-MODEL LUAR
+            this.$watch('value', val => {
+
+                this.$dispatch('input', val);
+                this.$dispatch('change', val);
+
+            });
+
+            {{ if .RequiredBinding }}
+            this.$watch(
+                () => {{ .RequiredBinding }},
+                (val) => {
+                    if (!val) {
+                        this.isInvalid = false;
+                        this.errorMsg = '';
+                    }
+                }
+            );
+            {{ end }}
+        }
+    }"
+
+    @validate-me="validate()"
+
+    {{ .Attr | htmlattr }}>
+
+    {{ if .Label }}
+    <label class="label">
+        <span class="text-xs font-bold text-base-content opacity-60">
+
+            {{ .Label }}
+
+            {{ if or .Required .RequiredBinding }}
+            <span class="text-error font-bold ml-0.5">*</span>
+            {{ end }}
+
+        </span>
+    </label>
+    {{ end }}
+
+    <div class="relative w-full">
+
+        <input
+            type="{{ .Type }}"
+            name="{{ .Name }}"
+            id="{{ .Id }}"
+
+            x-model="value"
+
+            placeholder="{{ .Placeholder }}"
+
+            @click="$el.showPicker()"
+            @change="validate()"
+            @input="validate()"
+            @invalid.prevent="validate()"
+
+            :class="isInvalid
+                ? 'border-error'
+                : 'focus:input-info'"
+
+            class="input input-xs w-full focus:outline-none focus:border-info leading-normal focus:ring-info appearance-none"
+
+            {{ if .Required }}
+            required
+            {{ end }}
+
+            {{ if .RequiredBinding }}
+            x-bind:required="{{ .RequiredBinding }}"
+            {{ end }}
+        />
+
+    </div>
+
+    <!-- ERROR MESSAGE -->
+    <div x-show="isInvalid && errorMsg" x-cloak>
+        <p
+            class="text-error text-[9px] font-semibold leading-none"
+            x-text="errorMsg">
+        </p>
+    </div>
+</fieldset>
+{{ end }}

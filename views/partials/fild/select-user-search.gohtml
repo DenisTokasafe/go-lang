@@ -1,0 +1,230 @@
+{{ define "select-user-search" }}
+<fieldset class="w-full fieldset relative"
+    x-data="{
+        open: false,
+        isInvalid: false,
+        errorMsg: '', // ✅ TAMBAHAN
+        required: {{ if .Required }}true{{ else }}false{{ end }},
+        q: '',
+        highlightedIndex: -1,
+        multiple: {{ if .Multiple }}true{{ else }}false{{ end }},
+        selected: {{ if .Multiple }}[]{{ else }}'{{ .Value }}'{{ end }},
+        selectedLabelFallback: '{{ .SelectedLabel }}',
+
+        options: [
+            {{- range $i, $opt := .Options -}}
+                {{- if $i }},{{ end -}}
+                { id: '{{ $opt.ID }}', label: '{{ js $opt.Name }}' }
+            {{- end -}}
+        ],
+
+        isManual(val) {
+            return val && String(val).startsWith('manual:')
+        },
+
+        // ✅ VALIDASI UTAMA
+        validate() {
+            if (!this.required) return true;
+
+            if (this.multiple) {
+                if (!this.selected.length) {
+                    this.isInvalid = true;
+                    this.errorMsg = 'Field ini wajib diisi.';
+                    return false;
+                }
+            } else {
+                if (!this.selected) {
+                    this.isInvalid = true;
+                    this.errorMsg = 'Field ini wajib diisi.';
+                    return false;
+                }
+            }
+
+            this.isInvalid = false;
+            this.errorMsg = '';
+            return true;
+        },
+        
+        addManual() {
+    const val = this.q.trim();
+    if (!val) return;
+
+    // ✅ cek apakah sudah ada di options (case insensitive)
+    const existing = this.options.find(o => 
+        o.label.toLowerCase() === val.toLowerCase()
+    );
+
+    if (existing) {
+        this.choose(existing);
+        this.close();
+        return;
+    }
+
+    const manualId = 'manual:' + val;
+
+    this.options.push({ id: manualId, label: val });
+
+    this.choose({ id: manualId, label: val });
+    this.close();
+},
+
+        init() {
+            {{ if .Multiple }}
+                {{ if .Values }}
+                this.selected = [
+                    {{- range $i, $v := .Values -}}
+                        {{- if $i }},{{ end -}}'{{ $v }}'
+                    {{- end -}}
+                ];
+                {{ end }}
+            {{ end }}
+
+            const defaultValue = '{{ .DefaultValue }}';
+            
+            if (defaultValue !== '' && (this.selected === '' || this.selected === null || this.selected === 'undefined')) {
+                this.selected = defaultValue;
+            }
+
+            // ✅ WATCH PERUBAHAN
+            this.$watch('selected', value => {
+                this.validate(); // 🔥 auto validasi
+                this.$dispatch('change', value);
+                this.$dispatch('input', value);
+            });
+        },
+
+        filtered() {
+            if (!this.q) return this.options;
+            return this.options.filter(o => o.label.toLowerCase().includes(this.q.toLowerCase()));
+        },
+
+        isSelected(id) {
+            if (this.multiple) return this.selected.includes(String(id));
+            return String(this.selected) === String(id);
+        },
+
+        selectedLabel() {
+            if (this.multiple) {
+                if (!this.selected.length) return '{{ .DefaultText }}';
+                const picked = this.options.filter(o => this.selected.includes(String(o.id)));
+                const labels = picked.map(o => o.label);
+                return labels.slice(0, 2).join(', ') + (labels.length > 2 ? ` +${labels.length - 2}` : '');
+            }
+
+            const f = this.options.find(o => String(o.id) === String(this.selected));
+
+            if (f) return f.label;
+
+            if (this.selected && !this.isManual(this.selected)) {
+                return this.selectedLabelFallback || this.selected;
+            }
+
+            return this.selected ? this.selected.replace('manual:', '') : '{{ .DefaultText }}';
+        },
+
+        choose(opt) {
+            const id = String(opt.id);
+
+            if (this.multiple) {
+                if (this.selected.includes(id)) {
+                    this.selected = this.selected.filter(x => x !== id);
+                } else {
+                    this.selected.push(id);
+                }
+            } else {
+                this.selected = id;
+                this.close();
+            }
+
+            this.isInvalid = false;
+            this.errorMsg = ''; // ✅ reset error
+        },
+
+        toggle() {
+            this.open = !this.open;
+            if (this.open) {
+                this.highlightedIndex = this.filtered().length ? 0 : -1;
+                this.$nextTick(() => this.$refs.searchInput?.focus());
+            }
+        },
+
+        close() {
+            this.open = false;
+            this.q = '';
+            this.highlightedIndex = -1;
+        }
+    }"
+
+    {{ .Attr }}
+
+    @validate-me="validate()"
+    @keydown.escape.window="close()">
+
+    {{ if .Label }} <label class="label"> <span class="text-xs font-bold text-base-content opacity-60">{{ .Label }}{{ if .Required }}<span class="text-error font-bold ml-0.5">*</span>{{ end }}</span></label>{{ end }}
+
+    <!-- hidden validation trigger -->
+    <input type="text"
+        class="absolute opacity-0 pointer-events-none"
+        tabindex="-1"
+        :value="multiple ? (selected.length ? 'valid' : '') : selected">
+
+    <!-- DATA KE BACKEND -->
+    {{ if not .Multiple }}
+    <input type="hidden" name="report_by_id"
+        :value="selected && !isManual(selected) ? selected : ''">
+
+    <input type="hidden" name="reporter_manual"
+        :value="selected && isManual(selected) ? selected.replace('manual:', '') : ''">
+    {{ end }}
+
+    <button type="button"
+        class="btn btn-block btn-xs border bg-base-100 btn-ghost flex items-center justify-between w-full"
+        :class="isInvalid ? 'border border-error text-error' : 'border border-base-300 focus:border-info'"
+        @click="toggle()">
+        <span class="truncate" x-text="selectedLabel()"></span>
+        <span class="text-xs opacity-60">▾</span>
+    </button>
+
+    <!-- ✅ ERROR MESSAGE FIX -->
+    <div x-show="isInvalid && errorMsg" x-cloak>
+        <p class="text-error text-[9px] font-semibold" x-text="errorMsg"></p>
+    </div>
+
+    <div x-show="open" x-transition @click.outside="close()"
+        class="absolute left-0 right-0 top-full z-[100] rounded-md border bg-base-100 shadow-xl overflow-hidden">
+
+        <div class="p-2 border-b">
+            <input x-ref="searchInput" x-model="q"
+                @keydown.enter.prevent="highlightedIndex >= 0 ? choose(filtered()[highlightedIndex]) : addManual()"
+                @keydown.arrow-down.prevent="highlightedIndex = (highlightedIndex + 1) % filtered().length"
+                @keydown.arrow-up.prevent="highlightedIndex = (highlightedIndex <= 0) ? filtered().length - 1 : highlightedIndex - 1"
+                type="text"
+                placeholder="Cari atau ketik nama baru..."
+                class="w-full rounded-md border px-2 py-1 text-sm" />
+        </div>
+
+        <ul class="max-h-52 overflow-auto py-1">
+            <template x-for="(opt, i) in filtered()" :key="opt.id">
+                <li>
+                    <button type="button"
+                        class="w-full px-3 py-1.5 text-left text-sm hover:bg-base-200 flex justify-between"
+                        :class="{ 'bg-primary/10 text-primary font-medium': isSelected(opt.id), 'bg-base-200': highlightedIndex === i }"
+                        @mouseenter="highlightedIndex = i"
+                        @click="choose(opt)">
+                        <span x-text="opt.label"></span>
+                        <span x-show="isSelected(opt.id)" class="text-xs">✓</span>
+                    </button>
+                </li>
+            </template>
+
+            <li x-show="q.trim().length > 0 && filtered().length === 0" class="p-2">
+                <button type="button" @click="addManual()"
+                    class="btn btn-primary btn-xs btn-block flex gap-2">
+                    <span class="text-[10px]">+ TAMBAH:</span>
+                    <span class="font-bold truncate max-w-[150px]" x-text="q"></span>
+                </button>
+            </li>
+        </ul>
+    </div>
+</fieldset>
+{{ end }}

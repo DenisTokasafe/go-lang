@@ -1,0 +1,71 @@
+{{define "navbar"}}
+<nav class="navbar w-full bg-base-300 min-h-fit py-1 px-2 flex justify-between items-center">
+  <div class="flex items-center gap-2">
+    <label for="my-drawer-4" class="btn btn-square btn-ghost btn-sm swap swap-rotate">
+      {{ lucide "panel-left-close" (dict "class" "size-4 swap-off") }} {{ lucide
+      "panel-left-open" (dict "class" "size-4 swap-on") }}
+    </label>
+
+  </div>
+  <div class="flex-none gap-2">
+    <div class="dropdown dropdown-end">
+      <div tabindex="0" role="button" class="btn btn-ghost btn-sm flex items-center gap-2 font-medium normal-case">
+        <div class="flex flex-col items-end leading-none  sm:flex">
+          <span class="text-[10px] opacity-50 uppercase tracking-tighter">
+            {{ if .AuthUser.Role.Name }} {{ .AuthUser.Role.Name }} {{ else }}
+            Guest {{ end }}
+          </span>
+
+          <span class="text-xs font-bold text-primary">
+            {{ if .AuthUser.Name }}{{ .AuthUser.Name }}{{ else }}Guest{{ end }}
+          </span>
+        </div>
+
+        <div class="avatar placeholder">
+          <div class="bg-primary text-primary-content rounded-md size-7 flex items-center justify-center">
+            <span class="text-xs uppercase font-bold">
+              {{ if .AuthUser.Username }} {{ slice .AuthUser.Username 0 1 }} {{
+              else }} G {{ end }}
+            </span>
+          </div>
+        </div>
+      </div>
+      <ul tabindex="0"
+        class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow-xl border border-base-300 mt-2">
+        <li>
+          <a href="/profile" class="flex items-center gap-2 py-2 text-xs">
+            {{ lucide "settings" (dict "class" "size-4") }} Pengaturan Akun
+          </a>
+        </li>
+        <div class="divider my-0 opacity-50"></div>
+        <li>
+          <a href="/logout" class="flex items-center gap-2 py-2 text-xs text-error hover:bg-error/10">
+            {{ lucide "log-out" (dict "class" "size-4") }} Keluar Sistem
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const drawerCheckbox=document.getElementById("my-drawer-4");
+    const swapLabel=document.querySelector('label[for="my-drawer-4"]');
+
+    if (drawerCheckbox&&swapLabel) {
+      drawerCheckbox.addEventListener("change", () => {
+        if (drawerCheckbox.checked) {
+          swapLabel.classList.add("swap-active");
+        } else {
+          swapLabel.classList.remove("swap-active");
+        }
+      });
+
+      // Menyesuaikan state awal berdasarkan kondisi checkbox saat ini
+      if (drawerCheckbox.checked||window.innerWidth>=1024) {
+        swapLabel.classList.add("swap-active");
+      }
+    }
+  });
+</script>
+{{end}}

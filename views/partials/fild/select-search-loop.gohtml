@@ -1,0 +1,355 @@
+{{ define "select-search-loop" }}
+
+<fieldset class="w-full fieldset relative" x-data="{
+        open: false,
+        q: '',
+        highlightedIndex: -1,
+
+        multiple: {{ if .Multiple }}true{{ else }}false{{ end }},
+
+        selected: {{ if .Multiple }}
+            []
+        {{ else }}
+            '{{ .Value }}' || ''
+        {{ end }},
+
+        isInvalid: false,
+
+        required: {{ if .Required }}true{{ else }}false{{ end }},
+
+        options: [
+            {{- range $i, $opt := .Options -}}
+                {{- if $i }},{{ end -}}
+                {
+                    id: '{{ $opt.ID }}',
+                    label: '{{ js $opt.Name }}'
+                }
+            {{- end -}}
+        ],
+
+        // =========================
+        // INIT
+        // =========================
+        init() {
+
+            // =========================
+            // SINGLE SELECT
+            // =========================
+
+            {{ if .AlpineVar }}
+
+            this.selected = String(
+                {{ .AlpineVar }} || '{{ .Value }}' || ''
+            )
+
+            this.$watch(
+                () => {{ .AlpineVar }},
+                (value) => {
+                    this.selected = String(value || '')
+                }
+            )
+
+            {{ else if .ModelName }}
+
+            this.selected = String(
+                this.$root.{{ .ModelName }} || '{{ .Value }}' || ''
+            )
+
+            this.$watch(
+                '$root.{{ .ModelName }}',
+                (value) => {
+                    this.selected = String(value || '')
+                }
+            )
+
+            {{ end }}
+
+            // =========================
+            // MULTIPLE SELECT
+            // =========================
+            {{ if .Multiple }}
+
+            {{ if .Values }}
+
+            this.selected = [
+                {{- range $i, $v := .Values -}}
+                    {{- if $i }},{{ end -}}
+                    '{{ $v }}'
+                {{- end -}}
+            ]
+
+            {{ end }}
+
+            {{ end }}
+
+            // Watcher Open state untuk kalkulasi posisi
+            this.$watch('open', value => {
+                if (value) {
+                    this.$nextTick(() => this.reposition());
+                }
+            });
+        },
+
+        // ====================================================================
+        // REPOSITION WITH AUTO-FLIP
+        // ====================================================================
+        reposition() {
+            const button = this.$refs.triggerButton;
+            const popover = this.$refs.dropdownPopover;
+            if (!button || !popover) return;
+
+            const rect = button.getBoundingClientRect();
+            const popoverHeight = 220; 
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const margin = 10;
+
+            if (spaceBelow < popoverHeight + margin && rect.top > popoverHeight + margin) {
+                // Dropdown Terbuka ke ATAS
+                popover.style.top = `${rect.top + window.scrollY - popoverHeight - 4}px`;
+            } else {
+                // Dropdown Terbuka ke BAWAH (Normal)
+                popover.style.top = `${rect.bottom + window.scrollY + 4}px`;
+            }
+
+            popover.style.left = `${rect.left + window.scrollX}px`;
+            popover.style.width = `${rect.width}px`;
+        },
+
+        // =========================
+        // FILTERED OPTIONS
+        // =========================
+        filtered() {
+            if (!this.q) {
+                return this.options;
+            }
+            return this.options.filter(o =>
+                o.label.toLowerCase().includes(this.q.toLowerCase())
+            );
+        },
+
+        // =========================
+        // CHECK SELECTED
+        // =========================
+        isSelected(id) {
+            if (this.multiple) {
+                return this.selected.includes(String(id));
+            }
+            return String(this.selected) === String(id);
+        },
+
+        // =========================
+        // LABEL
+        // =========================
+        selectedLabel() {
+            if (this.multiple) {
+                if (!this.selected.length) {
+                    return '{{ .DefaultText }}';
+                }
+                const picked = this.options.filter(o =>
+                    this.selected.includes(String(o.id))
+                );
+                if (!picked.length) {
+                    return '{{ .DefaultText }}';
+                }
+                const labels = picked.map(o => o.label);
+                return labels.slice(0, 2).join(', ') +
+                    (labels.length > 2 ? ` +${labels.length - 2}` : '');
+            }
+
+            const found = this.options.find(o =>
+                String(o.id) === String(this.selected)
+            );
+            return found ? found.label : '{{ .DefaultText }}';
+        },
+
+        toggle() {
+            this.open = !this.open;
+            if (this.open) {
+                this.highlightedIndex = this.filtered().length ? 0 : -1;
+                this.$nextTick(() => {
+                    this.$refs.searchInput?.focus();
+                });
+            } else {
+                this.q = '';
+                this.highlightedIndex = -1;
+            }
+        },
+
+        close() {
+            this.open = false;
+            this.q = '';
+            this.highlightedIndex = -1;
+        },
+
+        moveDown() {
+            const list = this.filtered();
+            if (!list.length) return;
+            if (!this.open) this.open = true;
+
+            this.highlightedIndex = (this.highlightedIndex + 1) % list.length;
+            this.$nextTick(() => {
+                this.$refs['opt-' + this.highlightedIndex]?.scrollIntoView({ block: 'nearest' });
+            });
+        },
+
+        moveUp() {
+            const list = this.filtered();
+            if (!list.length) return;
+            if (!this.open) this.open = true;
+
+            this.highlightedIndex = this.highlightedIndex <= 0 ? list.length - 1 : this.highlightedIndex - 1;
+            this.$nextTick(() => {
+                this.$refs['opt-' + this.highlightedIndex]?.scrollIntoView({ block: 'nearest' });
+            });
+        },
+
+        selectHighlighted() {
+            const list = this.filtered();
+            if (!this.open || !list.length) return;
+
+            const idx = this.highlightedIndex < 0 ? 0 : this.highlightedIndex;
+            this.choose(list[idx]);
+            if (!this.multiple) this.close();
+        },
+
+        choose(opt) {
+            const id = String(opt.id);
+            if (this.multiple) {
+                this.selected = this.selected.includes(id)
+                    ? this.selected.filter(x => x !== id)
+                    : [...this.selected, id];
+            } else {
+                this.selected = id;
+                this.open = false;
+            }
+
+            this.isInvalid = false;
+
+            {{ if .AlpineVar }}
+                {{ .AlpineVar }} = this.selected;
+            {{ else if .ModelName }}
+                this.$root.{{ .ModelName }} = this.selected;
+            {{ end }}
+
+            this.$nextTick(() => {
+                const hiddenInput = this.$el.querySelector('input[type=\'text\']');
+                if (hiddenInput) {
+                    hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            });
+            
+
+            this.$dispatch('change', { value: this.selected });
+        },
+
+        validate() {
+            if (
+                {{ if .Required }}
+                    !this.selected || this.selected === '' || (this.multiple && this.selected.length === 0)
+                {{ else }}
+                    false
+                {{ end }}
+            ) {
+                this.isInvalid = true;
+                return false;
+            }
+            this.isInvalid = false;
+            return true;
+        }
+    }"
+    @keydown.escape.window="close()"
+    @keydown.arrow-down.prevent="moveDown()"
+    @keydown.arrow-up.prevent="moveUp()"
+    @keydown.enter.prevent="selectHighlighted()"
+    @validate-me="validate()"
+    @invalid.prevent="isInvalid = true"
+    @scroll.window.passive="if (open) reposition()"
+    @resize.window="if (open) reposition()">
+
+    {{ if .Label }}
+    <label class="label">
+        <span class="text-xs font-bold text-base-content opacity-60">
+            {{ .Label }}
+            {{ if .Required }}<span class="text-error font-bold ml-0.5">*</span>{{ end }}
+        </span>
+    </label>
+    {{ end }}
+
+    <input
+        type="text"
+        tabindex="-1"
+        class="absolute opacity-0 pointer-events-none focus:outline-hidden"
+        :class="isInvalid ? 'border-error' : 'border-info'"
+        @invalid.prevent="isInvalid = true"
+        @input="isInvalid = false"
+        {{ if .ModelName }} x-model="{{ .ModelName }}" {{ else }} :value="multiple ? (selected.length ? 'valid' : '') : selected" {{ end }}
+        :required="{{ if .RequiredBinding }}{{ .RequiredBinding }}{{ else }}{{ if .Required }}true{{ else }}false{{ end }}{{ end }}"
+    >
+
+    {{ if .Multiple }}
+    <template x-for="val in selected" :key="val">
+        <input type="hidden" name="{{ .Name }}" :value="val">
+    </template>
+    {{ else }}
+    <input type="hidden" name="{{ .Name }}" :value="selected">
+    {{ end }}
+
+    <button
+        x-ref="triggerButton"
+        type="button"
+        class="btn btn-block btn-xs border bg-base-100 btn-ghost flex items-center justify-between w-full focus:outline-none"
+        :class="isInvalid ? 'border border-error text-error' : 'border border-base-300 focus:border-info'"
+        @click.stop="toggle()"> <span class="truncate" x-text="selectedLabel()"></span>
+        <span class="text-xs opacity-60">▾</span>
+    </button>
+
+    <div x-show="isInvalid" x-cloak class="text-error text-[9px] font-semibold leading-none mt-1">
+        Field ini wajib diisi.
+    </div>
+
+    <div
+        x-show="open"
+        x-cloak
+        x-ref="dropdownPopover"
+        @click.outside="close()"
+        class="fixed z-50 m-0 rounded-md border border-base-300 bg-base-100 shadow-2xl overflow-hidden flex flex-col p-0 outline-none"
+        style="width: max-content; min-width: 200px; height: 220px;">
+        
+        <div class="p-2 border-b border-base-200 bg-base-100 sticky top-0 z-10">
+            <input
+                x-ref="searchInput"
+                x-model="q"
+                @input="highlightedIndex = filtered().length ? 0 : -1; $nextTick(() => reposition())"
+                type="text"
+                placeholder="{{ .Placeholder }}"
+                class="w-full rounded-md border border-base-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary bg-base-100 text-base-content"
+            />
+        </div>
+
+        <ul class="overflow-y-auto py-1 flex-1 max-h-[170px]">
+            <template x-for="(opt, i) in filtered()" :key="opt.id">
+                <li>
+                    <button
+                        type="button"
+                        :x-ref="'opt-' + i"
+                        class="w-full px-3 py-1.5 text-left text-xs hover:bg-base-200 flex items-center justify-between"
+                        :class="[
+                            isSelected(opt.id) ? 'bg-primary/10 text-primary font-medium' : '',
+                            highlightedIndex === i ? 'bg-base-200' : ''
+                        ]"
+                        @mouseenter="highlightedIndex = i"
+                        @click="choose(opt)">
+                        <span x-text="opt.label"></span>
+                        <span x-show="isSelected(opt.id)" class="text-xs">✓</span>
+                    </button>
+                </li>
+            </template>
+
+            <li x-show="filtered().length === 0" class="px-3 py-2 text-xs text-base-content/60">
+                Tidak ada hasil
+            </li>
+        </ul>
+    </div>
+
+</fieldset>
+{{ end }}

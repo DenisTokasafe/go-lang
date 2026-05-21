@@ -1,0 +1,13 @@
+{{ define "input-floating" }}
+<label class="floating-label">
+    <input 
+        type="text" 
+        name="{{ .Name }}" 
+        id="{{ .Id }}" 
+        placeholder="{{ .Placeholder }}"
+        class="input input-bordered  input-xs w-full  focus:border-info focus:ring-info focus:outline-hidden" 
+        {{ if .Required }}required{{ end }}
+        {{ .Attr | htmlattr }}  />
+    <span>{{ .Label }}</span>
+</label>
+{{ end }}

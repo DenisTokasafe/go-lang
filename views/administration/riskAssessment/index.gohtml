@@ -1,0 +1,234 @@
+{{ define "content" }}
+<div class="px-4 w-full" x-data="{ 
+    isEdit: false, 
+    id: '', 
+    name: '',
+    notes: '',
+    action_days: '',
+    sequence: '',
+    investigation_reqd: '',
+    reporting_obligation: '',
+    colour: '',
+    showUpload: false,
+    
+    init() {
+        this.checkFlash();
+    },
+
+    checkFlash() {
+        const getCookie = (name) => {
+            let value = `; ${document.cookie}`;
+            let parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        const msg = getCookie('flash_msg');
+        const type = getCookie('flash_type');
+
+        if (msg) {
+            const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+            if (window.showToast) {
+                window.showToast(decodedMsg, type || 'success');
+            }
+            document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+            document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+        }
+    },
+
+    getAction() {
+        return this.isEdit ? '/administration/risk/assessment/update' : '/administration/risk/assessment/store';
+    },
+    openCreate() {
+        this.isEdit = false;
+        this.id = '';
+        this.name = '';
+        this.notes = '';
+        this.action_days = '';
+        this.sequence = '';
+        this.investigation_reqd = '';
+        this.reporting_obligation = '';
+        this.colour = '';
+        risk_assessment_modal.showModal();
+    },
+    openEdit(id, name, notes, days, seq, inv, repo, col) {
+        this.isEdit = true;
+        this.id = id;
+        this.name = name;
+        this.notes = notes;
+        this.action_days = days;
+        this.sequence = seq;
+        this.investigation_reqd = inv;
+        this.reporting_obligation = repo;
+        this.colour = col;
+        risk_assessment_modal.showModal();
+    }
+}">
+  {{ template "tabs" . }}
+</div>
+{{ end }}
+
+{{ define "tab" }}
+
+<div class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-4">
+  <div class="space-x-2 w-full">
+    <button class="btn btn-accent btn-xs w-full sm:w-auto" @click="openCreate()">
+      {{ lucide "plus" (dict "class" "size-4") }}
+      <span>Tambah Data</span>
+    </button>
+    <button class="btn btn-warning btn-xs w-full sm:w-auto" @click="showUpload = true">
+      {{ lucide "file-up" (dict "class" "size-4") }}
+      <span>Upload Excel</span>
+    </button>
+  </div>
+
+  <div class="w-full sm:w-auto" x-data="{ 
+        searchQuery: '{{ .Search }}',
+        doSearch() {
+            if(this.searchQuery === '{{ .Search }}') return;
+            window.location.href = '/administration/risk/assessment?page=1&search=' + encodeURIComponent(this.searchQuery);
+        }
+    }">
+    {{ template "input-floating" (dict "Label" "Cari Assessment" "Name" "search" "Placeholder" "Ketik untuk mencari..." "Attr" "x-model='searchQuery' @input.debounce.750ms='doSearch()' autofocus" ) }}
+  </div>
+</div>
+
+<dialog id="risk_assessment_modal" class="modal">
+  <div class="modal-box p-0 border border-base-300 shadow-2xl max-w-2xl">
+    <form :action="getAction()" method="POST">
+      <div class="card bg-base-100 card-xs shadow-sm">
+        <div class="card-body gap-4">
+          <h2 class="card-title text-base-content font-semibold mb-1"
+            x-text="isEdit ? 'Edit Risk Assessment' : 'Tambah Risk Assessment'"></h2>
+
+          <input type="hidden" name="id" x-model="id" />
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {{ template "input-floating" (dict "Label" "Rating Name" "Name" "name" "Placeholder" "Rating Name..." "Required" true "Attr" "x-model='name'" ) }}
+            {{ template "input-floating" (dict "Label" "Hex Color / Name" "Name" "colour" "Placeholder" "Hex Color / Name..." "Attr" "x-model='colour'" ) }}
+          </div>
+
+          <fieldset class="fieldset">
+            <label class="floating-label">
+              <textarea name="description"
+                class="textarea w-full text-xs focus:outline-none focus:shadow-outline focus:border-info appearance-none leading-normal focus:ring-info"
+                x-model="description" placeholder="Investigation Required..."></textarea>
+              <span>Investigation Required</span>
+            </label>
+          </fieldset>
+
+          <div class="grid grid-cols-2 gap-4">
+            {{ template "input-floating" (dict "Label" "Sequence" "Name" "sequence" "Placeholder" "Sequence..." "Attr" "x-model='sequence' type='number'" ) }}
+            {{ template "input-floating" (dict "Label" "Action Days" "Name" "action_days" "Placeholder" "Action Days..." "Attr" "x-model='action_days' type='number'" ) }}
+          </div>
+        </div>
+        <div class="modal-action p-4 bg-base-200/50 gap-2">
+          <button type="button" class="btn btn-ghost btn-xs" @click="risk_assessment_modal.close()">
+            Batal
+          </button>
+          <button type="submit" class="btn btn-primary btn-xs px-6">
+            {{ lucide "save" (dict "class" "size-4") }} Simpan
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="upload_modal" class="modal" :class="{ 'modal-open': showUpload }" x-cloak>
+  <div class="modal-box p-0 border border-base-300 shadow-2xl">
+    <form action="/administration/risk/assessment/upload" method="POST" enctype="multipart/form-data"
+      x-data="{ importing: false }" @submit="importing = true">
+      <div class="card bg-base-100 card-xs shadow-sm">
+        <div class="card-body">
+          <h2 class="card-title text-base-content font-semibold mb-3 text-sm">
+            Upload Assessment Data
+          </h2>
+          <div class="bg-info/10 p-3 rounded-lg mb-4 border border-info/20">
+            <p class="text-[10px] leading-relaxed text-info flex gap-2 items-start">
+              {{ lucide "info" (dict "class" "size-4 shrink-0") }}
+              <span>Kolom Excel: <b>A: Name</b>,<b>B: Notes</b>, <b>C: Action Days</b>,
+                <b>D: Seq</b>, <b>E: Obligation</b>, <b>F: Inv Reqd</b>,
+                <b>G: Color</b>.</span>
+            </p>
+          </div>
+          <input type="file" class="file-input file-input-bordered file-input-xs file-input-accent w-full"
+            name="excel_file" required />
+        </div>
+        <div class="modal-action p-4 bg-base-200/50 gap-2">
+          <button type="button" class="btn btn-ghost btn-xs" @click="showUpload = false" :disabled="importing">
+            Batal
+          </button>
+          <button type="submit" class="btn btn-accent btn-xs px-6" :disabled="importing">
+            <span x-show="!importing" class="flex items-center gap-2">{{ lucide "upload" (dict "class" "size-4") }}
+              Mulai Import</span>
+            <span x-show="importing">Memproses...</span>
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+  <form method="dialog" class="modal-backdrop" @click="showUpload = false">
+    <button>close</button>
+  </form>
+</dialog>
+<div class="overflow-x-auto bg-base-100 shadow-lg rounded-lg my-4 border border-base-300">
+  <table class="table table-zebra table-xs">
+    <thead class="bg-base-300/50">
+      <tr>
+        <th class="w-16">Seq</th>
+        <th>Rating Name</th>
+        <th>Action Days</th>
+        <th>Reporting Obligation</th>
+        <th>Investigation Reqd</th>
+        <th class="text-center w-32">Aksi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range.Assessments }}
+      <tr>
+        <td class="font-bold text-center bg-base-200/50 italic">
+          {{ .Sequence }}
+        </td>
+        <td class="font-medium whitespace-nowrap">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full border border-base-content/10" style="background-color: {{ .Colour }}">
+            </div>
+            {{ .Name }}
+          </div>
+        </td>
+        <td>{{ .ActionDays }} Days</td>
+        <td class="text-xs">{{ .ReportingObligation }}</td>
+        <td>
+          <div
+            class="max-w-xs md:max-w-md text-[10px] leading-tight line-clamp-2 opacity-70 hover:line-clamp-none transition-all cursor-help">
+            {{ .InvestigationReqd }}
+          </div>
+        </td>
+        <td class="flex justify-center gap-2">
+          <button type="button" class="btn btn-square btn-warning btn-xs"
+            @click="openEdit('{{ .ID }}', '{{ .Name }}', `{{ .Notes }}`, '{{ .ActionDays }}', '{{ .Sequence }}', `{{ .InvestigationReqd }}`, '{{ .ReportingObligation }}', '{{ .Colour }}')">
+            {{ lucide "pencil" (dict "class" "size-4") }}
+          </button>
+          <form action="/administration/risk/assessment/delete" method="POST"
+            @submit.prevent="if(confirm('Hapus assessment {{ .Name }}?')) $el.submit()">
+            <input type="hidden" name="id" value="{{ .ID }}" />
+            <button type="submit" class="btn btn-square btn-error btn-xs">
+              {{ lucide "trash-2" (dict "class" "size-4") }}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {{ else }}
+      <tr>
+        <td colspan="6" class="text-center py-10 italic text-base-content/40">
+          {{ if .Search }} Data tidak ditemukan. {{ else }} Belum ada data
+          assessment. {{ end }}
+        </td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+  {{ template "pagination" . }}
+</div>
+
+{{ end }}

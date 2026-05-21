@@ -1,0 +1,221 @@
+{{ define "content" }}
+<div class="px-4 w-full" x-data="{ 
+    isEdit: false, 
+    id: '', 
+    name: '',
+    showUpload: false,
+    
+    // Fungsi yang otomatis jalan saat halaman dibuka
+    init() {
+        this.checkFlash();
+    },
+
+    checkFlash() {
+        const getCookie = (name) => {
+            let value = `; ${document.cookie}`;
+            let parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        const msg = getCookie('flash_msg');
+        const type = getCookie('flash_type');
+
+        if (msg) {
+            // Decode pesan agar spasi dan karakter khusus terbaca benar
+            const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+            
+            // Panggil fungsi global showToast dari app.js
+            if (window.showToast) {
+                window.showToast(decodedMsg, type || 'success');
+            }
+
+            // Hapus cookie agar tidak muncul lagi saat refresh manual
+            document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+            document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+        }
+    },
+
+    getAction() {
+        return this.isEdit ? '/administration/department-group/group/update' : '/administration/department-group/group/store';
+    },
+    openCreate() {
+        this.isEdit = false;
+        this.id = '';
+        this.name = '';
+        create_group.showModal();
+    },
+    openEdit(id, name) {
+        this.isEdit = true;
+        this.id = id;
+        this.name = name;
+        create_group.showModal();
+    }
+}">
+    {{ template "tabs" . }}
+    {{ end }}
+    {{ define "tab" }}
+    <div class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-4">
+        <div class=" space-x-2 w-full ">
+            <button class="btn btn-accent btn-xs w-full sm:w-auto" @click="openCreate()">
+                {{ lucide "plus" (dict "class" "size-4") }}
+                <span>Tambah Data</span>
+                <button class="btn btn-warning btn-xs w-full sm:w-auto" @click="showUpload = true">
+                    {{ lucide "file-up" (dict "class" "size-4") }}
+                    <span>Upload Excel</span>
+                </button>
+            </button>
+        </div>
+
+        <div class="w-full sm:w-auto" x-data="{ 
+            searchQuery: '{{ .Search }}',
+            doSearch() {
+                if(this.searchQuery === '{{ .Search }}') return; // Hindari reload jika kata kunci sama
+                window.location.href = '/administration/department-group/group?page=1&search=' + encodeURIComponent(this.searchQuery);
+            }
+        }">
+            {{ template "input-floating" (dict
+            "Label" "Cari Nama Group"
+            "Name" "search"
+            "Placeholder" "Ketik untuk mencari..."
+            "Attr" "x-model='searchQuery' @input.debounce.750ms='doSearch()' autofocus"
+            ) }}
+        </div>
+    </div>
+    <dialog id="create_group" class="modal">
+        <div class="modal-box p-0 border border-base-300 shadow-2xl">
+            <form :action="getAction()" method="POST">
+                <div class="card bg-base-100 card-xs shadow-sm">
+                    <div class="card-body">
+                        <h2 class="card-title text-base-content font-semibold mb-3"
+                            x-text="isEdit ? 'Edit Data Group' : 'Tambah Data Group'">
+                        </h2>
+
+                        <input type="hidden" name="id" x-model="id">
+
+                        {{ template "input-floating" (dict
+                        "Label" "Nama Group"
+                        "Name" "name"
+                        "Id" "group_name"
+                        "Placeholder" "Isi Nama Group"
+                        "Required" true
+                        "Attr" "x-model='name'"
+                        ) }}
+                    </div>
+                    <div class="modal-action p-4 bg-base-200/50 gap-2">
+                        <button type="button" class="btn btn-ghost btn-xs" @click="create_group.close()">Batal</button>
+                        <button type="submit" class="btn btn-primary btn-xs px-6">
+                            {{ lucide "save" (dict "class" "size-4") }} Simpan
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </dialog>
+    <dialog id="upload_modal" class="modal" :class="{ 'modal-open': showUpload }" x-cloak>
+        <div class="modal-box p-0 border border-base-300 shadow-2xl">
+            <form action="/administration/department-group/group/upload" method="POST" enctype="multipart/form-data"
+                x-data="{ importing: false }" @submit="importing = true">
+
+                <div class="card bg-base-100 card-xs shadow-sm">
+                    <div class="card-body">
+                        <h2 class="card-title text-base-content font-semibold mb-3">
+                            Upload Data Group
+                        </h2>
+
+                        <div class="bg-info/10 p-3 rounded-lg mb-4 border border-info/20">
+                            <p class="text-[10px] leading-relaxed text-info flex gap-2 items-start">
+                                {{ lucide "info" (dict "class" "size-4 shrink-0") }}
+                                <span>Pastikan file <b>.xlsx</b> memiliki nama Group di <b>Kolom A</b>. Baris
+                                    pertama akan dianggap sebagai header.</span>
+                            </p>
+                        </div>
+
+                        <input type="file"
+                            class="file-input file-input-bordered file-input-xs file-input-accent w-full focus:border-info focus:ring-info focus:outline-hidden"
+                            name="excel_file" required />
+                    </div>
+
+                    <div class="modal-action p-4 bg-base-200/50 gap-2">
+                        <button type="button" class="btn btn-ghost btn-xs" @click="showUpload = false"
+                            :disabled="importing">
+                            Batal
+                        </button>
+
+                        <button type="submit" class="btn btn-accent btn-xs px-6"
+                            :class="importing ? 'loading loading-spinner' : ''" :disabled="importing">
+                            <template x-if="!importing">
+                                <span class="flex items-center gap-2">
+                                    {{ lucide "upload" (dict "class" "size-4") }} Mulai Import
+                                </span>
+                            </template>
+                            <template x-if="importing">
+                                <span>Memproses...</span>
+                            </template>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop bg-black/40" @click="showUpload = false">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <div class="overflow-x-auto bg-base-100 shadow-lg rounded-lg my-4 border border-base-300">
+        {{ template "pagination" . }}
+        <table class="table table-zebra table-xs">
+            <thead class="bg-base-300/50 text-center">
+                <tr>
+                    <th class="w-20">ID</th>
+                    <th>Nama Group</th>
+                    <th class="text-center w-32">Aksi</th>
+                </tr>
+            </thead>
+            <tbody class="text-center">
+
+                {{ range $index, $group := .Groups }}
+                <tr x-data="{ show: false }" x-init="setTimeout(() => show = true, 50)" x-show="show"
+                    x-transition:enter="transition ease-out duration-500"
+                    x-transition:enter-start="opacity-0 transform -translate-y-2"
+                    x-transition:enter-end="opacity-100 transform translate-y-0">
+
+                    <td class="opacity-50 font-mono italic">#{{ add $index 1 }}</td>
+                    <td class="font-medium">{{ $group.Name }}</td>
+                    <td class="flex justify-center gap-2">
+                        <div class="tooltip tooltip-warning" data-tip="Edit Data">
+                            <button type="button" class="btn btn-square btn-warning btn-xs shadow-sm"
+                                @click="openEdit('{{ .ID }}', '{{ $group.Name }}')">
+                                {{ lucide "pencil" (dict "class" "size-4") }}
+                            </button>
+                        </div>
+
+                        <div class="tooltip tooltip-error" data-tip="Hapus Data">
+                            <form action="/administration/department-group/group/delete" method="POST"
+                                @submit.prevent="if(confirm('Hapus Group {{ $group.Name }}?')) $el.submit()">
+                                <input type="hidden" name="id" value="{{ .ID }}">
+                                <button type="submit" class="btn btn-square btn-error btn-xs shadow-sm">
+                                    {{ lucide "trash-2" (dict "class" "size-4") }}
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {{ else }}
+                <tr>
+                    <td colspan="3" class="text-center py-10 italic text-base-content/40">
+                        {{ if .Search }}
+                        Data Group dengan kata kunci "<span class="font-bold text-base-content">{{ .Search
+                            }}</span>" tidak ditemukan.
+                        {{ else }}
+                        Belum ada data Group.
+                        {{ end }}
+                    </td>
+                </tr>
+                {{ end }}
+            </tbody>
+        </table>
+        {{ template "pagination" . }}
+    </div>
+
+</div>
+{{ end }}

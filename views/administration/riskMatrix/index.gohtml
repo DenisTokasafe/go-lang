@@ -1,0 +1,246 @@
+{{ define "content" }}
+<div class="px-4 w-full" x-data="{ 
+    activeTab: 'matrix',
+    isEdit: false, 
+    id: '', 
+    consequence_id: '',
+    likelihood_id: '',
+    assessment_id: '',
+    showUpload: false,
+    
+    init() {
+        this.checkFlash();
+    },
+
+    checkFlash() {
+        const getCookie = (name) => {
+            let value = `; ${document.cookie}`;
+            let parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+        const msg = getCookie('flash_msg');
+        const type = getCookie('flash_type');
+        if (msg) {
+            const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+            if (window.showToast) { window.showToast(decodedMsg, type || 'success'); }
+            document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+            document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+        }
+    },
+
+    getAction() {
+        return this.isEdit ? '/administration/risk/matrix/update' : '/administration/risk/matrix/store';
+    },
+    openCreate() {
+        this.isEdit = false; this.id = ''; this.consequence_id = ''; this.likelihood_id = ''; this.assessment_id = '';
+        risk_matrix_modal.showModal();
+    },
+    openEdit(id, consId, likeId, asmtId) {
+        this.isEdit = true; this.id = id;
+        this.consequence_id = consId; this.likelihood_id = likeId; this.assessment_id = asmtId;
+        risk_matrix_modal.showModal();
+    }
+}">
+  {{ template "tabs" . }}
+</div>
+{{ end }}
+
+{{ define "tab" }}
+
+<div class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-4">
+  <div class="space-x-2 w-full">
+    <button class="btn btn-accent btn-xs w-full sm:w-auto" @click="openCreate()">
+      {{ lucide "plus" (dict "class" "size-4") }}
+      <span>Tambah Aturan Matrix</span>
+    </button>
+    <button class="btn btn-warning btn-xs w-full sm:w-auto" @click="showUpload = true">
+      {{ lucide "file-up" (dict "class" "size-4") }} <span>Upload Excel</span>
+    </button>
+  </div>
+
+  <div class="w-full sm:w-auto"
+    x-data="{ searchQuery: '{{ .Search }}', doSearch() { window.location.href = '/administration/risk/matrix?page=1&search=' + encodeURIComponent(this.searchQuery); }}">
+    {{ template "input-floating" (dict "Label" "Cari Consequence/Likelihood" "Name" "search" "Placeholder" "Cari..." "Attr" "x-model='searchQuery' @input.debounce.750ms='doSearch()'") }}
+  </div>
+</div>
+
+<dialog id="risk_matrix_modal" class="modal">
+  <div class="modal-box p-0 border border-base-300 shadow-2xl">
+    <form :action="getAction()" method="POST">
+      <div class="card bg-base-100 card-xs shadow-sm">
+        <div class="card-body">
+          <h2 class="card-title text-base-content font-semibold mb-3"
+            x-text="isEdit ? 'Edit Aturan Risiko' : 'Tambah Aturan Risiko'"></h2>
+          <input type="hidden" name="id" x-model="id" />
+
+          <div class="grid grid-cols-1 gap-4">
+            <div class="form-control">
+              <label class="label text-[10px] uppercase font-bold">Risk Consequence</label>
+              <select name="risk_consequence_id" x-model="consequence_id" class="select select-bordered select-xs"
+                :disabled="isEdit">
+                <option value="">-- Pilih Dampak --</option>
+                {{ range.Consequences }}
+                <option value="{{ .ID }}">{{ .Name }}</option>
+                {{ end }}
+              </select>
+            </div>
+
+            <div class="form-control">
+              <label class="label text-[10px] uppercase font-bold">Risk Likelihood</label>
+              <select name="risk_likelihood_id" x-model="likelihood_id" class="select select-bordered select-xs"
+                :disabled="isEdit">
+                <option value="">-- Pilih Peluang --</option>
+                {{ range.Likelihoods }}
+                <option value="{{ .ID }}">{{ .Name }}</option>
+                {{ end }}
+              </select>
+            </div>
+
+            <div class="form-control">
+              <label class="label text-[10px] uppercase font-bold text-primary">Resulting Assessment</label>
+              <select name="risk_assessment_id" x-model="assessment_id"
+                class="select select-bordered select-xs select-primary font-bold" required>
+                <option value="">-- Pilih Hasil Akhir --</option>
+                {{ range.Assessments }}
+                <option value="{{ .ID }}">{{ .Name }}</option>
+                {{ end }}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-action p-4 bg-base-200/50 gap-2">
+          <button type="button" class="btn btn-ghost btn-xs" @click="risk_matrix_modal.close()">
+            Batal
+          </button>
+          <button type="submit" class="btn btn-primary btn-xs px-6">
+            {{ lucide "save" (dict "class" "size-4") }} Simpan Aturan
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="upload_modal" class="modal" :class="{ 'modal-open': showUpload }" x-cloak>
+  <div class="modal-box p-0 border border-base-300 shadow-2xl">
+    <form action="/administration/risk/matrix/upload" method="POST" enctype="multipart/form-data"
+      x-data="{ importing: false }" @submit="importing = true">
+      <div class="card bg-base-100 card-xs shadow-sm">
+        <div class="card-body">
+          <h2 class="card-title text-base-content font-semibold mb-3">
+            Upload Risk Matrix Rules
+          </h2>
+          <div class="bg-info/10 p-3 rounded-lg mb-4 border border-info/20 text-[10px] text-info flex gap-2">
+            {{ lucide "info" (dict "class" "size-4 shrink-0") }}
+            <span>Format Excel: Col A (Cons ID), Col B (Like ID), Col C (Asmt ID).
+              Baris pertama adalah header.</span>
+          </div>
+          <input type="file" name="excel_file"
+            class="file-input file-input-bordered file-input-xs file-input-accent w-full" required />
+        </div>
+        <div class="modal-action p-4 bg-base-200/50 gap-2">
+          <button type="button" class="btn btn-ghost btn-xs" @click="showUpload = false">
+            Batal
+          </button>
+          <button type="submit" class="btn btn-accent btn-xs" :class="importing ? 'loading' : ''">
+            Upload
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</dialog>
+<div class="flex justify-between items-center mb-4">
+  <h1 class="text-sm font-bold text-base-content uppercase tracking-wider">
+    Risk Matrix Configuration
+  </h1>
+
+  <div class="tabs tabs-boxed bg-base-200 p-1">
+    <button class="tab tab-xs" :class="activeTab === 'matrix' ? 'tab-active' : ''" @click="activeTab = 'matrix'">
+      Visual Matrix
+    </button>
+    <button class="tab tab-xs" :class="activeTab === 'table' ? 'tab-active' : ''" @click="activeTab = 'table'">
+      Detail Table
+    </button>
+  </div>
+</div>
+<div x-show="activeTab === 'matrix'" x-transition
+  class="bg-base-100 p-4 rounded-lg shadow-sm border border-base-300 overflow-x-auto">
+  <div class="min-w-max flex flex-col items-center">
+    <h2 class="font-bold text-center mb-4">RISK MATRIX GRID</h2>
+    <table class="border-collapse border border-base-300 text-[10px]">
+      <thead>
+        <tr>
+          <th rowspan="2" colspan="2" class="border border-base-300 p-2 bg-base-200 italic">
+            Likelihood
+          </th>
+          <th colspan="5" class="border border-base-300 p-1 bg-base-200">
+            Consequence
+          </th>
+        </tr>
+        <tr class="bg-base-200 text-center">
+        {{ range $c := $.Consequences }}
+          <th class="border border-base-300 p-1 w-24">{{ $c.Name }}</th>
+         
+          {{ end }}
+        </tr>
+      </thead>
+      <tbody>
+        {{ range $l := .Likelihoods }}
+        <tr>
+          <td class="border border-base-300 bg-base-200 p-2 font-bold w-4">
+            {{ $l.Sequence }}
+          </td>
+          <td class="border border-base-300 bg-base-200 p-2 font-medium w-24">
+            {{ $l.Name }}
+          </td>
+          {{ range $c := $.Consequences }}
+          <td class="border border-base-300 p-4 text-center font-bold text-white uppercase shadow-inner"
+            style="background-color: {{ getMatrixColor $.Matrices $c.ID $l.ID }};">
+            {{ getMatrixName $.Matrices $c.ID $l.ID }}
+          </td>
+          {{ end }}
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div x-show="activeTab === 'table'" x-transition>
+  <div class="overflow-x-auto bg-base-100 shadow-lg rounded-lg my-4 border border-base-300">
+    <table class="table table-zebra table-xs">
+      <tbody>
+        {{ range $l := .Likelihoods }}
+        <tr>
+          <td class="border border-base-300 bg-base-200 p-2 font-bold w-4">
+            {{ $l.Sequence }}
+          </td>
+          <td class="border border-base-300 bg-base-200 p-2 font-medium w-24">
+            {{ $l.Name }}
+          </td>
+
+          {{ range $c := $.Consequences }}
+          {{ $mID := getMatrixID $.Matrices $c.ID $l.ID }}
+          {{ $aID := getMatrixAssessmentID $.Matrices $c.ID $l.ID }}
+
+          <td
+            class="border border-base-300 p-4 text-center font-bold text-base-content uppercase shadow-inner cursor-pointer hover:opacity-80 hover:scale-[1.02] transition-all"
+            style="background-color: {{ getMatrixColor $.Matrices $c.ID $l.ID }};" @click="if('{{ $mID }}' !== '0') { 
+								openEdit('{{ $mID }}', '{{ $c.ID }}', '{{ $l.ID }}', '{{ $aID }}') 
+							} else { 
+								openCreate(); 
+								consequence_id = '{{ $c.ID }}'; 
+								likelihood_id = '{{ $l.ID }}'; 
+							}">
+            {{ getMatrixName $.Matrices $c.ID $l.ID }}
+          </td>
+          {{ end }}
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ template "pagination" . }}
+  </div>
+</div>
+
+{{ end }}

@@ -1,0 +1,250 @@
+{{ define "content" }}
+<div class="px-4 w-full" x-data="{ 
+    isEdit: false, 
+    id: '', 
+    code: '',
+    name: '',
+    type: '',
+    showUpload: false,
+    
+    init() {
+        this.checkFlash();
+    },
+
+    checkFlash() {
+        const getCookie = (name) => {
+            let value = `; ${document.cookie}`;
+            let parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        const msg = getCookie('flash_msg');
+        const type = getCookie('flash_type');
+
+        if (msg) {
+            const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+            if (window.showToast) {
+                window.showToast(decodedMsg, type || 'success');
+            }
+            document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+            document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+        }
+    },
+
+    getAction() {
+        return this.isEdit ? '/administration/scat-option/update' : '/administration/scat-option/store';
+    },
+    openCreate() {
+        this.isEdit = false;
+        this.id = '';
+        this.code = '';
+        this.name = '';
+        this.type = '';
+        scat_modal.showModal();
+    },
+    openEdit(id, code, name, type) {
+        this.isEdit = true;
+        this.id = id;
+        this.code = code;
+        this.name = name;
+        this.type = type;
+        scat_modal.showModal();
+    }
+}">
+  <h1 class="text-sm font-bold mb-2 text-base-content uppercase tracking-wider">
+    Daftar SCAT Options
+  </h1>
+
+  <div class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-4">
+    <div class="flex gap-2 w-full sm:w-auto">
+      <button class="btn btn-accent btn-xs px-4" @click="openCreate()">
+        {{ lucide "plus" (dict "class" "size-4") }}
+        <span>Tambah Data</span>
+      </button>
+      <button class="btn btn-warning btn-xs px-4" @click="showUpload = true">
+        {{ lucide "file-up" (dict "class" "size-4") }}
+        <span>Upload Excel</span>
+      </button>
+    </div>
+
+    <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto" x-data="{ 
+        searchQuery: '{{ .Search }}',
+        typeQuery: '{{ .TypeFilter }}', // Kita asumsikan ada variabel ini dari Controller
+        doSearch() {
+            let url = new URL(window.location.origin + '/administration/scat-option');
+            url.searchParams.set('page', '1');
+            
+            if(this.searchQuery) url.searchParams.set('search', this.searchQuery);
+            if(this.typeQuery) url.searchParams.set('type', this.typeQuery);
+            
+            window.location.href = url.toString();
+        }
+    }">
+      <select x-model="typeQuery" @change="doSearch()"
+        class="select select-bordered select-xs w-full sm:w-40 focus:outline-none focus:border-info">
+        <option value="">-- Semua Kategori --</option>
+        <option value="unsafe_act">Unsafe Act</option>
+        <option value="personal_factor">Personal Factor</option>
+        <option value="job_factor">Job Factor</option>
+        <option value="control_system">Control System</option>
+      </select>
+
+      <div class="w-full sm:w-64">
+        {{ template "input-floating" (dict "Label" "Cari Code atau Nama" "Name"
+        "search" "Placeholder" "Ketik untuk mencari..." "Attr"
+        "x-model='searchQuery' @input.debounce.750ms='doSearch()' autofocus" )
+        }}
+      </div>
+    </div>
+  </div>
+  <dialog id="scat_modal" class="modal">
+    <div class="modal-box p-0 border border-base-300 shadow-2xl">
+      <form :action="getAction()" method="POST">
+        <div class="card bg-base-100 card-xs shadow-sm">
+          <div class="card-body gap-4">
+            <h2 class="card-title text-base-content font-semibold mb-2"
+              x-text="isEdit ? 'Edit SCAT Option' : 'Tambah SCAT Option'"></h2>
+
+            <input type="hidden" name="id" x-model="id" />
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {{ template "input-floating" (dict "Label" "Kode (e.g. 1.2.1)"
+              "Name" "code" "Placeholder" "Isi Kode" "Required" true "Attr"
+              "x-model='code'" ) }}
+
+              <div class="form-control">
+                {{ $manualOptions := list (dict "ID" "unsafe_act" "Name" "Unsafe Act") (dict "ID" "personal_factor"
+                "Name" "Personal Factor") (dict "ID" "job_factor" "Name" "Job Factor") (dict "ID" "control_system"
+                "Name" "Control System") }}
+
+
+                {{ template "select_input" (dict "Name" "type" "Model" "type" "Placeholder" "Pilih Type" "Options"
+                $manualOptions) }}
+              </div>
+            </div>
+
+            <fieldset class="fieldset p-0">
+              <label class="floating-label">
+                <textarea required name="name"
+                  class="textarea w-full text-xs focus:outline-none focus:border-info leading-normal" x-model="name"
+                  placeholder="Deskripsi / Nama..." rows="3"></textarea>
+                <span>Deskripsi / Nama</span>
+              </label>
+            </fieldset>
+          </div>
+          <div class="modal-action p-4 bg-base-200/50 gap-2">
+            <button type="button" class="btn btn-ghost btn-xs" @click="scat_modal.close()">
+              Batal
+            </button>
+            <button type="submit" class="btn btn-primary btn-xs px-6">
+              {{ lucide "save" (dict "class" "size-4") }} Simpan
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="upload_modal" class="modal" :class="{ 'modal-open': showUpload }" x-cloak>
+    <div class="modal-box p-0 border border-base-300 shadow-2xl">
+      <form action="/administration/scat-option/upload" method="POST" enctype="multipart/form-data"
+        x-data="{ importing: false }" @submit="importing = true">
+        <div class="card bg-base-100 card-xs shadow-sm">
+          <div class="card-body">
+            <h2 class="card-title text-base-content font-semibold mb-3 text-sm">
+              Upload Data SCAT
+            </h2>
+
+            <div class="bg-info/10 p-3 rounded-lg mb-4 border border-info/20 text-[10px]">
+              <p class="font-bold text-info mb-1 italic">Format Kolom Excel:</p>
+              <ul class="list-disc list-inside text-info opacity-80">
+                <li><b>Kolom A:</b> Code (e.g. 1.2.1)</li>
+                <li><b>Kolom B:</b> Name / Deskripsi</li>
+                <li>
+                  <b>Kolom C:</b> Type (unsafe_act, personal_factor, job_factor,
+                  control_system)
+                </li>
+              </ul>
+            </div>
+
+            <input type="file"
+              class="file-input file-input-bordered file-input-xs file-input-accent w-full focus:outline-none"
+              name="excel_file" required />
+          </div>
+
+          <div class="modal-action p-4 bg-base-200/50 gap-2">
+            <button type="button" class="btn btn-ghost btn-xs" @click="showUpload = false" :disabled="importing">
+              Batal
+            </button>
+            <button type="submit" class="btn btn-accent btn-xs px-6" :disabled="importing">
+              <span x-show="!importing" class="flex items-center gap-2">
+                {{ lucide "upload" (dict "class" "size-4") }} Mulai Import
+              </span>
+              <span x-show="importing">Memproses...</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+    <form method="dialog" class="modal-backdrop bg-black/40" @click="showUpload = false">
+      <button>close</button>
+    </form>
+  </dialog>
+
+  {{ template "card_scroll" . }}
+</div>
+{{ end }} {{ define "slot" }} {{ template "pagination" . }}
+<div class="overflow-x-auto bg-base-100 shadow-lg rounded-lg my-4 border border-base-300">
+  <table class="table table-zebra table-xs">
+    <thead class="bg-base-300/50 uppercase text-[10px]">
+      <tr>
+        <th class="w-10 text-center">#</th>
+        <th class="w-24">Code</th>
+        <th>Nama / Deskripsi</th>
+        <th class="w-32">Kategori</th>
+        <th class="text-center w-32">Aksi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range $index, $scat := .ScatOptions }}
+      <tr x-data="{ show: false }" x-init="setTimeout(() => show = true, 50)" x-show="show"
+        x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-4"
+        x-transition:enter-end="opacity-100 translate-x-0">
+        <td class="text-center opacity-50 font-mono italic">
+          {{ add (mul (sub $.CurrentPage 1) 20) (add $index 1) }}
+        </td>
+        <td class="font-bold text-primary">{{ $scat.Code }}</td>
+        <td class="font-medium whitespace-normal">{{ $scat.Name }}</td>
+        <td>
+          <span class="badge badge-outline badge-xs text-[9px] uppercase font-bold px-2 py-2">
+            {{ replace $scat.Type "_" " " }}
+          </span>
+        </td>
+        <td class="flex justify-center gap-2">
+          <button type="button" class="btn btn-square btn-warning btn-xs shadow-sm"
+            @click="openEdit('{{ .ID }}', '{{ $scat.Code }}', '{{ $scat.Name }}', '{{ $scat.Type }}')">
+            {{ lucide "pencil" (dict "class" "size-3.5") }}
+          </button>
+
+          <form action="/administration/scat-option/delete" method="POST"
+            @submit.prevent="if(confirm('Hapus item {{ $scat.Code }}?')) $el.submit()">
+            <input type="hidden" name="id" value="{{ .ID }}" />
+            <button type="submit" class="btn btn-square btn-error btn-xs shadow-sm">
+              {{ lucide "trash-2" (dict "class" "size-3.5") }}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {{ else }}
+      <tr>
+        <td colspan="5" class="text-center py-10 italic text-base-content/40">
+          {{ if .Search }} Data tidak ditemukan untuk kata kunci "<span
+            class="font-bold text-base-content">{{.TypeFilter}} - {{ .Search }}</span>". {{ else }} Belum ada data SCAT
+          Option. {{ end }}
+        </td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{ template "pagination" . }} {{ end }}

@@ -1,0 +1,1368 @@
+{{ define "content" }}
+
+<div class="px-4 w-full"
+	x-data="{
+
+	// =========================
+	// BASIC STATE
+	// =========================
+	type_error: false,
+	status_area: '{{ .StatusArea }}', // default value
+	status_area_error: false,
+	description: `{{ .Hazard.Deskripsi }}`,
+	corrective_action: `{{ .Hazard.CorrectiveAction }}`,
+
+	dokumentasi_desc: [],
+	dokumentasi_corrective: [],
+
+	// =========================
+	// EVENT DATA
+	// =========================
+	event_category_id: '{{ .Hazard.EventCategory.ParentID }}',
+	event_type_id: '{{ .Hazard.EventCategoryID }}',
+	scat_option_id: '{{ .Hazard.ScatOptionID }}',
+
+	location_id: '{{ .Hazard.LocationID }}',
+	location_specific: `{{ .Hazard.LocationSpecific }}`,
+	event_date: '{{ .Hazard.TanggalWaktu.Format "2006-01-02T15:04" }}',
+
+	// =========================
+	// RISK MATRIX
+	// =========================
+	risk_matrix_id: '{{ .Hazard.RiskMatrixID }}',
+	consequence_id: '{{ .Hazard.RiskMatrix.RiskConsequenceID }}',
+	likelihood_id: '{{ .Hazard.RiskMatrix.RiskLikelihoodID }}',
+	assessment_id: '{{ .Hazard.RiskMatrix.RiskAssessmentID }}',
+
+	matrices: {{ json .Matrices }},
+	consequences: {{ json .Consequences }},
+	likelihoods: {{ json .Likelihoods }},
+	assessments: {{ json .Assessments }},
+
+	isManualMatrixSelect: false,
+
+	// =========================
+	// PIC & WORK TYPE
+	// =========================
+	work_type: '{{ .WorkType }}',
+
+	department_id: '{{ if .Hazard.DepartmentID }}{{ .Hazard.DepartmentID }}{{ end }}',
+	contractor_id: '{{ if .Hazard.ContractorID }}{{ .Hazard.ContractorID }}{{ end }}',
+	pic_id: '{{ .Hazard.PicID }}',
+
+	all_pics: {{ json .AllPics }},
+	all_types: {{ json .AllTypes }},
+
+	// =========================
+	// MULTIPLE CORRECTIVE ACTION
+	// =========================
+	corrective_actions: {{ .CorrectiveActions }},
+
+	all_pics_terkait_master: {{ json .AllPicsTerkait }},
+
+	// =========================
+	// ADD CORRECTIVE ACTION
+	// =========================
+	addCorrectiveAction() {
+
+	this.corrective_actions.push({
+	id: '',
+	followup_action: '',
+	type: 'department',
+
+	department_terkait_id: '',
+	contractor_terkait_id: '',
+	pic_terkait_id: '',
+
+	due_date: '',
+	completed_on: '',
+
+	pics: []
+	})
+
+	},
+
+	// =========================
+	// REMOVE CORRECTIVE ACTION
+	// =========================
+	removeCorrectiveAction(index) {
+
+	this.corrective_actions.splice(index, 1)
+
+	},
+
+	// =========================
+	// OTHER STATE
+	// =========================
+	selected_units: [],
+	filteredPics: [],
+
+	checkFlash() {
+	const getCookie = (name) => {
+	let value = `; ${document.cookie}`;
+	let parts = value.split(`; ${name}=`);
+	if (parts.length === 2) return parts.pop().split(';').shift();
+	}
+
+	const msg = getCookie('flash_msg');
+	const type = getCookie('flash_type');
+
+	if (msg) {
+	// Decode pesan agar spasi dan karakter khusus terbaca benar
+	const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+
+	// Panggil fungsi global showToast dari app.js
+	if (window.showToast) {
+	window.showToast(decodedMsg, type || 'success');
+	}
+
+	// Hapus cookie agar tidak muncul lagi saat refresh manual
+	document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+	document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+	}
+	},
+
+	// =========================
+	// INIT
+	// =========================
+	async init() {
+
+	// =========================
+	// DEFAULT EMPTY ACTION
+	// =========================
+	if (
+	this.corrective_actions.length === 0 &&
+	this.status_area === 'sementara'
+	) {
+
+	this.addCorrectiveAction()
+
+	}
+
+	// =========================
+	// NORMALIZE ACTIONS
+	// =========================
+	this.corrective_actions =
+	this.corrective_actions.map(item => ({
+
+	...item,
+
+	id: String(item.id || ''),
+	type: item.type || 'department',
+
+	department_terkait_id:
+	String(item.department_terkait_id || ''),
+
+	contractor_terkait_id:
+	String(item.contractor_terkait_id || ''),
+
+	pic_terkait_id:
+	String(item.pic_terkait_id || ''),
+
+	due_date: item.due_date || '',
+	completed_on: item.completed_on || '',
+
+	// =========================
+	// KEEP EXISTING PICS
+	// =========================
+	pics: (item.pics || []).map(pic => ({
+
+	...pic,
+
+	ID: String(pic.ID || pic.id)
+
+	}))
+
+	}))
+	console.log(this.status_area)
+	// =========================
+	// NORMALIZE STRING VALUES
+	// =========================
+	this.checkFlash()
+
+	this.event_category_id = String(this.event_category_id || '')
+	this.event_type_id = String(this.event_type_id || '')
+	this.scat_option_id = String(this.scat_option_id || '')
+
+	this.location_id = String(this.location_id || '')
+
+	this.department_id = String(this.department_id || '')
+	this.contractor_id = String(this.contractor_id || '')
+	this.pic_id = String(this.pic_id || '')
+
+	this.consequence_id = String(this.consequence_id || '')
+	this.likelihood_id = String(this.likelihood_id || '')
+	this.assessment_id = String(this.assessment_id || '')
+	this.risk_matrix_id = String(this.risk_matrix_id || '')
+
+	// =========================
+	// NORMALIZE ARRAY VALUES
+	// =========================
+	this.all_types = (this.all_types || []).map(item => ({
+	...item,
+	ID: String(item.ID)
+	}))
+
+	this.all_pics = (this.all_pics || []).map(item => ({
+	...item,
+	ID: String(item.ID)
+	}))
+
+	// =========================
+	// VALIDATE EXISTING TYPE
+	// =========================
+	const selectedType = this.all_types.find(item =>
+	String(item.ID) === String(this.event_type_id)
+	)
+
+	if (selectedType) {
+
+	this.event_type_id = String(
+	selectedType.ID
+	)
+
+	}
+
+	// =========================
+	// LOAD EVENT TYPES
+	// =========================
+	if (this.event_category_id) {
+
+	await this.syncData(
+	'event_category_id',
+	this.event_category_id
+	)
+
+	// restore selected type setelah sync
+	const syncedType = this.all_types.find(item =>
+	String(item.ID) === String(this.event_type_id)
+	)
+
+	if (syncedType) {
+
+	this.event_type_id = String(
+	syncedType.ID
+	)
+
+	}
+
+	}
+
+	// =========================
+	// LOAD PICS
+	// =========================
+	if (
+	this.work_type === 'department' &&
+	this.department_id
+	) {
+
+	await this.syncData(
+	'department_id',
+	this.department_id
+	)
+
+	}
+
+	if (
+	this.work_type === 'contractor' &&
+	this.contractor_id
+	) {
+
+	await this.syncData(
+	'contractor_id',
+	this.contractor_id
+	)
+
+	}
+
+	// =========================
+	// INITIAL MATRIX
+	// =========================
+	this.findMatrix()
+
+	// =========================
+	// WATCHERS
+	// =========================
+	this.$watch('consequence_id', () => {
+	this.findMatrix()
+	})
+
+	this.$watch('likelihood_id', () => {
+	this.findMatrix()
+	})
+
+	this.$watch('work_type', (value) => {
+	this.handleWorkTypeChange(value)
+	})
+
+	// =========================
+	// RESET TYPE WHEN CATEGORY CHANGES
+	// =========================
+	this.$watch('event_category_id', (value, oldValue) => {
+
+	if (
+	oldValue &&
+	value !== oldValue
+	) {
+
+	this.event_type_id = ''
+
+	}
+
+	})
+
+	// =========================
+	// INITIAL WORK TYPE
+	// =========================
+	this.handleWorkTypeChange(this.work_type)
+	// =========================
+
+	},
+
+	// =========================
+	// MATRIX LOGIC
+	// =========================
+	findMatrix() {
+
+	if (
+	!this.consequence_id ||
+	!this.likelihood_id
+	) {
+
+	this.resetMatrix()
+	return
+
+	}
+
+	const matrix = this.matrices.find((item) =>
+
+	String(item.risk_consequence_id) ===
+	String(this.consequence_id)
+
+	&&
+
+	String(item.risk_likelihood_id) ===
+	String(this.likelihood_id)
+
+	)
+
+	this.risk_matrix_id = String(
+	matrix?.id || ''
+	)
+
+	this.assessment_id = String(
+	matrix?.risk_assessment_id || ''
+	)
+	},
+
+	resetMatrix() {
+
+	this.risk_matrix_id = ''
+	this.assessment_id = ''
+
+	},
+
+	openEdit(
+	id,
+	consequenceId,
+	likelihoodId,
+	assessmentId
+	) {
+
+	this.risk_matrix_id = String(id || '')
+	this.consequence_id = String(consequenceId || '')
+	this.likelihood_id = String(likelihoodId || '')
+	this.assessment_id = String(assessmentId || '')
+
+	this.$dispatch('field-updated', {
+	field: 'consequence_id'
+	})
+
+	this.$dispatch('field-updated', {
+	field: 'likelihood_id'
+	})
+	},
+
+	// =========================
+	// UI HELPERS
+	// =========================
+	getConsequenceDesc() {
+
+	const consequence =
+	this.consequences.find((item) =>
+
+	String(item.ID) ===
+	String(this.consequence_id)
+
+	)
+
+	return consequence?.description || ''
+	},
+
+	getLikelihoodNotes() {
+
+	const likelihood =
+	this.likelihoods.find((item) =>
+
+	String(item.ID) ===
+	String(this.likelihood_id)
+
+	)
+
+	return likelihood?.notes || ''
+	},
+
+	getAssessment() {
+
+	return this.assessments.find((item) =>
+
+	String(item.ID) ===
+	String(this.assessment_id)
+
+	) || {}
+	},
+
+	// =========================
+	// WORK TYPE LOGIC
+	// =========================
+	handleWorkTypeChange(value) {
+
+	if (value === 'department') {
+
+	this.contractor_id = ''
+	return
+
+	}
+
+	if (value === 'contractor') {
+
+	this.department_id = ''
+	return
+
+	}
+
+	// reset all jika kosong
+	this.department_id = ''
+	this.contractor_id = ''
+	this.pic_id = ''
+	this.all_pics = []
+
+	},
+
+	// =========================
+	// FORM SUBMIT
+	// =========================
+	handleSubmit() {
+
+	this.$dispatch('validate-me')
+
+	setTimeout(() => {
+
+	const form = this.$refs.form
+
+	if (!form) return
+
+	if (!form.checkValidity()) {
+
+	const firstInvalid =
+	form.querySelector(':invalid')
+
+	if (firstInvalid) {
+	firstInvalid.focus()
+	}
+
+	return
+	}
+
+	if (
+	form.dataset.submitting === 'true'
+	) {
+	return
+	}
+
+	form.dataset.submitting = 'true'
+
+	form.submit()
+
+	}, 0)
+	},
+
+
+
+	// =========================
+	// BACKEND SYNC
+	// =========================
+	async syncData(name, value, index = null) {
+
+	// =========================
+	// GLOBAL STATE ONLY
+	// =========================
+	if (index === null) {
+
+	this[name] = String(value || '')
+
+	}
+
+	const formData = new FormData()
+
+	formData.append('name', name)
+	formData.append('value', String(value || ''))
+
+	try {
+
+	const response = await fetch(
+	'/hazards/sync',
+	{
+	method: 'POST',
+	body: formData
+	}
+	)
+
+	const result = await response.json()
+
+	if (
+	result.status !== 'success'
+	) {
+	return
+	}
+
+	// =========================
+	// EVENT TYPES
+	// =========================
+	if (name === 'event_category_id') {
+
+	this.all_types =
+	(result.types || []).map(item => ({
+	...item,
+	ID: String(item.ID)
+	}))
+
+	}
+
+	// =========================
+	// MAIN PIC
+	// =========================
+	if (
+	name === 'department_id' ||
+	name === 'contractor_id'
+	) {
+
+	this.all_pics =
+	(result.pics || []).map(item => ({
+	...item,
+	ID: String(item.ID)
+	}))
+
+	this.pic_id = ''
+
+	}
+
+	// =========================
+	// CORRECTIVE ACTION PICS
+	// =========================
+	if (
+	(
+	name === 'department_terkait_id' ||
+	name === 'contractor_terkait_id'
+	)
+	&&
+	index !== null
+	) {
+
+	this.corrective_actions[index].pics =
+	(result.pics_terkait || []).map(item => ({
+	...item,
+	ID: String(item.ID)
+	}))
+
+	// reset selected PIC
+	this.corrective_actions[index].pic_terkait_id = ''
+
+	}
+
+	} catch (error) {
+
+	console.error(
+	'Sync error:',
+	error
+	)
+
+	}
+	}
+	}"
+>
+
+	<div class="flex justify-between px-4">
+		<h1 class="text-sm font-bold mb-2 text-base-content uppercase tracking-wider">
+			Edit Laporan Hazard
+		</h1>
+		<!-- You can open the modal using ID.showModal() method -->
+
+		<div class="tooltip ">
+			<div class="tooltip-content">
+				<div class="animate-bounce text-orange-400 -rotate-5 text-xs font-black">Audit Trail</div>
+			</div>
+			<button class="btn btn-square btn-xs btn-accent mb-2" onclick="my_modal_3.showModal()"> {{ lucide "history" (dict "class" "size-4") }}</button>
+		</div>
+
+	</div>
+
+	<dialog id="my_modal_3" class="modal">
+		<div class="modal-box ">
+			<form method="dialog">
+				<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+			</form>
+			<h3 class="text-lg font-bold">Hello!</h3>
+			<div class="card bg-base-100 border border-base-300 mt-5 ">
+				<div class="card-body">
+
+					<h2 class="card-title text-sm">
+						Audit Trail
+					</h2>
+
+					<div class="overflow-x-auto">
+
+						<table class="table table-xs">
+
+							<thead>
+								<tr>
+									<th>Waktu</th>
+									<th>Action</th>
+									<th>User</th>
+								</tr>
+							</thead>
+
+							<tbody>
+
+								{{ range .Audits }}
+
+									<tr>
+										<td>
+											{{ .ChangedAt.Format "02 Jan 2006 15:04" }}
+										</td>
+
+										<td>
+											<span class="badge badge-sm
+											{{ if eq .Action " CREATE" }} badge-success {{ else }} badge-warning {{ end }}">
+												{{ .Action }}
+											</span>
+										</td>
+
+										<td>
+											{{ .User.Name }}
+										</td>
+									</tr>
+
+									<tr>
+										<td colspan="3">
+
+											<details
+												class="collapse collapse-arrow bg-base-200 overflow-x-auto  rounded-2xl">
+
+												<summary class="collapse-title text-xs font-semibold">
+													Lihat Perubahan
+												</summary>
+
+												<div class="collapse-content">
+
+													{{ if and .Before .After }}
+														{{ diffJSON .Before .After }}
+													{{ else if .After }}
+
+														<div class="bg-green-50 border border-green-200 rounded-xl">
+
+															<div class="px-4 py-2 bg-green-100 border-b border-green-200">
+																<div class="font-bold text-success text-xs tracking-wide">
+																	CREATED DATA
+																</div>
+															</div>
+
+															<div class="p-4 overflow-x-auto max-h-[400px]">
+																<pre
+																	class="text-[11px] leading-5 whitespace-pre-wrap break-words text-gray-700 font-mono">{{ prettyJSON .After }}</pre>
+															</div>
+
+														</div>
+
+													{{ end }}
+
+												</div>
+
+											</details>
+
+										</td>
+									</tr>
+
+								{{ end }}
+
+							</tbody>
+
+						</table>
+
+					</div>
+
+				</div>
+			</div>
+		</div>
+	</dialog>
+
+	{{ template "card_scroll" . }}
+
+</div>
+
+{{ end }}
+
+{{ define "slot" }}
+
+<form
+	x-ref="form"
+	action="/hazard/update/{{ .Hazard.ID }}"
+	method="POST"
+	enctype="multipart/form-data"
+	@submit.prevent="handleSubmit">
+
+	<input type="hidden" name="_method" value="PUT">
+
+	<div class="grid grid-cols-1 md:grid-cols-4 gap-2 ">
+
+		<div class="relative "
+			@change="syncData('event_category_id', $event.detail)">
+
+			{{ template "select-search" (dict "Label" "Tipe Bahaya" "Name" "event_category_id" "ModelName" "event_category_id" "Value" .Hazard.EventCategory.ParentID "Options" .EventCategories "Required" true "DefaultText" "-- Pilih Tipe Bahaya --" "Placeholder" "Cari tipe bahaya...") }}
+
+		</div>
+
+		{{ template "select-dynamic" (dict "Label" "Jenis bahaya" "Name" "event_type_id" "Model" "event_type_id" "Value" .Hazard.EventCategoryID "OptionsArray" "all_types" "ShowCondition" "event_category_id" "DefaultText" "-- Pilih Type --" "Required" true) }}
+
+		{{ template "select_input" (dict "Label" "Kategori Bahaya" "Name" "scat_option_id" "ShowType" true "Model" "scat_option_id" "Placeholder" "Pilih Kategory Bahaya" "Options" .ScatOptions "Required" true) }}
+
+		<div class="relative my-select-field"
+			@change="location_id = $event.detail">
+
+			{{ template "select-search" (dict "Label" "Lokasi" "Name" "location_id" "ModelName" "location_id" "Value" .Hazard.LocationID "Options" .Locations "Required" true "DefaultText" "-- Pilih Lokasi --" "Placeholder" "Cari lokasi...") }}
+
+		</div>
+
+		<div x-show="location_id" x-transition>
+
+			{{ template "input" (dict "Label" "Lokasi spesifik" "Name" "location_specific" "Placeholder" "Isi Lokasi spesifik..." "Required" true "Attr" "x-model='location_specific'") }}
+
+		</div>
+
+		<div class="relative ">
+
+			{{ template "select-user-search" (dict "Label" "Nama Pelapor" "Options" .Users "Value" .Hazard.ReportBy.ID "SelectedLabel" .Hazard.ReportBy.Name "DefaultValue" .Hazard.ReportBy.ID "DefaultText" "-- Pilih atau Ketik Nama --" "Attr" "x-model='report_by_id'" "Required" true) }}
+
+		</div>
+
+		{{ template "input-date" (dict "Label" "Tanggal & Waktu Kejadian" "Type" "datetime-local" "Name" "event_date" "Id" "event_date" "Placeholder" "Pilih Tanggal" "Required" true "Value" (.Hazard.TanggalWaktu.Format "2006-01-02T15:04") "Attr" "x-model=event_date") }}
+	</div>
+
+	<fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border px-2">
+
+		<legend class="fieldset-legend">
+			Penanggung Jawab
+		</legend>
+
+		<div class="flex flex-col md:flex-row items-center gap-2 ">
+
+			<fieldset class="w-full">
+
+				<input
+					id="draft"
+					class="peer/draft"
+					type="radio"
+					value="department"
+					name="work_type"
+					x-model="work_type" />
+
+				<label
+					for="draft"
+					class="peer-checked/draft:text-sky-500 text-sm font-semibold text-base-content opacity-60 mb-1 ">
+					Department
+				</label>
+
+				<input
+					id="published"
+					class="peer/published"
+					type="radio"
+					name="work_type"
+					value="contractor"
+					x-model="work_type" />
+
+				<label
+					for="published"
+					class="peer-checked/published:text-sky-500 text-sm font-semibold mb-1 text-base-content opacity-60">
+					Contractor
+				</label>
+
+				<div
+					class="hidden peer-checked/draft:block  relative"
+					@change="syncData('department_id', $event.detail)">
+
+					{{ template "select-search" (dict "Label" "" "Name" "department_id" "ModelName" "department_id" "Value" .Hazard.DepartmentID "Options" .Departments "DefaultText" "-- Pilih Department --" "Placeholder" "Cari department..." "RequiredBinding" "work_type === 'department'") }}
+
+				</div>
+
+				<div
+					class="hidden peer-checked/published:block  relative"
+					@change="syncData('contractor_id', $event.detail)">
+
+					{{ template "select-search" (dict "Label" "" "Name" "contractor_id" "ModelName" "contractor_id" "Value" .Hazard.ContractorID "Options" .Contractors "DefaultText" "-- Pilih Contractor --" "Attr" "x-model='contractor_id'" "RequiredBinding" "work_type === 'contractor'") }}
+
+				</div>
+
+			</fieldset>
+
+			{{ template "select-dynamic" (dict "Label" "Person In Charge (PIC)" "Name" "pic_id" "Model" "pic_id" "Value" .Hazard.PicID "OptionsArray" "all_pics" "ShowCondition" "work_type" "DefaultText" "-- Pilih PIC --" "Required" true) }}
+		</div>
+
+	</fieldset>
+
+	{{ template "ckeditor" dict "ID" "hazardDescription" "Label" "Deskripsi Bahaya" "Name" "description" "AlpineVar" "hazardDescription" "Value" .Hazard.Deskripsi "Required" true }}
+
+	{{ template "input-file" (dict "Label" "Upload Dokumentasi Deskripsi" "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "ExistingFiles" .DescDocs) }}
+	{{ template "ckeditor" dict "ID" "hazardCorrective_action" "Label" "Tindakan Perbaikan Langsung" "Name" "corrective_action" "AlpineVar" "hazardCorrective_action" "Value" .Hazard.CorrectiveAction "Required" true }}
+
+
+	{{ template "input-file" (dict "Label" "Upload Dokumentasi Corrective" "Name" "dokumentasi_corrective" "Id" "dokumentasi_corrective" "Required" true "ExistingFiles" .CorrectiveDocs) }}
+
+	<div class="flex flex-col md:flex-row gap-2 ">
+
+		<div class="col-span-2 md:grow">
+
+			{{ template "select_input" (dict "Label" "Consequences" "Name" "consequence_id" "Model" "consequence_id" "Placeholder" "Pilih Consequences" "Class" "max-w-sm" "Options" .Consequences "Required" true) }}
+
+			<div x-show="consequence_id" x-transition>
+
+				<textarea
+					class="textarea textarea-bordered w-full"
+					x-text="getConsequenceDesc()"
+					readonly></textarea>
+
+			</div>
+
+			{{ template "select_input" (dict "Label" "Likelihood" "Name" "likelihood_id" "Model" "likelihood_id" "Placeholder" "Pilih Likelihood" "Class" "max-w-sm" "Options" .Likelihoods "Required" true) }}
+
+			<div x-show="likelihood_id" x-transition>
+
+				<textarea
+					class="textarea textarea-bordered w-full"
+					x-text="getLikelihoodNotes()"
+					readonly></textarea>
+
+			</div>
+
+		</div>
+
+		<div class="md:flex-none">
+
+			<div class="flex flex-col items-center max-w-md ">
+
+				<table class="border-collapse border border-base-300 text-[10px]">
+
+					<caption class="caption-top font-bold text-center bg-base-200 border border-base-300">
+						RISK MATRIX GRID
+					</caption>
+
+					<thead>
+
+						<tr>
+
+							<th
+								rowspan="2"
+								colspan="2"
+								class="border border-base-300 p-2 bg-base-200 italic">
+								Likelihood
+							</th>
+
+							<th colspan="5"
+								class="border border-base-300 p-1 bg-base-200">
+								Consequence
+							</th>
+
+						</tr>
+
+						<tr class="bg-base-200 text-center">
+
+							<th class="border border-base-300 p-1 w-24">
+								5-Catastrophic
+							</th>
+
+							<th class="border border-base-300 p-1 w-24">
+								4-Major
+							</th>
+
+							<th class="border border-base-300 p-1 w-24">
+								3-Moderate
+							</th>
+
+							<th class="border border-base-300 p-1 w-24">
+								2-Minor
+							</th>
+
+							<th class="border border-base-300 p-1 w-24">
+								1-Insignificant
+							</th>
+
+						</tr>
+
+					</thead>
+
+					<tbody>
+
+						{{ range $l := .Likelihoods }}
+
+							<tr>
+
+								<td class="border border-base-300 bg-base-200 p-2 font-bold ">
+									{{ $l.Sequence }}
+								</td>
+
+								<td class="border border-base-300 bg-base-200 p-2 font-medium w-full max-w-xs">
+									{{ $l.Name }}
+								</td>
+
+								{{ range $c := $.Consequences }}
+
+									{{ $mID := getMatrixID $.Matrices $c.ID $l.ID }}
+									{{ $aID := getMatrixAssessmentID $.Matrices $c.ID $l.ID }}
+
+									<td
+										class="border border-base-300 text-center font-bold text-base-content uppercase shadow-inner cursor-pointer hover:opacity-80 hover:scale-[1.02] transition-all"
+										:class="risk_matrix_id == '{{ $mID }}'
+										? 'ring-2 ring-black ring-inset scale-105 z-10'
+										: ''"
+										style="background-color: {{ getMatrixColor $.Matrices $c.ID $l.ID }};"
+										@click="if('{{ $mID }}' !== '0') {
+										openEdit('{{ $mID }}', '{{ $c.ID }}', '{{ $l.ID }}', '{{ $aID }}')
+										}">
+
+										{{ firstChar (getMatrixName $.Matrices $c.ID $l.ID) }}
+
+										<input
+											type="hidden"
+											name="risk_matrix_id"
+											x-model="risk_matrix_id">
+
+									</td>
+
+								{{ end }}
+
+							</tr>
+
+						{{ end }}
+
+					</tbody>
+
+				</table>
+
+			</div>
+
+		</div>
+
+	</div>
+
+	<div
+		x-show="assessment_id"
+		x-transition
+		class="mt-3 overflow-x-auto">
+
+		<table class="table table-xs table-zebra w-full border border-base-300 rounded-box">
+
+			<tbody>
+
+				<tr>
+
+					<td class="font-semibold w-40">
+						Assessment
+					</td>
+
+					<td>
+
+						<span
+							class="font-bold"
+							x-text="getAssessment().name || '-'"></span>
+
+					</td>
+
+				</tr>
+
+				<tr>
+
+					<td class="font-semibold">
+						Notes
+					</td>
+
+					<td>
+
+						<div
+							class="whitespace-pre-line text-sm"
+							x-text="getAssessment().notes || '-'"></div>
+
+					</td>
+
+				</tr>
+
+				<tr>
+
+					<td class="font-semibold">
+						Investigation Required
+					</td>
+
+					<td>
+
+						<div
+							class="whitespace-pre-line text-sm"
+							x-text="getAssessment().investigation_reqd || '-'"></div>
+
+					</td>
+
+				</tr>
+
+				<tr>
+
+					<td class="font-semibold">
+						Reporting Obligation
+					</td>
+
+					<td>
+
+						<span
+							x-text="getAssessment().reporting_obligation || '-'"></span>
+
+					</td>
+
+				</tr>
+
+			</tbody>
+
+		</table>
+
+	</div>
+
+	<div class="mt-4 p-4 bg-base-100 rounded-xl border border-base-300">
+		<h2 class="text-sm font-bold mb-3 flex items-center gap-2">
+			<span class="bg-primary/10 p-1 rounded-lg">
+				{{ lucide "activity" (dict "class" "size-4 text-primary") }}
+			</span>
+			Status Area Saat Ini?
+		</h2>
+
+		<!-- WRAPPER VALIDATION -->
+		<div x-ref="statusAreaWrapper" class="space-y-2">
+
+			<!-- RADIO GROUP -->
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-3 p-2 rounded-xl transition-all duration-200"
+				:class="status_area_error
+				? 'border-2 border-error bg-error/5'
+				: 'border border-transparent'">
+
+				<!-- Opsi 1: Aman Total -->
+				<label
+					class="flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all duration-200"
+					:class="status_area === 'aman'
+					? 'bg-success/10 border-success shadow-sm'
+					: 'bg-base-200 border-transparent'">
+
+					<div class="flex items-center gap-3">
+						<span class="text-xl">✅</span>
+
+						<div>
+							<p class="font-bold text-sm"
+								:class="status_area === 'aman' ? 'text-success' : ''">
+								Sudah Aman Total
+							</p>
+
+							<p class="text-[10px] opacity-60 italic">
+								Masalah selesai di tempat
+							</p>
+						</div>
+					</div>
+
+					<input
+						type="radio"
+						name="status_area"
+						value="aman"
+						x-model="status_area"
+						@change="status_area_error = false"
+						class="radio radio-success radio-sm"
+					/>
+				</label>
+
+				<!-- Opsi 2: Aman Sementara -->
+				<label
+					class="flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all duration-200"
+					:class="status_area === 'sementara'
+					? 'bg-warning/10 border-warning shadow-sm'
+					: 'bg-base-200 border-transparent'">
+
+					<div class="flex items-center gap-3">
+						<span class="text-xl">⚠️</span>
+
+						<div>
+							<p class="font-bold text-sm"
+								:class="status_area === 'sementara' ? 'text-warning' : ''">
+								Aman Sementara
+							</p>
+
+							<p class="text-[10px] opacity-60 italic">
+								Perlu perbaikan lebih lanjut
+							</p>
+						</div>
+					</div>
+
+					<input
+						type="radio"
+						name="status_area"
+						value="sementara"
+						x-model="status_area"
+						@change="status_area_error = false"
+						class="radio radio-warning radio-sm"
+					/>
+				</label>
+			</div>
+
+			<!-- ERROR MESSAGE -->
+			<p
+				x-show="status_area_error"
+				x-transition
+				class="text-error text-xs font-semibold"
+			>
+				Silakan pilih status area terlebih dahulu
+			</p>
+		</div>
+
+		<!-- Field Lanjutan -->
+		<div
+			x-show="status_area === 'sementara'"
+			x-transition
+			class="mt-4 space-y-4 pt-3 border-t border-dashed border-base-300">
+
+			<!-- HEADER -->
+			<div class="flex justify-between items-center">
+
+				<h3 class="font-bold text-sm">
+					Corrective Action Lanjutan
+				</h3>
+
+				<button
+					type="button"
+					class="btn btn-primary btn-sm"
+					@click="addCorrectiveAction()">
+
+					Tambah Action
+
+				</button>
+
+			</div>
+
+			<!-- LOOP -->
+			<template
+				x-for="(action, index) in corrective_actions"
+				:key="index">
+
+				<div class="border border-base-300 rounded-xl p-4 space-y-3">
+
+					<!-- ACTION HEADER -->
+					<div class="flex justify-between items-center">
+
+						<h4 class="font-semibold text-sm">
+							Action #<span x-text="index + 1"></span>
+						</h4>
+
+						<button
+							type="button"
+							class="btn btn-error btn-xs"
+							@click="removeCorrectiveAction(index)">
+
+							Hapus
+
+						</button>
+
+					</div>
+
+					<!-- FOLLOWUP -->
+					<div>
+						{{ template "ckeditor" (dict
+							"Label" "Tindakan Lanjut"
+							"Name" "followup_action[]"
+							"ID" "followup"
+							"AlpineVar" "action.followup_action"
+							"Required" true
+							)
+						}}
+					</div>
+
+					<!-- TYPE -->
+					<fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border px-2">
+
+						<legend class="fieldset-legend">
+							Target Terkait
+						</legend>
+
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+							<div>
+								<div class="flex gap-4 ">
+
+									<label class="label cursor-pointer gap-2">
+
+										<input
+											type="radio"
+											value="department"
+											x-model="action.type"
+											:name="`corrective_action_type_${index}`"
+											class="radio radio-xs" />
+
+										<span class="label-text">
+											Department
+										</span>
+
+									</label>
+
+									<label class="label cursor-pointer gap-2">
+
+										<input
+											type="radio"
+											value="contractor"
+											x-model="action.type"
+											:name="`corrective_action_type_${index}`"
+											class="radio radio-xs" />
+
+										<span class="label-text">
+											Contractor
+										</span>
+
+									</label>
+
+								</div>
+
+								<div 
+									x-show="action.type === 'department'" 
+									@change="syncData('department_terkait_id', $event.detail, index)">
+
+									{{ template "select-search-loop" (dict
+										"Name" "department_terkait_id[]"
+										"Placeholder" "Cari & Pilih Department..."
+										"DefaultText" "-- Pilih Department --"
+										"AlpineVar" "action.department_terkait_id"
+										"Options" $.Departments
+										"Required" true
+										)
+									}}
+								</div>
+
+								<!-- CONTRACTOR -->
+								<div x-show="action.type === 'contractor'"
+									@change="syncData('contractor_terkait_id', $event.detail, index)">
+
+									{{ template "select-search-loop" (dict
+										"Name" "contractor_terkait_id[]"
+										"Placeholder" "Cari & Pilih Contractor..."
+										"DefaultText" "-- Pilih Contractor --"
+										"AlpineVar" "action.contractor_terkait_id"
+										"Options" $.Contractors
+										"Required" true
+										)
+									}}
+								</div>
+							</div>
+							<!-- PIC -->
+							<div>
+								<label class="label mb-0.5">
+									<span class="text-xs font-bold text-base-content opacity-60">
+										PIC
+									</span>
+								</label>
+								<select
+									class="select select-bordered select-xs w-full focus:outline-none leading-normal focus:ring-0 appearance-none"
+									:name="`pic_terkait_id[]`"
+
+									@change="
+									action.pic_terkait_id =
+									$event.target.value
+									">
+
+									<option value="">
+										-- Pilih PIC --
+									</option>
+
+									<template
+										x-for="pic in action.pics"
+										:key="pic.ID">
+
+										<option
+											:value="String(pic.ID)"
+											:selected="
+											String(action.pic_terkait_id)
+											===
+											String(pic.ID)
+											"
+											x-text="pic.name">
+										</option>
+
+									</template>
+
+								</select>
+
+							</div>
+							<!-- DUE DATE -->
+							<div>
+
+								<label class="label mb-0.5">
+									<span class="text-xs font-bold text-base-content opacity-60">
+										Due Date
+									</span>
+								</label>
+								<input
+									type="date"
+									@click="$el.showPicker()"
+									class="input input-bordered input-xs w-full focus:outline-none focus:border-info focus:ring-info"
+									:name="`due_date[]`"
+									x-model="action.due_date">
+
+
+							</div>
+
+							<!-- COMPLETED -->
+							<div>
+								<label class="label mb-0.5">
+									<span class="text-xs font-bold text-base-content opacity-60">
+										Completed On
+									</span>
+								</label>
+
+
+								<input
+									type="date"
+									@click="$el.showPicker()"
+									class="input input-bordered input-xs w-full focus:outline-none focus:border-info focus:ring-info"
+									:name="`completed_on[]`"
+									x-model="action.completed_on">
+
+							</div>
+						</div>
+					</fieldset>
+				</div>
+			</template>
+
+		</div>
+	</div>
+
+	<div class="justify-self-end w-full max-w-md">
+
+		<button
+			type="submit"
+			class="btn btn-warning btn-sm px-6 mt-4 btn-block">
+
+			{{ lucide "save" (dict "class" "size-4") }}
+
+			Update Hazard
+
+		</button>
+
+	</div>
+
+</form>
+
+{{ end }}

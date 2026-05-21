@@ -1,0 +1,9 @@
+{{ define "btn-square" }}
+<button 
+    type="{{ if .Type }}{{ .Type }}{{ else }}button{{ end }}" 
+    class="btn {{ if .Class }}{{ .Class }}{{ else }}btn-primary{{ end }} btn-xs btn-square">
+    {{ if .Icon }}
+        {{ lucide .Icon (dict "class" "size-4") }}
+    {{ end }}
+</button>
+{{ end }}

@@ -1,0 +1,182 @@
+{{ define "content" }}
+<div class="px-4 w-full" x-data="{ 
+    isEdit: false, 
+    id: '', 
+    name: '',
+    showUpload: false,
+    
+    init() {
+        this.checkFlash();
+    },
+
+    checkFlash() {
+        const getCookie = (name) => {
+            let value = `; ${document.cookie}`;
+            let parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        const msg = getCookie('flash_msg');
+        const type = getCookie('flash_type');
+
+        if (msg) {
+            const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+            if (window.showToast) {
+                window.showToast(decodedMsg, type || 'success');
+            }
+            document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+            document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+        }
+    },
+
+    getAction() {
+        return this.isEdit ? '/administration/location/update' : '/administration/location/store';
+    },
+    openCreate() {
+        this.isEdit = false;
+        this.id = '';
+        this.name = '';
+        create_location.showModal();
+    },
+    openEdit(id, name) {
+        this.isEdit = true;
+        this.id = id;
+        this.name = name;
+        create_location.showModal();
+    }
+}">
+  <h1 class="text-sm font-bold mb-2 text-base-content uppercase tracking-wider">
+    Daftar Lokasi
+  </h1>
+
+  <div class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-4">
+    <div class="space-x-2 w-full">
+      <button class="btn btn-accent btn-xs w-full sm:w-auto" @click="openCreate()">
+        {{ lucide "plus" (dict "class" "size-4") }}
+        <span>Tambah Data</span>
+      </button>
+      <button class="btn btn-warning btn-xs w-full sm:w-auto" @click="showUpload = true">
+        {{ lucide "file-up" (dict "class" "size-4") }}
+        <span>Upload Excel</span>
+      </button>
+    </div>
+
+    <div class="w-full sm:w-auto" x-data="{ 
+            searchQuery: '{{ .Search }}',
+            doSearch() {
+                if(this.searchQuery === '{{ .Search }}') return;
+                window.location.href = '/administration/location?page=1&search=' + encodeURIComponent(this.searchQuery);
+            }
+        }">
+      {{ template "input-floating" (dict "Label" "Cari Nama Lokasi" "Name"
+      "search" "Placeholder" "Ketik untuk mencari..." "Attr"
+      "x-model='searchQuery' @input.debounce.750ms='doSearch()' autofocus" ) }}
+    </div>
+  </div>
+
+  <dialog id="create_location" class="modal">
+    <div class="modal-box p-0 border border-base-300 shadow-2xl">
+      <form :action="getAction()" method="POST">
+        <div class="card bg-base-100 card-xs shadow-sm">
+          <div class="card-body">
+            <h2 class="card-title text-base-content font-semibold mb-3"
+              x-text="isEdit ? 'Edit Data Lokasi' : 'Tambah Data Lokasi'"></h2>
+            <input type="hidden" name="id" x-model="id" />
+            {{ template "input-floating" (dict "Label" "Nama Lokasi" "Name"
+            "name" "Id" "location_name" "Placeholder" "Isi Nama Lokasi"
+            "Required" true "Attr" "x-model='name'" ) }}
+          </div>
+          <div class="modal-action p-4 bg-base-200/50 gap-2">
+            <button type="button" class="btn btn-ghost btn-xs" @click="create_location.close()">
+              Batal
+            </button>
+            <button type="submit" class="btn btn-primary btn-xs px-6">
+              {{ lucide "save" (dict "class" "size-4") }} Simpan
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="upload_modal" class="modal" :class="{ 'modal-open': showUpload }" x-cloak>
+    <div class="modal-box p-0 border border-base-300 shadow-2xl">
+      <form action="/administration/location/upload" method="POST" enctype="multipart/form-data"
+        x-data="{ importing: false }" @submit="importing = true">
+        <div class="card bg-base-100 card-xs shadow-sm">
+          <div class="card-body">
+            <h2 class="card-title text-base-content font-semibold mb-3">
+              Upload Data Lokasi
+            </h2>
+            <div class="bg-info/10 p-3 rounded-lg mb-4 border border-info/20">
+              <p class="text-[10px] leading-relaxed text-info flex gap-2 items-start">
+                {{ lucide "info" (dict "class" "size-4 shrink-0") }}
+                <span>Pastikan file <b>.xlsx</b> memiliki nama lokasi di
+                  <b>Kolom A</b>.</span>
+              </p>
+            </div>
+            <input type="file" class="file-input file-input-bordered file-input-xs file-input-accent w-full"
+              name="excel_file" required />
+          </div>
+          <div class="modal-action p-4 bg-base-200/50 gap-2">
+            <button type="button" class="btn btn-ghost btn-xs" @click="showUpload = false" :disabled="importing">
+              Batal
+            </button>
+            <button type="submit" class="btn btn-accent btn-xs px-6" :disabled="importing">
+              <span x-show="!importing" class="flex items-center gap-2">{{ lucide "upload" (dict "class" "size-4") }}
+                Mulai
+                Import</span>
+              <span x-show="importing">Memproses...</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+    <form method="dialog" class="modal-backdrop" @click="showUpload = false">
+      <button>close</button>
+    </form>
+  </dialog>
+  {{ template "card_scroll" . }} {{ end }} {{ define "slot" }} {{ template
+  "pagination" . }}
+  <div class="overflow-x-auto bg-base-100 shadow-lg rounded-lg my-4 border border-base-300">
+    <table class="table table-zebra table-xs">
+      <thead class="bg-base-300/50">
+        <tr>
+          <th class="w-20">ID</th>
+          <th>Nama Lokasi</th>
+          <th class="text-center w-32">Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range $index, $loc := .Locations }}
+        <tr>
+          <td class="opacity-50 font-mono italic">#{{ add $index 1 }}</td>
+          <td class="font-medium">{{ $loc.Name }}</td>
+          <td class="flex justify-center gap-2">
+            <button type="button" class="btn btn-square btn-warning btn-xs"
+              @click="openEdit('{{ .ID }}', '{{ $loc.Name }}')">
+              {{ lucide "pencil" (dict "class" "size-4") }}
+            </button>
+            <form action="/administration/location/delete" method="POST"
+              @submit.prevent="if(confirm('Hapus lokasi {{ $loc.Name }}?')) $el.submit()">
+              <input type="hidden" name="id" value="{{ .ID }}" />
+              <button type="submit" class="btn btn-square btn-error btn-xs">
+                {{ lucide "trash-2" (dict "class" "size-4") }}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {{ else }}
+        <tr>
+          <td colspan="3" class="text-center py-10 italic text-base-content/40">
+            {{ if .Search }} Data lokasi dengan kata kunci "{{ .Search }}" tidak
+            ditemukan. {{ else }} Belum ada data lokasi. {{ end }}
+          </td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+  {{ template "pagination" . }}
+</div>
+{{ end }}

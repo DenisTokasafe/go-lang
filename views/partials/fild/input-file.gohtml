@@ -1,0 +1,226 @@
+{{ define "input-file" }}
+
+<fieldset class="fieldset" x-data="fileDropzone({
+        existingFiles: {{ if .ExistingFiles }}{{ .ExistingFiles }}{{ else }}[]{{ end }},
+        required: {{ if .Required }}true{{ else }}false{{ end }}
+    })" x-init="init()">
+
+    <!-- LABEL -->
+    {{ if .Label }}
+    <label class="label">
+        <span class="text-xs font-bold text-base-content opacity-60">
+            {{ .Label }}
+            {{ if .Required }}
+            <span class="text-error font-bold ml-0.5">*</span>
+            {{ end }}
+        </span>
+    </label>
+    {{ end }}
+
+    <!-- DROPZONE -->
+    <div class="border border-dashed rounded-md p-4 cursor-pointer transition select-none" :class="getBorderClass()"
+        @click="$refs.fileInput.click()" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false"
+        @drop.prevent="handleDrop($event)">
+        <div class="text-center text-xs text-base-content/60">
+            Drag & Drop file di sini atau klik untuk upload
+        </div>
+
+        <input x-ref="fileInput" type="file" multiple name="{{ .Name }}" id="{{ .Id }}" class="hidden"
+            @change="handleFiles($event)" @input="touched = true" />
+    </div>
+
+    <!-- DELETED IDS -->
+    <template x-for="id in deletedExistingFiles" :key="'deleted-'+id">
+        <input type="hidden" name="deleted_files[]" :value="id">
+    </template>
+
+    <!-- EXISTING FILES -->
+    <div class="mt-2 grid gap-2" x-show="existingFiles.length > 0" x-cloak>
+        <template x-for="(file, index) in existingFiles" :key="'old-'+index">
+
+            <div class="p-2 border border-base-300 rounded-md flex items-center justify-between gap-2 text-xs">
+
+                <div class="flex items-center gap-2 overflow-hidden">
+
+                    <template x-if="file.is_image">
+                        <img :src="file.url" class="size-8 object-cover rounded" />
+                    </template>
+
+                    <template x-if="!file.is_image">
+                        <div class="size-8 bg-base-200 flex items-center justify-center rounded text-primary">
+                            📄
+                        </div>
+                    </template>
+
+                    <a :href="file.url" target="_blank" class="truncate hover:underline" x-text="file.name"></a>
+
+                </div>
+
+                <button type="button" class="btn btn-xs btn-circle btn-ghost text-error"
+                    @click="removeExistingFile(index)">
+                    ✕
+                </button>
+
+            </div>
+
+        </template>
+    </div>
+
+    <!-- NEW FILES -->
+    <div class="mt-2 grid gap-2" x-show="files.length > 0" x-cloak>
+
+        <template x-for="(file, index) in files" :key="index">
+
+            <div class="p-2 border border-base-300 rounded-md flex items-center justify-between gap-2 text-xs">
+
+                <div class="flex items-center gap-2 overflow-hidden">
+
+                    <template x-if="file.type.startsWith('image/')">
+                        <img :src="getPreview(file)" class="size-8 object-cover rounded" />
+                    </template>
+
+                    <template x-if="!file.type.startsWith('image/')">
+                        <div class="size-8 bg-base-200 flex items-center justify-center rounded text-primary">
+                            📄
+                        </div>
+                    </template>
+
+                    <span class="truncate" x-text="file.name"></span>
+
+                </div>
+
+                <button type="button" class="btn btn-xs btn-circle btn-ghost text-error" @click="removeFile(index)">
+                    ✕
+                </button>
+
+            </div>
+
+        </template>
+
+    </div>
+
+    <!-- VALIDATION -->
+    <div class="h-4 mt-1">
+
+        <template x-if="isInvalid">
+            <p class="text-error text-[9px] font-semibold leading-none">
+                Minimal satu dokumen wajib diupload.
+            </p>
+        </template>
+
+    </div>
+
+</fieldset>
+
+<script>
+    function fileDropzone(config) {
+        return {
+
+            // =========================
+            // STATE
+            // =========================
+            files: [],
+            existingFiles: config.existingFiles || [],
+            deletedExistingFiles: [],
+            required: config.required || false,
+
+            isInvalid: false,
+            isDragging: false,
+            touched: false, // 👈 penting
+
+            // =========================
+            init() {
+                this.validate()
+            },
+
+            // =========================
+            handleDrop(e) {
+                this.isDragging = false
+                this.touched = true
+                this.setFiles(Array.from(e.dataTransfer.files))
+            },
+
+            handleFiles(e) {
+                this.touched = true
+                this.setFiles(Array.from(e.target.files))
+            },
+
+            setFiles(files) {
+                this.files = files
+
+                const dt = new DataTransfer()
+                files.forEach(f => dt.items.add(f))
+
+                this.$refs.fileInput.files = dt.files
+
+                this.validate()
+            },
+
+            removeFile(index) {
+                const dt = new DataTransfer()
+                const input = this.$refs.fileInput
+
+                for (let i = 0; i < input.files.length; i++) {
+                    if (i !== index) dt.items.add(input.files[i])
+                }
+
+                input.files = dt.files
+                this.files = Array.from(dt.files)
+
+                this.validate()
+            },
+
+            removeExistingFile(index) {
+                const file = this.existingFiles[index]
+
+                if (file?.id) {
+                    this.deletedExistingFiles.push(file.id)
+                }
+
+                this.existingFiles.splice(index, 1)
+
+                this.validate()
+            },
+
+            getPreview(file) {
+                return URL.createObjectURL(file)
+            },
+
+            // =========================
+            // UX VALIDATION FIX
+            // =========================
+            validate() {
+                if (!this.touched) {
+                    this.isInvalid = false
+                    return
+                }
+
+                this.isInvalid =
+                    this.required &&
+                    this.files.length === 0 &&
+                    this.existingFiles.length === 0
+            },
+
+            // =========================
+            // BORDER STATE UX
+            // =========================
+            getBorderClass() {
+                if (!this.touched) {
+                    return 'border-base-300 hover:border-primary'
+                }
+
+                if (this.isInvalid) {
+                    return 'border-error'
+                }
+
+                if (this.isDragging) {
+                    return 'border-primary'
+                }
+
+                return 'border-base-300 hover:border-primary'
+            }
+        }
+    }
+</script>
+
+{{ end }}

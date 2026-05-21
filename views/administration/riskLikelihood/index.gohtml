@@ -1,0 +1,247 @@
+{{ define "content" }}
+<div
+  class="px-4 w-full"
+  x-data="{ 
+    isEdit: false, 
+    id: '', 
+    name: '',
+    notes: '',
+    sequence: '',
+    showUpload: false,
+    
+    init() {
+        this.checkFlash();
+    },
+
+    checkFlash() {
+        const getCookie = (name) => {
+            let value = `; ${document.cookie}`;
+            let parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        const msg = getCookie('flash_msg');
+        const type = getCookie('flash_type');
+
+        if (msg) {
+            const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+            if (window.showToast) {
+                window.showToast(decodedMsg, type || 'success');
+            }
+            document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+            document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+        }
+    },
+
+    getAction() {
+        return this.isEdit ? '/administration/risk/likelihood/update' : '/administration/risk/likelihood/store';
+    },
+    openCreate() {
+        this.isEdit = false;
+        this.id = '';
+        this.name = '';
+        this.notes = '';
+        this.sequence = '';
+        risk_likelihood_modal.showModal();
+    },
+    openEdit(id, name, notes, sequence) {
+        this.isEdit = true;
+        this.id = id;
+        this.name = name;
+        this.notes = notes;
+        this.sequence = sequence;
+        risk_likelihood_modal.showModal();
+    }
+}"
+>
+ 
+
+  {{ template "tabs" . }} 
+  {{ end }} 
+  {{ define "tab" }} 
+
+
+<div
+  class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-4"
+>
+  <div class="space-x-2 w-full">
+    <button
+      class="btn btn-accent btn-xs w-full sm:w-auto"
+      @click="openCreate()"
+    >
+      {{ lucide "plus" (dict "class" "size-4") }}
+      <span>Tambah Data</span>
+    </button>
+    <button
+      class="btn btn-warning btn-xs w-full sm:w-auto"
+      @click="showUpload = true"
+    >
+      {{ lucide "file-up" (dict "class" "size-4") }}
+      <span>Upload Excel</span>
+    </button>
+  </div>
+
+  <div
+    class="w-full sm:w-auto"
+    x-data="{ 
+          searchQuery: '{{ .Search }}',
+          doSearch() {
+              if(this.searchQuery === '{{ .Search }}') return;
+              window.location.href = '/administration/risk/likelihood?page=1&search=' + encodeURIComponent(this.searchQuery);
+          }
+      }"
+  >
+    {{ template "input-floating" (dict "Label" "Cari Likelihood" "Name" "search" "Placeholder" "Ketik untuk mencari..." "Attr" "x-model='searchQuery' @input.debounce.750ms='doSearch()' autofocus" ) }}
+  </div>
+</div>
+
+<dialog id="risk_likelihood_modal" class="modal">
+  <div class="modal-box p-0 border border-base-300 shadow-2xl">
+    <form :action="getAction()" method="POST">
+      <div class="card bg-base-100 card-xs shadow-sm">
+        <div class="card-body gap-4">
+          <h2
+            class="card-title text-base-content font-semibold mb-1"
+            x-text="isEdit ? 'Edit Risk Likelihood' : 'Tambah Risk Likelihood'"
+          ></h2>
+
+          <input type="hidden" name="id" x-model="id" />
+          {{ template "input-floating" (dict "Label" "Name (Contoh: A - Almost Certain)" "Name" "name" "Placeholder" "Isi Nama Likelihood" "Required" true "Attr" "x-model='name'" ) }} 
+          {{ template "input-floating" (dict "Label" "Notes (Formula F1xF2xF3)" "Name" "notes" "Placeholder" "Isi Formula/Catatan" "Attr" "x-model='notes'") }} 
+          {{ template "input-floating" (dict "Label" "Sequence (Urutan)" "Name" "sequence" "Placeholder" "Contoh: 1" "Attr" "x-model='sequence' type='number'" ) }}
+        </div>
+        <div class="modal-action p-4 bg-base-200/50 gap-2">
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs"
+            @click="risk_likelihood_modal.close()"
+          >
+            Batal
+          </button>
+          <button type="submit" class="btn btn-primary btn-xs px-6">
+            {{ lucide "save" (dict "class" "size-4") }} Simpan
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog
+  id="upload_modal"
+  class="modal"
+  :class="{ 'modal-open': showUpload }"
+  x-cloak
+>
+  <div class="modal-box p-0 border border-base-300 shadow-2xl">
+    <form
+      action="/administration/risk/likelihood/upload"
+      method="POST"
+      enctype="multipart/form-data"
+      x-data="{ importing: false }"
+      @submit="importing = true"
+    >
+      <div class="card bg-base-100 card-xs shadow-sm">
+        <div class="card-body">
+          <h2 class="card-title text-base-content font-semibold mb-3 text-sm">
+            Upload Likelihood Data
+          </h2>
+          <div class="bg-info/10 p-3 rounded-lg mb-4 border border-info/20">
+            <p
+              class="text-[10px] leading-relaxed text-info flex gap-2 items-start"
+            >
+              {{ lucide "info" (dict "class" "size-4 shrink-0") }}
+              <span
+                >Pastikan file <b>.xlsx</b> memiliki kolom: <b>A: Name</b>,
+                <b>B: Notes</b>, dan <b>C: Sequence</b>.</span
+              >
+            </p>
+          </div>
+          <input
+            type="file"
+            class="file-input file-input-bordered file-input-xs file-input-accent w-full"
+            name="excel_file"
+            required
+          />
+        </div>
+        <div class="modal-action p-4 bg-base-200/50 gap-2">
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs"
+            @click="showUpload = false"
+            :disabled="importing"
+          >
+            Batal
+          </button>
+          <button
+            type="submit"
+            class="btn btn-accent btn-xs px-6"
+            :disabled="importing"
+          >
+            <span x-show="!importing" class="flex items-center gap-2"
+              >{{ lucide "upload" (dict "class" "size-4") }} Mulai
+              Import</span
+            >
+            <span x-show="importing">Memproses...</span>
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+  <form method="dialog" class="modal-backdrop" @click="showUpload = false">
+    <button>close</button>
+  </form>
+</dialog>
+  {{ template "pagination" . }}
+  <div
+    class="overflow-x-auto bg-base-100 shadow-lg rounded-lg my-4 border border-base-300"
+  >
+    <table class="table table-zebra table-xs">
+      <thead class="bg-base-300/50">
+        <tr>
+          <th class="w-16">Seq</th>
+          <th>Name</th>
+          <th>Notes / Formula</th>
+          <th class="text-center w-32">Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Likelihoods }}
+        <tr>
+          <td class="font-mono font-bold text-primary">{{ .Sequence }}</td>
+          <td class="font-medium">{{ .Name }}</td>
+          <td class="text-xs opacity-70 italic">{{ .Notes }}</td>
+          <td class="flex justify-center gap-2">
+            <button
+              type="button"
+              class="btn btn-square btn-warning btn-xs"
+              @click="openEdit('{{ .ID }}', '{{ .Name }}', '{{ .Notes }}', '{{ .Sequence }}')"
+            >
+              {{ lucide "pencil" (dict "class" "size-4") }}
+            </button>
+            <form
+              action="/administration/risk/likelihood/delete"
+              method="POST"
+              @submit.prevent="if(confirm('Hapus likelihood {{ .Name }}?')) $el.submit()"
+            >
+              <input type="hidden" name="id" value="{{ .ID }}" />
+              <button type="submit" class="btn btn-square btn-error btn-xs">
+                {{ lucide "trash-2" (dict "class" "size-4") }}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {{ else }}
+        <tr>
+          <td colspan="4" class="text-center py-10 italic text-base-content/40">
+            {{ if .Search }} Data tidak ditemukan. {{ else }} Belum ada data
+            likelihood. {{ end }}
+          </td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+  {{ template "pagination" . }} 
+</div>
+{{ end }}

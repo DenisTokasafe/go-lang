@@ -1,0 +1,72 @@
+{
+  "_chunk-DhqjQVOb.js": {
+    "file": "assets/chunk-DhqjQVOb.js",
+    "name": "chunk"
+  },
+  "assets/css/styles.css": {
+    "file": "style.css",
+    "name": "style",
+    "names": [
+      "style.css"
+    ],
+    "src": "assets/css/styles.css",
+    "isEntry": true
+  },
+  "assets/js/main.js": {
+    "file": "main.js",
+    "name": "main",
+    "src": "assets/js/main.js",
+    "isEntry": true,
+    "imports": [
+      "_chunk-DhqjQVOb.js"
+    ],
+    "dynamicImports": [
+      "assets/js/modules/notifications.js",
+      "assets/js/modules/pickers.js",
+      "assets/js/modules/charts.js",
+      "node_modules/@ckeditor/ckeditor5-build-classic/build/ckeditor.js"
+    ]
+  },
+  "assets/js/modules/charts.js": {
+    "file": "assets/charts-DvdcA3Ny.js",
+    "name": "charts",
+    "src": "assets/js/modules/charts.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_chunk-DhqjQVOb.js"
+    ]
+  },
+  "assets/js/modules/notifications.js": {
+    "file": "assets/notifications-D5eEeyAh.js",
+    "name": "notifications",
+    "src": "assets/js/modules/notifications.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_chunk-DhqjQVOb.js"
+    ],
+    "css": [
+      "notifications.css"
+    ]
+  },
+  "assets/js/modules/pickers.js": {
+    "file": "assets/pickers-ChEKAAVM.js",
+    "name": "pickers",
+    "src": "assets/js/modules/pickers.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_chunk-DhqjQVOb.js"
+    ],
+    "css": [
+      "pickers.css"
+    ]
+  },
+  "node_modules/@ckeditor/ckeditor5-build-classic/build/ckeditor.js": {
+    "file": "assets/ckeditor-bGht_AO4.js",
+    "name": "ckeditor",
+    "src": "node_modules/@ckeditor/ckeditor5-build-classic/build/ckeditor.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_chunk-DhqjQVOb.js"
+    ]
+  }
+}
