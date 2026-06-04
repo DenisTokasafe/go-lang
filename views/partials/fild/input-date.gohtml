@@ -1,136 +1,148 @@
 {{ define "input-date" }}
 <fieldset
-    class="fieldset"
+	class="fieldset"
 
-    x-data="{
-        value: '{{ .Value }}',
-        isInvalid: false,
-        errorMsg: '',
+	x-data="{
+	value: '{{ .Value }}',
+	isInvalid: false,
+	errorMsg: '',
 
-        isFuture(val) {
-            if (!val) return false;
+	isFuture(val) {
+	if (!val) return false;
 
-            const inputDate = new Date(val);
-            const now = new Date();
+	const inputDate = new Date(val);
+	const now = new Date();
 
-            return inputDate > now;
-        },
+	return inputDate > now;
+	},
 
-        validate() {
+	validate() {
 
-            // REQUIRED
-            const isRequired =
-                {{ if .Required }}
-                    true
-                {{ else if .RequiredBinding }}
-                    {{ .RequiredBinding }}
-                {{ else }}
-                    false
-                {{ end }};
+	// REQUIRED
+	const isRequired =
+{{ if .Required }}
+	true
+{{ else if .RequiredBinding }}
+{{ .RequiredBinding }}
+{{ else }}
+	false
+{{ end }};
 
-            if (
-                isRequired &&
-                (!this.value || this.value.trim() === '')
-            ) {
-                this.isInvalid = true;
-                this.errorMsg = '{{ .Label }} wajib diisi.';
-                return false;
-            }
+	if (
+	isRequired &&
+	(!this.value || this.value.trim() === '')
+	) {
+	this.isInvalid = true;
+	this.errorMsg = '{{ .Label }} wajib diisi.';
+	return false;
+	}
 
-            // FUTURE CHECK
-            if (this.value && this.isFuture(this.value)) {
-                this.isInvalid = true;
-                this.errorMsg = 'Tanggal tidak boleh melebihi waktu sekarang.';
-                return false;
-            }
+	// FUTURE CHECK
+	if (this.value && this.isFuture(this.value)) {
+	this.isInvalid = true;
+	this.errorMsg = 'Tanggal tidak boleh melebihi waktu sekarang.';
+	return false;
+	}
 
-            this.isInvalid = false;
-            this.errorMsg = '';
+	this.isInvalid = false;
+	this.errorMsg = '';
 
-            return true;
-        },
+	return true;
+	},
 
-        init() {
+	init() {
 
-            // ✅ SYNC KE X-MODEL LUAR
-            this.$watch('value', val => {
+	// ✅ SYNC KE X-MODEL LUAR
+	this.$watch('value', val => {
 
-                this.$dispatch('input', val);
-                this.$dispatch('change', val);
+	this.$dispatch('input', val);
+	this.$dispatch('change', val);
 
-            });
+	});
 
-            {{ if .RequiredBinding }}
-            this.$watch(
-                () => {{ .RequiredBinding }},
-                (val) => {
-                    if (!val) {
-                        this.isInvalid = false;
-                        this.errorMsg = '';
-                    }
-                }
-            );
-            {{ end }}
-        }
-    }"
+{{ if .RequiredBinding }}
+	this.$watch(
+	() => {{ .RequiredBinding }},
+	(val) => {
+	if (!val) {
+	this.isInvalid = false;
+	this.errorMsg = '';
+	}
+	}
+	);
+{{ end }}
+	}
+	}"
 
-    @validate-me="validate()"
+	@validate-me="validate()"
 
-    {{ .Attr | htmlattr }}>
+{{ .Attr | htmlattr }}>
 
-    {{ if .Label }}
-    <label class="label">
-        <span class="text-xs font-bold text-base-content opacity-60">
+	{{ if .Label }}
+		<label class="label">
+			<span class="text-xs font-bold text-base-content opacity-60">
 
-            {{ .Label }}
+				{{ .Label }}
 
-            {{ if or .Required .RequiredBinding }}
-            <span class="text-error font-bold ml-0.5">*</span>
-            {{ end }}
+				{{ if or .Required .RequiredBinding }}
+					<span class="text-error font-bold ml-0.5">*</span>
+				{{ end }}
 
-        </span>
-    </label>
-    {{ end }}
+			</span>
+		</label>
+	{{ end }}
 
-    <div class="relative w-full">
+	<div class="relative w-full">
 
-        <input
-            type="{{ .Type }}"
-            name="{{ .Name }}"
-            id="{{ .Id }}"
+		<input
+			type="{{ .Type }}"
+			name="{{ .Name }}"
+			id="{{ .Id }}"
 
-            x-model="value"
+			x-model="value"
 
-            placeholder="{{ .Placeholder }}"
+			placeholder="{{ .Placeholder }}"
 
-            @click="$el.showPicker()"
-            @change="validate()"
-            @input="validate()"
-            @invalid.prevent="validate()"
+			@click="$el.showPicker()"
+			@change="validate()"
+			@input="validate()"
+			@invalid.prevent="validate()"
 
-            :class="isInvalid
-                ? 'border-error'
-                : 'focus:input-info'"
+			:class="[
+			isInvalid
+			? 'input-error'
+			: 'focus:input-info',
 
-            class="input input-xs w-full focus:outline-none focus:border-info leading-normal focus:ring-info appearance-none"
+{{ if .DisabledBinding }}
+			({{ .DisabledBinding }})
+			? 'opacity-50 cursor-not-allowed bg-base-200'
+			: ''
+{{ else }}
+			''
+{{ end }}
+			]"
 
-            {{ if .Required }}
-            required
-            {{ end }}
+			class="input input-xs w-full focus:outline-none focus:border-info leading-normal focus:ring-info appearance-none"
 
-            {{ if .RequiredBinding }}
-            x-bind:required="{{ .RequiredBinding }}"
-            {{ end }}
-        />
+			{{ if .Required }}
+				required
+			{{ end }}
+			{{ if .DisabledBinding }}
+				:disabled="{{ .DisabledBinding }}"
+			{{ end }}
+			{{ if .RequiredBinding }}
+				x-bind:required="{{ .RequiredBinding }}"
+			{{ end }}
+		/>
 
-    </div>
+	</div>
 
-    <!-- ERROR MESSAGE -->
-    <div x-show="isInvalid && errorMsg" x-cloak>
-        <p
-            class="text-error text-[9px] font-semibold leading-none"
-            x-text="errorMsg">
-        </p>
-    </div>
+	<!-- ERROR MESSAGE -->
+	<div x-show="isInvalid && errorMsg" x-cloak>
+		<p
+			class="text-error text-[9px] font-semibold leading-none"
+			x-text="errorMsg">
+		</p>
+	</div>
 </fieldset>
 {{ end }}

@@ -1,466 +1,302 @@
 {{ define "select-search" }}
 
 <fieldset class="w-full fieldset relative" x-data="{
-        open: false,
-        q: '',
-        highlightedIndex: -1,
-
-        multiple: {{ if .Multiple }}true{{ else }}false{{ end }},
-
-        selected: {{ if .Multiple }}
-            []
-        {{ else }}
-            '{{ .Value }}' || ''
-        {{ end }},
-
-        isInvalid: false,
-
-        required: {{ if .Required }}true{{ else }}false{{ end }},
-
-        options: [
-            {{- range $i, $opt := .Options -}}
-                {{- if $i }},{{ end -}}
-                {
-                    id: '{{ $opt.ID }}',
-                    label: '{{ js $opt.Name }}'
-                }
-            {{- end -}}
-        ],
-
-        // =========================
-        // INIT
-        // =========================
-        init() {
-
-            // =========================
-            // SINGLE SELECT
-            // =========================
-
-            {{ if .AlpineVar }}
-
-            this.selected = String(
-                {{ .AlpineVar }} || '{{ .Value }}' || ''
-            )
-
-            this.$watch(
-                () => {{ .AlpineVar }},
-                (value) => {
-
-                    this.selected = String(value || '')
-
-                }
-            )
-
-            {{ else if .ModelName }}
-
-            this.selected = String(
-                this.$root.{{ .ModelName }} || '{{ .Value }}' || ''
-            )
-
-            this.$watch(
-                '$root.{{ .ModelName }}',
-                (value) => {
-
-                    this.selected = String(value || '')
-
-                }
-            )
-
-            {{ end }}
-
-            // =========================
-            // MULTIPLE SELECT
-            // =========================
-            {{ if .Multiple }}
-
-            {{ if .Values }}
-
-            this.selected = [
-                {{- range $i, $v := .Values -}}
-                    {{- if $i }},{{ end -}}
-                    '{{ $v }}'
-                {{- end -}}
-            ]
-
-            {{ end }}
-
-            {{ end }}
-        },
-
-        // =========================
-        // FILTERED OPTIONS
-        // =========================
-        filtered() {
-
-            if (!this.q) {
-                return this.options;
-            }
-
-            return this.options.filter(o =>
-                o.label.toLowerCase().includes(this.q.toLowerCase())
-            );
-        },
-
-        // =========================
-        // CHECK SELECTED
-        // =========================
-        isSelected(id) {
-
-            if (this.multiple) {
-                return this.selected.includes(String(id));
-            }
-
-            return String(this.selected) === String(id);
-        },
-
-        // =========================
-        // LABEL
-        // =========================
-        selectedLabel() {
-
-            if (this.multiple) {
-
-                if (!this.selected.length) {
-                    return '{{ .DefaultText }}';
-                }
-
-                const picked = this.options.filter(o =>
-                    this.selected.includes(String(o.id))
-                );
-
-                if (!picked.length) {
-                    return '{{ .DefaultText }}';
-                }
-
-                const labels = picked.map(o => o.label);
-
-                return labels.slice(0, 2).join(', ') +
-                    (labels.length > 2
-                        ? ` +${labels.length - 2}`
-                        : '');
-
-            }
-
-            const found = this.options.find(o =>
-                String(o.id) === String(this.selected)
-            );
-
-            return found
-                ? found.label
-                : '{{ .DefaultText }}';
-        },
-
-        // =========================
-        // OPEN / CLOSE
-        // =========================
-        toggle() {
-
-            this.open = !this.open;
-
-            if (this.open) {
-
-                this.highlightedIndex =
-                    this.filtered().length ? 0 : -1;
-
-                this.$nextTick(() => {
-                    this.$refs.searchInput?.focus();
-                });
-
-            } else {
-
-                this.q = '';
-                this.highlightedIndex = -1;
-
-            }
-        },
-
-        close() {
-
-            this.open = false;
-            this.q = '';
-            this.highlightedIndex = -1;
-
-        },
-
-        // =========================
-        // NAVIGATION
-        // =========================
-        moveDown() {
-
-            const list = this.filtered();
-
-            if (!list.length) return;
-
-            if (!this.open) {
-                this.open = true;
-            }
-
-            this.highlightedIndex =
-                (this.highlightedIndex + 1) % list.length;
-
-            this.$nextTick(() => {
-                this.$refs['opt-' + this.highlightedIndex]
-                    ?.scrollIntoView({
-                        block: 'nearest'
-                    });
-            });
-        },
-
-        moveUp() {
-
-            const list = this.filtered();
-
-            if (!list.length) return;
-
-            if (!this.open) {
-                this.open = true;
-            }
-
-            this.highlightedIndex =
-                this.highlightedIndex <= 0
-                    ? list.length - 1
-                    : this.highlightedIndex - 1;
-
-            this.$nextTick(() => {
-                this.$refs['opt-' + this.highlightedIndex]
-                    ?.scrollIntoView({
-                        block: 'nearest'
-                    });
-            });
-        },
-
-        selectHighlighted() {
-
-            const list = this.filtered();
-
-            if (!this.open || !list.length) {
-                return;
-            }
-
-            const idx =
-                this.highlightedIndex < 0
-                    ? 0
-                    : this.highlightedIndex;
-
-            this.choose(list[idx]);
-
-            if (!this.multiple) {
-                this.close();
-            }
-        },
-
-        // =========================
-        // CHOOSE OPTION
-        // =========================
-        choose(opt) {
-
-            const id = String(opt.id);
-
-            if (this.multiple) {
-
-                this.selected.includes(id)
-                    ? this.selected = this.selected.filter(x => x !== id)
-                    : this.selected.push(id);
-
-            } else {
-
-                this.selected = id;
-                this.open = false;
-
-            }
-
-            this.isInvalid = false;
-
-            // =========================
-            // SYNC KE PARENT
-            // =========================
-
-            {{ if .AlpineVar }}
-
-            {{ .AlpineVar }} = this.selected;
-
-            {{ else if .ModelName }}
-
-            this.$root.{{ .ModelName }} = this.selected;
-
-            {{ end }}
-
-            this.$dispatch('change', this.selected);
-        },
-
-        // =========================
-        // VALIDATION
-        // =========================
-        validate() {
-
-            if (
-                {{ if .Required }}
-                    !this.selected || this.selected === ''
-                {{ else }}
-                    false
-                {{ end }}
-            ) {
-
-                this.isInvalid = true;
-                return false;
-            }
-
-            this.isInvalid = false;
-            return true;
-        }
-
-    }"
-    @keydown.escape.window="close()"
-    @keydown.arrow-down.prevent="moveDown()"
-    @keydown.arrow-up.prevent="moveUp()"
-    @keydown.enter.prevent="selectHighlighted()"
-    @validate-me="validate()"
-    @invalid.prevent="isInvalid = true">
-
-    {{ if .Label }}
-    <label class="label">
-        <span class="text-xs font-bold text-base-content opacity-60">
-
-            {{ .Label }}
-
-            {{ if .Required }}
-            <span class="text-error font-bold ml-0.5">*</span>
-            {{ end }}
-
-        </span>
-    </label>
-    {{ end }}
-
-    <input
-        type="text"
-        tabindex="-1"
-        class="absolute opacity-0 pointer-events-none focus:outline-hidden"
-        :class="isInvalid ? 'border-error' : 'border-info'"
-        @invalid.prevent="isInvalid = true"
-        @input="isInvalid = false"
-
-        {{ if .ModelName }}
-            x-model="{{ .ModelName }}"
-        {{ else }}
-            :value="multiple
-                ? (selected.length ? 'valid' : '')
-                : selected"
-        {{ end }}
-
-        :required="{{ if .RequiredBinding }}
-            {{ .RequiredBinding }}
-        {{ else }}
-            {{ if .Required }}true{{ else }}false{{ end }}
-        {{ end }}"
-    >
-
-    {{ if .Multiple }}
-
-    <template x-for="val in selected" :key="val">
-        <input type="hidden" name="{{ .Name }}" :value="val">
-    </template>
-
-    {{ else }}
-
-    <input type="hidden" name="{{ .Name }}" :value="selected">
-
-    {{ end }}
-
-    <button
-        type="button"
-        class="btn btn-block btn-xs border bg-base-100 btn-ghost flex items-center justify-between w-full focus:outline-none"
-        :class="isInvalid
-            ? 'border border-error text-error'
-            : 'border border-base-300 focus:border-info'"
-        @click="toggle()">
-
-        <span class="truncate" x-text="selectedLabel()"></span>
-
-        <span class="text-xs opacity-60">
-            ▾
-        </span>
-
-    </button>
-
-    <div
-        x-show="isInvalid"
-        x-cloak
-        class="text-error text-[9px] font-semibold leading-none">
-
-        Field ini wajib diisi.
-
-    </div>
-
-    <div
-        x-show="open"
-        x-transition
-        @click.outside="close()"
-        class="absolute left-0 right-0 top-full z-50 rounded-md border border-base-300 bg-base-100 shadow-xl overflow-hidden">
-
-        <div class="p-2 border-b border-base-200">
-
-            <input
-                x-ref="searchInput"
-                x-model="q"
-                @input="highlightedIndex =
-                    filtered().length ? 0 : -1"
-                type="text"
-                placeholder="{{ .Placeholder }}"
-                class="w-full rounded-md border border-base-300 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-
-        </div>
-
-        <ul class="max-h-52 overflow-auto py-1">
-
-            <template x-for="(opt, i) in filtered()" :key="opt.id">
-
-                <li>
-
-                    <button
-                        type="button"
-                        :x-ref="'opt-' + i"
-                        class="w-full px-3 py-1.5 text-left text-sm hover:bg-base-200 flex items-center justify-between"
-                        :class="[
-                            isSelected(opt.id)
-                                ? 'bg-primary/10 text-primary font-medium'
-                                : '',
-
-                            highlightedIndex === i
-                                ? 'bg-base-200'
-                                : ''
-                        ]"
-                        @mouseenter="highlightedIndex = i"
-                        @click="choose(opt)">
-
-                        <span x-text="opt.label"></span>
-
-                        <span
-                            x-show="isSelected(opt.id)"
-                            class="text-xs">
-
-                            ✓
-
-                        </span>
-
-                    </button>
-
-                </li>
-
-            </template>
-
-            <li
-                x-show="filtered().length === 0"
-                class="px-3 py-2 text-xs text-base-content/60">
-
-                Tidak ada hasil
-
-            </li>
-
-        </ul>
-
-    </div>
-
+	open: false,
+	q: '',
+	highlightedIndex: -1,
+	multiple: {{ if .Multiple }}true{{ else }}false{{ end }},
+	selected: {{ if .Multiple }} [] {{ else }} '{{ .Value }}' || '' {{ end }},
+	isInvalid: false,
+	required: {{ if .Required }}true{{ else }}false{{ end }},
+	isLoading: false,
+
+	options: [
+{{- range $i, $opt := .Options -}}
+{{- if $i }},{{ end -}}{
+	id: '{{ $opt.ID }}',
+	label: '{{ js $opt.Name }}'
+	}
+{{- end -}}],
+
+	// ====================================================================
+	// ✅ FUNGSI REPOSITION (VERSI DIV RELATIVE)
+	// ====================================================================
+	reposition() {
+	const button = this.$refs.triggerButton;
+	const popover = this.$refs.dropdownPopover;
+	if (!button || !popover) return;
+
+	const rect = button.getBoundingClientRect();
+	const popoverHeight = 220; // Estimasi tinggi dropdown
+	const spaceBelow = window.innerHeight - rect.bottom;
+	const margin = 10;
+
+	if (spaceBelow < popoverHeight + margin && rect.top > popoverHeight + margin) {
+	// Dropdown Terbuka ke ATAS
+	popover.style.top = 'auto';
+	popover.style.bottom = '100%';
+	popover.style.marginBottom = '4px';
+	popover.style.marginTop = '0px';
+	} else {
+	// Dropdown Terbuka ke BAWAH
+	popover.style.top = '100%';
+	popover.style.bottom = 'auto';
+	popover.style.marginTop = '4px';
+	popover.style.marginBottom = '0px';
+	}
+	},
+
+	// =========================
+	// FETCH DATA DARI BACKEND GOLANG
+	// =========================
+	async fetchRemoteData(query) {
+{{ if .SearchURL }}
+	if (!query.trim()) return;
+	this.isLoading = true;
+	try {
+	const res = await fetch(`{{ .SearchURL }}?q=${encodeURIComponent(query)}`);
+	if (res.ok) {
+	const data = await res.json();
+	const newOptions = data.map(item => ({ id: String(item.id), label: item.label }));
+
+	if (this.multiple) {
+	this.options.forEach(oldOpt => {
+	if (this.selected.includes(String(oldOpt.id)) && !newOptions.some(n => String(n.id) === String(oldOpt.id))) {
+	newOptions.push(oldOpt);
+	}
+	});
+	} else {
+	const currentSelected = this.options.find(o => String(o.id) === String(this.selected));
+	if (currentSelected && !newOptions.some(n => String(n.id) === String(currentSelected.id))) {
+	newOptions.push(currentSelected);
+	}
+	}
+
+	this.options = newOptions;
+	this.highlightedIndex = this.options.length ? 0 : -1;
+
+	if (this.open) this.$nextTick(() => this.reposition());
+	}
+	} catch (err) {
+	console.error('Gagal memuat data pencarian:', err);
+	} finally {
+	this.isLoading = false;
+	}
+{{ end }}
+	},
+
+	// =========================
+	// INIT
+	// =========================
+	init() {
+{{ if .AlpineVar }}
+	this.selected = String({{ .AlpineVar }} || '{{ .Value }}' || '')
+	this.$watch(() => {{ .AlpineVar }}, (value) => {
+	this.selected = String(value || '')
+	})
+{{ else if .ModelName }}
+	this.selected = String(this.$root.{{ .ModelName }} || '{{ .Value }}' || '')
+	this.$watch('$root.{{ .ModelName }}', (value) => {
+	this.selected = String(value || '')
+	})
+{{ end }}
+
+{{ if .Multiple }}
+{{ if .Values }}
+	this.selected = [
+{{- range $i, $v := .Values -}}
+{{- if $i }},{{ end -}}'{{ $v }}'
+{{- end -}}]
+{{ end }}
+{{ end }}
+
+{{ if .SearchURL }}
+	let searchTimeout;
+	this.$watch('q', (value) => {
+	clearTimeout(searchTimeout);
+	if (!value.trim()) return;
+	searchTimeout = setTimeout(() => {
+	this.fetchRemoteData(value);
+	}, 300);
+	});
+{{ end }}
+	},
+
+	// =========================
+	// FILTERED OPTIONS
+	// =========================
+	filtered() {
+{{ if .SearchURL }}
+	return this.options;
+{{ else }}
+	if (!this.q) return this.options;
+	return this.options.filter(o => o.label.toLowerCase().includes(this.q.toLowerCase()));
+{{ end }}
+	},
+
+	isSelected(id) {
+	if (this.multiple) return this.selected.includes(String(id));
+	return String(this.selected) === String(id);
+	},
+
+	selectedLabel() {
+	if (this.multiple) {
+	if (!this.selected.length) return '{{ .DefaultText }}';
+	const picked = this.options.filter(o => this.selected.includes(String(o.id)));
+	if (!picked.length) return '{{ .DefaultText }}';
+	const labels = picked.map(o => o.label);
+	return labels.slice(0, 2).join(', ') + (labels.length > 2 ? ` +${labels.length - 2}` : '');
+	}
+
+	const found = this.options.find(o => String(o.id) === String(this.selected));
+	return found ? found.label : '{{ .DefaultText }}';
+	},
+
+	toggle() {
+	this.open = !this.open;
+	if (this.open) {
+	this.highlightedIndex = this.filtered().length ? 0 : -1;
+	this.$nextTick(() => { this.reposition(); this.$refs.searchInput?.focus(); });
+	} else {
+	this.q = '';
+	this.highlightedIndex = -1;
+	}
+	},
+
+	close() {
+	this.open = false;
+	this.q = '';
+	this.highlightedIndex = -1;
+	},
+
+	moveDown() {
+	const list = this.filtered();
+	if (!list.length) return;
+	if (!this.open) {
+	this.open = true;
+	this.$nextTick(() => this.reposition());
+	}
+	this.highlightedIndex = (this.highlightedIndex + 1) % list.length;
+	this.$nextTick(() => { this.$refs['opt-' + this.highlightedIndex]?.scrollIntoView({ block: 'nearest' }); });
+	},
+
+	moveUp() {
+	const list = this.filtered();
+	if (!list.length) return;
+	if (!this.open) {
+	this.open = true;
+	this.$nextTick(() => this.reposition());
+	}
+	this.highlightedIndex = this.highlightedIndex <= 0 ? list.length - 1 : this.highlightedIndex - 1;
+	this.$nextTick(() => { this.$refs['opt-' + this.highlightedIndex]?.scrollIntoView({ block: 'nearest' }); });
+	},
+
+	selectHighlighted() {
+	const list = this.filtered();
+	if (!this.open || !list.length) return;
+	const idx = this.highlightedIndex < 0 ? 0 : this.highlightedIndex;
+	this.choose(list[idx]);
+	if (!this.multiple) this.close();
+	},
+
+	choose(opt) {
+	const id = String(opt.id);
+	if (this.multiple) {
+	this.selected.includes(id) ? this.selected = this.selected.filter(x => x !== id) : this.selected.push(id);
+	} else {
+	this.selected = id;
+	this.open = false;
+	}
+	this.isInvalid = false;
+
+{{ if .AlpineVar }}
+{{ .AlpineVar }} = this.selected;
+{{ else if .ModelName }}
+	this.$root.{{ .ModelName }} = this.selected;
+{{ end }}
+	this.$dispatch('change', this.selected);
+
+	if (this.open) this.$nextTick(() => this.reposition());
+	},
+
+	validate() {
+	if ({{ if .Required }} !this.selected || this.selected === '' {{ else }} false {{ end }}) {
+	this.isInvalid = true;
+	return false;
+	}
+	this.isInvalid = false;
+	return true;
+	}
+	}"
+	@keydown.escape.window="close()"
+	@keydown.arrow-down.prevent="moveDown()"
+	@keydown.arrow-up.prevent="moveUp()"
+	@keydown.enter.prevent="selectHighlighted()"
+	@validate-me="validate()"
+	@invalid.prevent="isInvalid = true"
+	@scroll.window="if(open) reposition()"  
+	@resize.window="if(open) reposition()">
+
+	{{ if .Label }}
+		<label class="label">
+			<span class="text-xs font-bold text-base-content opacity-60">
+				{{ .Label }}
+				{{ if .Required }}<span class="text-error font-bold ml-0.5">*</span>{{ end }}
+			</span>
+		</label>
+	{{ end }}
+
+	<input type="text" tabindex="-1" class="absolute opacity-0 pointer-events-none focus:outline-hidden" :class="isInvalid ? 'border-error' : 'border-info'" @invalid.prevent="isInvalid = true" @input="isInvalid = false"
+		{{ if .ModelName }} x-model="{{ .ModelName }}" {{ else }} :value="multiple ? (selected.length ? 'valid' : '') : selected" {{ end }}
+		:required="{{ if .RequiredBinding }}{{ .RequiredBinding }}{{ else }}{{ if .Required }}true{{ else }}false{{ end }}{{ end }}">
+
+	{{ if .Multiple }}
+		<template x-for="val in selected" :key="val">
+			<input type="hidden" name="{{ .Name }}" :value="val">
+		</template>
+	{{ else }}
+		<input type="hidden" name="{{ .Name }}" :value="selected">
+	{{ end }}
+
+	<button type="button" x-ref="triggerButton" class="btn btn-block btn-xs border bg-base-100 btn-ghost flex items-center justify-between w-full focus:outline-none"
+		:class="[ isInvalid ? 'border border-error text-error' : 'border border-base-300 focus:border-info', $el.disabled ? 'opacity-50 cursor-not-allowed bg-base-300' : '' ]"
+		:disabled="{{ if .DisabledBinding }}{{ .DisabledBinding }}{{ else }}false{{ end }}"
+	{{ .Attr }} @click="!$el.disabled && toggle()">
+		<span class="truncate" x-text="selectedLabel()"></span>
+		<span class="text-xs opacity-60">▾</span>
+	</button>
+
+	<div x-show="isInvalid" x-cloak class="text-error text-[9px] font-semibold leading-none">
+		{{ .Label }} ini wajib diisi.
+	</div>
+
+	<div x-show="open" x-ref="dropdownPopover" x-transition @click.outside="close()" class="absolute left-0 right-0 z-50 rounded-md border border-base-300 bg-base-100 shadow-xl overflow-hidden">
+		<div class="p-2 border-b border-base-200">
+			<input x-ref="searchInput" x-model="q" 
+				@input="{{ if not .SearchURL }}highlightedIndex = filtered().length ? 0 : -1{{ end }}" 
+				type="text" placeholder="{{ .Placeholder }}" class="w-full rounded-md border border-base-300 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+		</div>
+
+		<ul class="max-h-52 overflow-auto py-1">
+			<li x-show="isLoading" class="px-3 py-2 text-xs text-center text-base-content/60">
+				Memuat data...
+			</li>
+
+			<template x-for="(opt, i) in filtered()" :key="opt.id">
+				<li x-show="!isLoading">
+					<button type="button" :x-ref="'opt-' + i" class="w-full px-3 py-1.5 text-left text-sm hover:bg-base-200 flex items-center justify-between"
+						:class="[ isSelected(opt.id) ? 'bg-primary/10 text-primary font-medium' : '', highlightedIndex === i ? 'bg-base-200' : '' ]"
+						@mouseenter="highlightedIndex = i" @click="choose(opt)">
+						<span x-text="opt.label"></span>
+						<span x-show="isSelected(opt.id)" class="text-xs">✓</span>
+					</button>
+				</li>
+			</template>
+
+			<li x-show="!isLoading && filtered().length === 0" class="px-3 py-2 text-xs text-base-content/60">
+				Tidak ada hasil
+			</li>
+		</ul>
+	</div>
 </fieldset>
-
 {{ end }}

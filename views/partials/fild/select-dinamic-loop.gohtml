@@ -1,0 +1,156 @@
+{{ define "select-dynamic-loop" }}
+
+<div
+	x-data="{
+		isInvalid: false,
+		errorMsg: '',
+
+		validate() {
+
+			const isRequired =
+			{{ if .RequiredBinding }}
+				{{ .RequiredBinding }}
+			{{ else if .Required }}
+				true
+			{{ else }}
+				false
+			{{ end }}
+
+			if (
+				isRequired &&
+				(
+					!{{ .Model }} ||
+					{{ .Model }} === ''
+				)
+			) {
+
+				this.isInvalid = true
+				this.errorMsg = 'Field ini wajib dipilih'
+				return false
+			}
+
+			this.isInvalid = false
+			this.errorMsg = ''
+			return true
+		},
+
+		init() {
+
+			// CLEAR ERROR
+			this.$watch(
+				'{{ .Model }}',
+				(value) => {
+
+					if (value) {
+						this.isInvalid = false
+						this.errorMsg = ''
+					}
+
+				}
+			)
+
+			// RESET ERROR
+			{{ if .RequiredBinding }}
+			this.$watch(
+				() => {{ .RequiredBinding }},
+				(value) => {
+
+					if (!value) {
+						this.isInvalid = false
+						this.errorMsg = ''
+					}
+
+				}
+			)
+			{{ end }}
+
+			// SET DEFAULT VALUE
+			this.$nextTick(() => {
+
+				if (
+					!{{ .Model }} &&
+					{{ .Value }}
+				) {
+
+					{{ .Model }} =
+					String({{ .Value }})
+
+				}
+
+			})
+
+		}
+	}"
+	@validate-me="validate()">
+
+	<!-- LABEL -->
+	{{ if .Label }}
+	<label class="label mb-0.5">
+
+		<span class="text-xs font-bold text-base-content opacity-60">
+
+			{{ .Label }}
+
+			{{ if or .Required .RequiredBinding }}
+			<span class="text-error font-bold ml-0.5">*</span>
+			{{ end }}
+
+		</span>
+
+	</label>
+	{{ end }}
+
+	<!-- SELECT -->
+	<select
+
+		x-model="{{ .Model }}"
+
+		:name="`pic_terkait_id[]`"
+
+		@change="validate()"
+		@invalid.prevent="validate()"
+
+		{{ if .Required }}
+		required
+		{{ end }}
+
+		{{ if .RequiredBinding }}
+		:required="{{ .RequiredBinding }}"
+		{{ end }}
+
+		class="select select-bordered select-xs w-full focus:outline-none leading-normal focus:ring-0 appearance-none"
+
+		:class="
+			isInvalid
+			? 'border-error text-error font-semibold'
+			: 'focus:border-info'
+		">
+
+		<option value="">
+			{{ .DefaultText }}
+		</option>
+
+		<template
+			x-for="item in {{ .OptionsArray }}"
+			:key="item.ID">
+
+			<option
+				:value="String(item.ID)"
+				x-text="item.name">
+			</option>
+
+		</template>
+
+	</select>
+
+	<!-- ERROR -->
+	<template x-if="isInvalid">
+		<div class="mt-1">
+			<p class="text-error text-[9px] font-semibold leading-none"
+			   x-text="errorMsg"></p>
+		</div>
+	</template>
+
+</div>
+
+{{ end }}

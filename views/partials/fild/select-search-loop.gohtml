@@ -1,6 +1,6 @@
 {{ define "select-search-loop" }}
 
-<fieldset class="w-full fieldset relative" x-data="{
+<fieldset class="w-full fieldset relative" {{ .Attr }} x-data="{
         open: false,
         q: '',
         highlightedIndex: -1,
@@ -239,7 +239,7 @@
             });
             
 
-            this.$dispatch('change', { value: this.selected });
+            this.$dispatch('change', this.selected);
         },
 
         validate() {

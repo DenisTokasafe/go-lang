@@ -1,715 +1,726 @@
 {{ define "content" }}
 <div class="px-4 w-full" x-data="{
-    showUpload: false,
-    isEdit: false,
-    id: '',
-    month: '',
-    entityType: 'mine_company',
-    businessUnitId: '',
-    contractorId: '',
-    departmentGroupId: '',
-    custodianId: '',
-    allCustodians: {{ if .CustodiansJSON }}{{ .CustodiansJSON }}{{ else }}[]{{ end }},
-    get filteredCustodians() {
-        if (!this.contractorId) return [];
-        // Memastikan perbandingan aman dengan mengubah ke String
-        return this.allCustodians.filter(c => String(c.ContractorID) === String(this.contractorId));
-    },
-    hasSupervisor: false,
-    supervisorHours: '',
-    supervisorCount: '',
-    operationalHours: '',
-    operationalCount: '',
-    hasAdmin: false,
-    adminHours: '',
-    adminCount: '',
-    notes: '',
-    invalid: {
-        month: false,
-        businessUnitId: false,
-        contractorId: false,
-        operationalHours: false,
-        operationalCount: false,
-        supervisorHours: false,
-        supervisorCount: false,
-        adminHours: false,
-        adminCount: false
-    },
-    monthPicker: null, // Akan menyimpan instance flatpickr
-    searchQuery: '{{ .Search }}',
-    startDate: '{{ .StartDate }}', // Ambil dari backend jika ada
-    endDate: '{{ .EndDate }}',
+	showUpload: false,
+	isEdit: false,
+	id: '',
+	month: '',
+	entityType: 'mine_company',
+	businessUnitId: '',
+	contractorId: '',
+	departmentGroupId: '',
+	custodianId: '',
+	allCustodians: {{ if .CustodiansJSON }}{{ .CustodiansJSON }}{{ else }}[]{{ end }},
+	get filteredCustodians() {
+	if (!this.contractorId) return [];
+	// Memastikan perbandingan aman dengan mengubah ke String
+	return this.allCustodians.filter(c => String(c.ContractorID) === String(this.contractorId));
+	},
+	hasSupervisor: false,
+	supervisorHours: '',
+	supervisorCount: '',
+	operationalHours: '',
+	operationalCount: '',
+	hasAdmin: false,
+	adminHours: '',
+	adminCount: '',
+	notes: '',
+	invalid: {
+	month: false,
+	businessUnitId: false,
+	contractorId: false,
+	operationalHours: false,
+	operationalCount: false,
+	supervisorHours: false,
+	supervisorCount: false,
+	adminHours: false,
+	adminCount: false
+	},
+	monthPicker: null, // Akan menyimpan instance flatpickr
+	searchQuery: '{{ .Search }}',
+	startDate: '{{ .StartDate }}', // Ambil dari backend jika ada
+	endDate: '{{ .EndDate }}',
 
-    chartData: {{ .ChartJSON }},
+	chartData: {{ .ChartJSON }},
 
-    async initChart() {
-    
-    // Pastikan data tidak kosong
-    if (!this.chartData || this.chartData.length === 0) {
-        console.warn('Data chart masih kosong');
-        return;
-    }
+	async initChart() {
 
-    // Panggil fungsi pembantu dari main.js
-    const echartsCore = await window.getEchartsInstance(); 
+	// Pastikan data tidak kosong
+	if (!this.chartData || this.chartData.length === 0) {
+	console.warn('Data chart masih kosong');
+	return;
+	}
 
-    const chartDom = document.getElementById('manhoursChart');
-    if (!chartDom) {
-        console.error('Elemen manhoursChart tidak ditemukan');
-        return;
-    }
-    
-    // Pastikan lebar/tinggi terdeteksi (kadang 0px saat render awal)
-    const myChart = echartsCore.init(chartDom);
-        const option = {
-            title: { text: 'Tren Manhours & Manpower', left: 'center' },
-            tooltip: { trigger: 'axis' },
-            xAxis: {
-                type: 'category',
-                boundaryGap: false,
-                // Sekarang 'this' merujuk ke data Alpine di atas
-                data: this.chartData.map(d => d.month)
-            },
-            yAxis: [
-                { type: 'value', name: 'Manhours' },
-                { type: 'value', name: 'Manpower', position: 'right' }
-            ],
-            series: [
-                {
-                    name: 'Manhours',
-                    type: 'line',
-                    smooth: true,
-                    data: this.chartData.map(d => d.total),
-                    itemStyle: { color: '#3b82f6' },
-                    areaStyle: {
-                        color: {
-                            type: 'linear',
-                            x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(59, 130, 246, 0.3)' },
-                                { offset: 1, color: 'rgba(59, 130, 246, 0)' }
-                            ]
-                        }
-                    }
-                },
-                {
-                    name: 'Manpower',
-                    type: 'line',
-                    smooth: true,
-                    yAxisIndex: 1,
-                    data: this.chartData.map(d => d.count),
-                    itemStyle: { color: '#6b7280' },
-                    lineStyle: { type: 'dashed' }
-                }
-            ]
-        };
+	// Panggil fungsi pembantu dari main.js
+	const echartsCore = await window.getEchartsInstance(); 
 
-        myChart.setOption(option);
-        window.addEventListener('resize', () => myChart.resize());
-    },
-   
-    init() {
-        this.checkFlash();
-       this.initChart();
-    },
+	const chartDom = document.getElementById('manhoursChart');
+	if (!chartDom) {
+	console.error('Elemen manhoursChart tidak ditemukan');
+	return;
+	}
 
-    // Fungsi Helper untuk Inisialisasi Flatpickr dari HTML
-    rangePicker: null,
-async initRangePicker(el) {
-    // Proteksi jika module belum ter-load sempurna
-    if (typeof window.initRangePicker !== 'function') return;
+	// Pastikan lebar/tinggi terdeteksi (kadang 0px saat render awal)
+	const myChart = echartsCore.init(chartDom);
+	const option = {
+	title: { text: 'Tren Manhours & Manpower', left: 'center' },
+	tooltip: { trigger: 'axis' },
+	xAxis: {
+	type: 'category',
+	boundaryGap: false,
+	// Sekarang 'this' merujuk ke data Alpine di atas
+	data: this.chartData.map(d => d.month)
+	},
+	yAxis: [
+	{ type: 'value', name: 'Manhours' },
+	{ type: 'value', name: 'Manpower', position: 'right' }
+	],
+	series: [
+	{
+	name: 'Manhours',
+	type: 'line',
+	smooth: true,
+	data: this.chartData.map(d => d.total),
+	itemStyle: { color: '#3b82f6' },
+	areaStyle: {
+	color: {
+	type: 'linear',
+	x: 0, y: 0, x2: 0, y2: 1,
+	colorStops: [
+	{ offset: 0, color: 'rgba(59, 130, 246, 0.3)' },
+	{ offset: 1, color: 'rgba(59, 130, 246, 0)' }
+	]
+	}
+	}
+	},
+	{
+	name: 'Manpower',
+	type: 'line',
+	smooth: true,
+	yAxisIndex: 1,
+	data: this.chartData.map(d => d.count),
+	itemStyle: { color: '#6b7280' },
+	lineStyle: { type: 'dashed' }
+	}
+	]
+	};
 
-    this.rangePicker = await window.initRangePicker(el, {
-        altInputClass: 'input input-bordered  input-xs w-full  focus:border-info focus:ring-info focus:outline-hidden',
-        defaultDate: this.startDate && this.endDate ? [this.startDate, this.endDate] : null,
-        onClose: (selectedDates, dateStr, instance) => {
-            if (selectedDates.length === 2) {
-                this.startDate = instance.formatDate(selectedDates[0], 'Y-m-d');
-                this.endDate = instance.formatDate(selectedDates[1], 'Y-m-d');
-                this.doSearch();
-            }
-        }
-    });
-},
+	myChart.setOption(option);
+	window.addEventListener('resize', () => myChart.resize());
+	},
 
-resetDateRange() {
-    this.startDate = '';
-    this.endDate = '';
-    if (this.rangePicker) {
-        this.rangePicker.clear(); 
-    }
-    this.doSearch();
-},
-       
-   async initPicker(el) {
-    this.monthPicker = await window.initMonthPicker(el, this.month, (dateStr) => {
-        this.month = dateStr;
-        this.clearInvalid('month');
-    });
-},
+	init() {
+	this.checkFlash();
+	this.initChart();
+	},
 
-    clearInvalid(field) {
-        if (field in this.invalid) {
-            this.invalid[field] = false;
-        }
-    },
+	// Fungsi Helper untuk Inisialisasi Flatpickr dari HTML
+	rangePicker: null,
+	async initRangePicker(el) {
+	// Proteksi jika module belum ter-load sempurna
+	if (typeof window.initRangePicker !== 'function') return;
 
-    resetInvalid() {
-        Object.keys(this.invalid).forEach(key => this.invalid[key] = false);
-    },
+	this.rangePicker = await window.initRangePicker(el, {
+	altInputClass: 'input input-bordered  input-xs w-full  focus:border-info focus:ring-info focus:outline-hidden',
+	defaultDate: this.startDate && this.endDate ? [this.startDate, this.endDate] : null,
+	onClose: (selectedDates, dateStr, instance) => {
+	if (selectedDates.length === 2) {
+	this.startDate = instance.formatDate(selectedDates[0], 'Y-m-d');
+	this.endDate = instance.formatDate(selectedDates[1], 'Y-m-d');
+	this.doSearch();
+	}
+	}
+	});
+	},
 
-    validateForm(event) {
-        this.invalid.month = !this.month;
-        this.invalid.businessUnitId = this.entityType === 'mine_company' && !this.businessUnitId;
-        this.invalid.contractorId = this.entityType === 'contractor' && !this.contractorId;
-        this.invalid.operationalHours = !this.operationalHours;
-        this.invalid.operationalCount = !this.operationalCount;
-        
-        if (this.hasSupervisor) {
-            this.invalid.supervisorHours = !this.supervisorHours;
-            this.invalid.supervisorCount = !this.supervisorCount;
-        } else {
-            this.invalid.supervisorHours = false;
-            this.invalid.supervisorCount = false;
-        }
+	resetDateRange() {
+	this.startDate = '';
+	this.endDate = '';
+	if (this.rangePicker) {
+	this.rangePicker.clear(); 
+	}
+	this.doSearch();
+	},
 
-        if (this.hasAdmin) {
-            this.invalid.adminHours = !this.adminHours;
-            this.invalid.adminCount = !this.adminCount;
-        } else {
-            this.invalid.adminHours = false;
-            this.invalid.adminCount = false;
-        }
+	async initPicker(el) {
+	this.monthPicker = await window.initMonthPicker(el, this.month, (dateStr) => {
+	this.month = dateStr;
+	this.clearInvalid('month');
+	});
+	},
 
-        const hasError = Object.values(this.invalid).some(Boolean);
-        if (hasError) {
-            event.preventDefault();
-            event.stopPropagation();
-        }
-    },
+	clearInvalid(field) {
+	if (field in this.invalid) {
+	this.invalid[field] = false;
+	}
+	},
 
-    openCreate() {
-        this.isEdit = false;
-        this.id = '';
-        this.month = '';
-        this.entityType = 'mine_company';
-        this.businessUnitId = '';
-        this.contractorId = '';
-        this.departmentGroupId = '';
-        this.custodianId = '';
-        this.hasSupervisor = false;
-        this.supervisorHours = '';
-        this.supervisorCount = '';
-        this.operationalHours = '';
-        this.operationalCount = '';
-        this.hasAdmin = false;
-        this.adminHours = '';
-        this.adminCount = '';
-        this.notes = '';
-        this.resetInvalid();
-        
-        this.$nextTick(() => {
-            // Reset tanggal pada picker
-            if (this.monthPicker) {
-                this.monthPicker.clear();
-            }
-            if (window.create_manhours) create_manhours.showModal();
-        });
-    },
+	resetInvalid() {
+	Object.keys(this.invalid).forEach(key => this.invalid[key] = false);
+	},
 
-    openEdit(item) {
-        this.isEdit = true;
-        this.id = item.ID;
-        
-        // Ambil string tanggal (YYYY-MM-DD)
-        let rawDate = item.Month || '';
-        this.month = rawDate.substring(0, 10); 
+	validateForm(event) {
+	this.invalid.month = !this.month;
+	this.invalid.businessUnitId = this.entityType === 'mine_company' && !this.businessUnitId;
+	this.invalid.contractorId = this.entityType === 'contractor' && !this.contractorId;
+	this.invalid.operationalHours = !this.operationalHours;
+	this.invalid.operationalCount = !this.operationalCount;
 
-        this.entityType = item.EntityType;
-        this.businessUnitId = item.BusinessUnitID || '';
-        this.contractorId = item.ContractorID || '';
-        this.departmentGroupId = item.DepartmentGroupID || '';
-        this.custodianId = item.CustodianID || '';
-        this.hasSupervisor = item.SupervisorHours > 0 || item.SupervisorCount > 0;
-        this.supervisorHours = item.SupervisorHours;
-        this.supervisorCount = item.SupervisorCount;
-        this.operationalHours = item.OperationalHours;
-        this.operationalCount = item.OperationalCount;
-        this.hasAdmin = item.AdminHours > 0 || item.AdminCount > 0;
-        this.adminHours = item.AdminHours;
-        this.adminCount = item.AdminCount;
-        this.notes = item.Notes || '';
-        this.resetInvalid();
+	if (this.hasSupervisor) {
+	this.invalid.supervisorHours = !this.supervisorHours;
+	this.invalid.supervisorCount = !this.supervisorCount;
+	} else {
+	this.invalid.supervisorHours = false;
+	this.invalid.supervisorCount = false;
+	}
 
-        this.$nextTick(() => {
-            // Set tanggal pada picker sesuai data item
-            if (this.monthPicker && this.month) {
-                this.monthPicker.setDate(this.month, false);
-            }
-            if (window.create_manhours) create_manhours.showModal();
-        });
-    },
+	if (this.hasAdmin) {
+	this.invalid.adminHours = !this.adminHours;
+	this.invalid.adminCount = !this.adminCount;
+	} else {
+	this.invalid.adminHours = false;
+	this.invalid.adminCount = false;
+	}
 
-    onEntityChange() {
-        this.businessUnitId = '';
-        this.contractorId = '';
-        this.departmentGroupId = '';
-        this.custodianId = '';
-    },
+	const hasError = Object.values(this.invalid).some(Boolean);
+	if (hasError) {
+	event.preventDefault();
+	event.stopPropagation();
+	}
+	},
 
-doSearch() {
-        // Gunakan URLSearchParams agar manajemen query string rapi
-        const params = new URLSearchParams();
-        
-        // Tetapkan halaman kembali ke 1 setiap kali filter berubah
-        params.set('page', '1');
+	openCreate() {
+	this.isEdit = false;
+	this.id = '';
+	this.month = '';
+	this.entityType = 'mine_company';
+	this.businessUnitId = '';
+	this.contractorId = '';
+	this.departmentGroupId = '';
+	this.custodianId = '';
+	this.hasSupervisor = false;
+	this.supervisorHours = '';
+	this.supervisorCount = '';
+	this.operationalHours = '';
+	this.operationalCount = '';
+	this.hasAdmin = false;
+	this.adminHours = '';
+	this.adminCount = '';
+	this.notes = '';
+	this.resetInvalid();
 
-        // Tambahkan pencarian jika ada isinya
-        if (this.searchQuery && this.searchQuery.trim() !== '') {
-            params.set('search', this.searchQuery);
-        }
+	this.$nextTick(() => {
+	// Reset tanggal pada picker
+	if (this.monthPicker) {
+	this.monthPicker.clear();
+	}
+	if (window.create_manhours) create_manhours.showModal();
+	});
+	},
 
-        // Tambahkan start_date jika ada
-        if (this.startDate && this.startDate !== '') {
-            params.set('start_date', this.startDate);
-        }
+	openEdit(item) {
+	this.isEdit = true;
+	this.id = item.ID;
 
-        // Tambahkan end_date jika ada
-        if (this.endDate && this.endDate !== '') {
-            params.set('end_date', this.endDate);
-        }
+	// Ambil string tanggal (YYYY-MM-DD)
+	let rawDate = item.Month || '';
+	this.month = rawDate.substring(0, 10); 
 
-        // Redirect ke URL dengan semua parameter yang sudah digabung
-        window.location.href = '/manhours?' + params.toString();
-    },
+	this.entityType = item.EntityType;
+	this.businessUnitId = item.BusinessUnitID || '';
+	this.contractorId = item.ContractorID || '';
+	this.departmentGroupId = item.DepartmentGroupID || '';
+	this.custodianId = item.CustodianID || '';
+	this.hasSupervisor = item.SupervisorHours > 0 || item.SupervisorCount > 0;
+	this.supervisorHours = item.SupervisorHours;
+	this.supervisorCount = item.SupervisorCount;
+	this.operationalHours = item.OperationalHours;
+	this.operationalCount = item.OperationalCount;
+	this.hasAdmin = item.AdminHours > 0 || item.AdminCount > 0;
+	this.adminHours = item.AdminHours;
+	this.adminCount = item.AdminCount;
+	this.notes = item.Notes || '';
+	this.resetInvalid();
 
-    checkFlash() {
-        const getCookie = (name) => {
-            let value = `; ${document.cookie}`;
-            let parts = value.split(`; ${name}=`);
-            if (parts.length === 2) return parts.pop().split(';').shift();
-        }
-        const msg = getCookie('flash_msg');
-        const type = getCookie('flash_type');
-        if (msg) {
-            const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
-            if (window.showToast) { window.showToast(decodedMsg, type || 'success'); }
-            document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
-            document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
-        }
-    },
+	this.$nextTick(() => {
+	// Set tanggal pada picker sesuai data item
+	if (this.monthPicker && this.month) {
+	this.monthPicker.setDate(this.month, false);
+	}
+	if (window.create_manhours) create_manhours.showModal();
+	});
+	},
 
-    getAction() {
-        return this.isEdit ? '/manhours/update' : '/manhours/store';
-    }
-}" x-init="init()">
+	onEntityChange() {
+	this.businessUnitId = '';
+	this.contractorId = '';
+	this.departmentGroupId = '';
+	this.custodianId = '';
+	},
 
-    <h1 class="text-sm font-bold mb-2 text-base-content uppercase tracking-wider">Manhours</h1>
+	doSearch() {
+	// Gunakan URLSearchParams agar manajemen query string rapi
+	const params = new URLSearchParams();
 
-    <div class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-4">
-        <div class="flex space-x-2 w-full sm:w-auto">
-            <button class="btn btn-accent btn-xs px-4" @click="openCreate()">
-                {{ lucide "plus" (dict "class" "size-4") }}
-                <span>Tambah Manhours</span>
-            </button>
-            <button class="btn btn-warning btn-xs  sm:w-auto" @click="showUpload = true">
-                {{ lucide "file-up" (dict "class" "size-4") }}
-                <span>Upload Excel</span>
-            </button>
-        </div>
+	// Tetapkan halaman kembali ke 1 setiap kali filter berubah
+	params.set('page', '1');
 
-        <div class="w-full sm:w-auto flex flex-col md:flex-row gap-2">
-            <div class="flex items-center ">
-                <div class="relative w-64">
-                    <label class="floating-label">
-                        <input type="text"
-                            x-init="window.initRangePicker ? initRangePicker($el) : document.addEventListener('DOMContentLoaded', () => initRangePicker($el))"
-                            placeholder="Rentang Tanggal..." readonly
-                            class="input input-bordered input-xs w-full max-w-sm focus:border-info focus:ring-info focus:outline-hidden" />
-                        <span>Rentang Tanggal</span>
-                    </label>
+	// Tambahkan pencarian jika ada isinya
+	if (this.searchQuery && this.searchQuery.trim() !== '') {
+	params.set('search', this.searchQuery);
+	}
+
+	// Tambahkan start_date jika ada
+	if (this.startDate && this.startDate !== '') {
+	params.set('start_date', this.startDate);
+	}
+
+	// Tambahkan end_date jika ada
+	if (this.endDate && this.endDate !== '') {
+	params.set('end_date', this.endDate);
+	}
+
+	// Redirect ke URL dengan semua parameter yang sudah digabung
+	window.location.href = '/manhours?' + params.toString();
+	},
+
+	checkFlash() {
+	const getCookie = (name) => {
+	let value = `; ${document.cookie}`;
+	let parts = value.split(`; ${name}=`);
+	if (parts.length === 2) return parts.pop().split(';').shift();
+	}
+	const msg = getCookie('flash_msg');
+	const type = getCookie('flash_type');
+	if (msg) {
+	const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+	if (window.showToast) { window.showToast(decodedMsg, type || 'success'); }
+	document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+	document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+	}
+	},
+
+	getAction() {
+	return this.isEdit ? '/manhours/update' : '/manhours/store';
+	}
+	}" x-init="init()">
+
+	<h1 class="text-sm font-bold mb-2 text-base-content uppercase tracking-wider">Manhours</h1>
+
+	<div class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-4">
+		<div class="flex space-x-2 w-full sm:w-auto">
+			<button class="btn btn-accent btn-xs px-4" @click="openCreate()">
+				{{ lucide "plus" (dict "class" "size-4") }}
+				<span>Tambah Manhours</span>
+			</button>
+			<button class="btn btn-warning btn-xs  sm:w-auto" @click="showUpload = true">
+				{{ lucide "file-up" (dict "class" "size-4") }}
+				<span>Upload Excel</span>
+			</button>
+		</div>
+
+		<div class="w-full sm:w-auto flex flex-col md:flex-row gap-2">
+			<div class="flex items-center ">
+				<div class="relative w-64">
+					<label class="floating-label">
+						<input type="text"
+							x-init="window.initRangePicker ? initRangePicker($el) : document.addEventListener('DOMContentLoaded', () => initRangePicker($el))"
+							placeholder="Rentang Tanggal..." readonly
+							class="input input-bordered input-xs w-full max-w-sm focus:border-info focus:ring-info focus:outline-hidden" />
+						<span>Rentang Tanggal</span>
+					</label>
 
 
-                    <template x-if="startDate && endDate">
-                        <button type="button" @click="resetDateRange()"
-                            class="absolute right-2 top-1/2 -translate-y-1/2 text-error hover:text-red-700 z-10"
-                            title="Hapus Filter Tanggal">
-                            {{ lucide "x" (dict "class" "h-4 w-4") }}
-                        </button>
-                    </template>
-                </div>
-            </div>
-            <div class="relative w-64">
-                {{ template "input-floating" (dict "Label" "Cari Manhours" "Name" "search" "Placeholder" "Ketik untuk mencari..." "Attr" "x-model='searchQuery' @input.debounce.750ms='doSearch()' autofocus" ) }}
-            </div>
-        </div>
-    </div>
+					<template x-if="startDate && endDate">
+						<button type="button" @click="resetDateRange()"
+							class="absolute right-2 top-1/2 -translate-y-1/2 text-error hover:text-red-700 z-10"
+							title="Hapus Filter Tanggal">
+							{{ lucide "x" (dict "class" "h-4 w-4") }}
+						</button>
+					</template>
+				</div>
+			</div>
+			<div class="relative w-64">
+				{{ template "input-floating" (dict "Label" "Cari Manhours" "Name" "search" "Placeholder" "Ketik untuk mencari..." "Attr" "x-model='searchQuery' @input.debounce.750ms='doSearch()' autofocus") }}
+			</div>
+		</div>
+	</div>
 
-    <dialog id="create_manhours" class="modal">
-        <div class="modal-box p-0 border border-base-300 shadow-2xl w-full max-w-full sm:max-w-5xl overflow-visible">
-            <form :action="getAction()" method="POST" @submit="validateForm($event)" novalidate>
-                <div class="card bg-base-100 card-xs shadow-sm">
-                    <div class="card-body space-y-4">
-                        <h2 class="card-title text-base-content font-semibold mb-3"
-                            x-text="isEdit ? 'Edit Manhours' : 'Tambah Manhours'"></h2>
+	<dialog id="create_manhours" class="modal">
+		<div class="modal-box p-0 border border-base-300 shadow-2xl w-full max-w-full sm:max-w-5xl overflow-visible">
+			<form :action="getAction()" method="POST" @submit="validateForm($event)" novalidate>
+				<div class="card bg-base-100 card-xs shadow-sm">
+					<div class="card-body space-y-4">
+						<h2 class="card-title text-base-content font-semibold mb-3"
+							x-text="isEdit ? 'Edit Manhours' : 'Tambah Manhours'"></h2>
 
-                        <input type="hidden" name="id" x-model="id">
-                        <input type="hidden" name="has_supervisor" :value="hasSupervisor ? '1' : '0'">
-                        <input type="hidden" name="has_admin" :value="hasAdmin ? '1' : '0'">
+						<input type="hidden" name="id" x-model="id">
+						<input type="hidden" name="has_supervisor" :value="hasSupervisor ? '1' : '0'">
+						<input type="hidden" name="has_admin" :value="hasAdmin ? '1' : '0'">
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
-                            <div class="min-w-0 relative flex flex-col">
-                                <label class="label text-xs">Bulan</label>
-                                <input type="text" name="month" x-model="month" x-ref="monthInput" required readonly
-                                    x-init="initPicker($el)"
-                                    class="input input-bordered input-xs w-full focus:outline-none focus:border-info focus:ring-info flatpickr-month-input"
-                                    :class="invalid.month ? 'ring-1 ring-error' : ''" />
-                            </div>
+						<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
+							<div class="min-w-0 relative flex flex-col">
+								<label class="label text-xs">Bulan</label>
+								<input type="text" name="month" x-model="month" x-ref="monthInput" required readonly
+									x-init="initPicker($el)"
+									class="input input-bordered input-xs w-full focus:outline-none focus:border-info focus:ring-info flatpickr-month-input"
+									:class="invalid.month ? 'ring-1 ring-error' : ''" />
+							</div>
 
-                            <div class="min-w-0">
-                                <label class="label text-xs">Pilih Entitas</label>
-                                {{ $entities := list (dict "ID" "mine_company" "Name" "Mine Company") (dict "ID"
-                                "contractor" "Name" "Contractor") }}
-                                {{ template "select_input" (dict "Name" "entity_type" "Model" "entityType" "Placeholder"
-                                "Pilih Entitas" "Options" $entities "Attr" ` @change="onEntityChange();
-                                clearInvalid('businessUnitId'); clearInvalid('contractorId')" ` ) }}
-                            </div>
+							<div class="min-w-0">
+								<label class="label text-xs">Pilih Entitas</label>
+								{{ $entities := list (dict "ID" "mine_company" "Name" "Mine Company") (dict "ID"
+									"contractor" "Name" "Contractor"
+									)
+								}}
+								{{ template "select_input" (dict "Name" "entity_type" "Model" "entityType" "Placeholder"
+									"Pilih Entitas" "Options" $entities "Attr" ` @change="onEntityChange();
+                                clearInvalid('businessUnitId'); clearInvalid('contractorId')" `
+									)
+								}}
+							</div>
 
-                            <div class="min-w-0">
-                                <label class="label text-xs"
-                                    x-text="entityType === 'mine_company' ? 'Business Unit' : 'Contractor'"></label>
+							<div class="min-w-0">
+								<label class="label text-xs"
+									x-text="entityType === 'mine_company' ? 'Business Unit' : 'Contractor'"></label>
 
-                                <template x-if="entityType === 'mine_company'">
-                                    {{ $buOptions := list }}
-                                    {{ range .BusinessUnits }}
-                                    {{ $buName := printf "%s - %s" .Name .Company.Name }}
-                                    {{ $buOptions = append $buOptions (dict "ID" .ID "Name" $buName) }}
-                                    {{ end }}
-                                    {{ template "select_input" (dict "Name" "business_unit_id" "Model" "businessUnitId" "Placeholder" "Pilih Business Unit" "Options" $buOptions "Class" ":class=\"invalid.businessUnitId ? 'ring-1 ring-error' : ''\" " "Attr" ` @change="clearInvalid('businessUnitId')" required ` ) }}
-                                </template>
+								<template x-if="entityType === 'mine_company'">
+									{{ $buOptions := list }}
+									{{ range .BusinessUnits }}
+										{{ $buName := printf "%s - %s" .Name .Company.Name }}
+										{{ $buOptions = append $buOptions (dict "ID" .ID "Name" $buName) }}
+									{{ end }}
+									{{ template "select_input" (dict "Name" "business_unit_id" "Model" "businessUnitId" "Placeholder" "Pilih Business Unit" "Options" $buOptions "Class" ":class=\"invalid.businessUnitId ? 'ring-1 ring-error' : ''\" " "Attr" ` @change="clearInvalid('businessUnitId')" required `) }}
+								</template>
 
-                                <template x-if="entityType === 'contractor'">
-                                    {{ $contractorOptions := list }}
-                                    {{ range .Contractors }}
-                                    {{ $contractorOptions = append $contractorOptions (dict "ID" .ID "Name" .Name) }}
-                                    {{ end }}
-                                    {{ template "select_input" (dict "Name" "contractor_id" "Model" "contractorId" "Placeholder" "Pilih Contractor" "Options" $contractorOptions "Class" "  :class=\"invalid.contractorId ? 'ring-1 ring-error' : ''\" " "Attr" `@change="clearInvalid('contractorId'); custodianId = ''" required ` ) }}
-                                </template>
-                            </div>
+								<template x-if="entityType === 'contractor'">
+									{{ $contractorOptions := list }}
+									{{ range .Contractors }}
+										{{ $contractorOptions = append $contractorOptions (dict "ID" .ID "Name" .Name) }}
+									{{ end }}
+									{{ template "select_input" (dict "Name" "contractor_id" "Model" "contractorId" "Placeholder" "Pilih Contractor" "Options" $contractorOptions "Class" "  :class=\"invalid.contractorId ? 'ring-1 ring-error' : ''\" " "Attr" `@change="clearInvalid('contractorId'); custodianId = ''" required `) }}
+								</template>
+							</div>
 
-                            <div class="min-w-0">
-                                <label class="label text-xs"
-                                    x-text="entityType === 'mine_company' ? 'Department Group' : 'Custodian'"></label>
+							<div class="min-w-0">
+								<label class="label text-xs"
+									x-text="entityType === 'mine_company' ? 'Department Group' : 'Custodian'"></label>
 
-                                <template x-if="entityType === 'mine_company'">
-                                    {{ $deptOptions := list }}
-                                    {{ range .DepartmentGroups }}
-                                    {{ $formattedName := printf "%s / %s" .Department.Name .Group.Name }}
-                                    {{ $deptOptions = append $deptOptions (dict "ID" .ID "Name" $formattedName) }}
-                                    {{ end }}
-                                    {{ template "select_input" (dict "Name" "department_group_id" "Model"
-                                    "departmentGroupId" "Placeholder" "Pilih Department Group" "Options" $deptOptions )
-                                    }}
-                                </template>
+								<template x-if="entityType === 'mine_company'">
+									{{ $deptOptions := list }}
+									{{ range .DepartmentGroups }}
+										{{ $formattedName := printf "%s / %s" .Department.Name .Group.Name }}
+										{{ $deptOptions = append $deptOptions (dict "ID" .ID "Name" $formattedName) }}
+									{{ end }}
+									{{ template "select_input" (dict "Name" "department_group_id" "Model"
+										"departmentGroupId" "Placeholder" "Pilih Department Group" "Options" $deptOptions
+										)
+									}}
+								</template>
 
-                                <template x-if="entityType === 'contractor'">
-                                    {{ template "select_input" (dict "Name" "custodian_id" "Model" "custodianId"
-                                    "Placeholder" "Pilih Custodian" "Options" (list) "Slot" ` <template
+								<template x-if="entityType === 'contractor'">
+									{{ template "select_input" (dict "Name" "custodian_id" "Model" "custodianId"
+										"Placeholder" "Pilih Custodian" "Options" (list) "Slot" ` <template
                                         x-for="cust in filteredCustodians" :key="cust.ID">
                                         <option :value="cust.ID" x-text="cust.Department.Name"></option>
-                                    </template> ` ) }}
-                                </template>
-                            </div>
-                        </div>
+                                    </template> `
+										)
+									}}
+								</template>
+							</div>
+						</div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 min-w-0">
-                            <div class="border border-base-300 rounded-lg p-4 min-w-0">
-                                <div class="flex flex-col gap-2 mb-3">
-                                    <div class="flex items-center justify-between gap-3">
-                                        <h3 class="font-semibold">Supervisor</h3>
-                                        <label class="cursor-pointer flex items-center gap-2 text-xs">
-                                            <input type="checkbox" class="checkbox checkbox-xs" x-model="hasSupervisor">
-                                            <span>Centang Jika Ada Data Supervisor</span>
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="space-y-3" x-show="hasSupervisor">
-                                    <div>
-                                        <label class="label text-xs">Jumlah Jam Kerja</label>
-                                        <input type="number" name="supervisor_hours" x-model="supervisorHours" min="0.5"
-                                            step="0.5" x-bind:required="hasSupervisor"
-                                            @input="clearInvalid('supervisorHours')"
-                                            class="input input-bordered input-xs w-full focus:outline-none focus:ring-info"
-                                            :class="invalid.supervisorHours ? 'ring-1 ring-error' : ''" />
-                                    </div>
-                                    <div>
-                                        <label class="label text-xs">Jumlah Tenaga Kerja</label>
-                                        <input type="number" name="supervisor_count" x-model="supervisorCount" min="1"
-                                            x-bind:required="hasSupervisor" @input="clearInvalid('supervisorCount')"
-                                            class="input input-bordered input-xs w-full focus:outline-none focus:ring-info"
-                                            :class="invalid.supervisorCount ? 'ring-1 ring-error' : ''" />
-                                    </div>
-                                </div>
-                            </div>
+						<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 min-w-0">
+							<div class="border border-base-300 rounded-lg p-4 min-w-0">
+								<div class="flex flex-col gap-2 mb-3">
+									<div class="flex items-center justify-between gap-3">
+										<h3 class="font-semibold">Supervisor</h3>
+										<label class="cursor-pointer flex items-center gap-2 text-xs">
+											<input type="checkbox" class="checkbox checkbox-xs" x-model="hasSupervisor">
+											<span>Centang Jika Ada Data Supervisor</span>
+										</label>
+									</div>
+								</div>
+								<div class="space-y-3" x-show="hasSupervisor">
+									<div>
+										<label class="label text-xs">Jumlah Jam Kerja</label>
+										<input type="number" name="supervisor_hours" x-model="supervisorHours" min="0.5"
+											step="0.5" x-bind:required="hasSupervisor"
+											@input="clearInvalid('supervisorHours')"
+											class="input input-bordered input-xs w-full focus:outline-none focus:ring-info"
+											:class="invalid.supervisorHours ? 'ring-1 ring-error' : ''" />
+									</div>
+									<div>
+										<label class="label text-xs">Jumlah Tenaga Kerja</label>
+										<input type="number" name="supervisor_count" x-model="supervisorCount" min="1"
+											x-bind:required="hasSupervisor" @input="clearInvalid('supervisorCount')"
+											class="input input-bordered input-xs w-full focus:outline-none focus:ring-info"
+											:class="invalid.supervisorCount ? 'ring-1 ring-error' : ''" />
+									</div>
+								</div>
+							</div>
 
-                            <div class="border border-base-300 rounded-lg p-4 min-w-0 bg-base-200/20">
-                                <div class="flex items-center justify-between mb-3">
-                                    <h3 class="font-semibold">Operational</h3>
-                                    <span class="text-xs text-base-content/60 italic">Wajib diisi</span>
-                                </div>
-                                <div class="space-y-3">
-                                    <div>
-                                        <label class="label text-xs">Jumlah Jam Kerja</label>
-                                        <input type="number" name="operational_hours" x-model="operationalHours"
-                                            min="0.5" step="0.5" required @input="clearInvalid('operationalHours')"
-                                            class="input input-bordered input-xs w-full focus:outline-none focus:ring-info"
-                                            :class="invalid.operationalHours ? 'ring-1 ring-error' : ''" />
-                                    </div>
-                                    <div>
-                                        <label class="label text-xs">Jumlah Tenaga Kerja</label>
-                                        <input type="number" name="operational_count" x-model="operationalCount" min="1"
-                                            required @input="clearInvalid('operationalCount')"
-                                            class="input input-bordered input-xs w-full focus:outline-none focus:ring-info"
-                                            :class="invalid.operationalCount ? 'ring-1 ring-error' : ''" />
-                                    </div>
-                                </div>
-                            </div>
+							<div class="border border-base-300 rounded-lg p-4 min-w-0 bg-base-200/20">
+								<div class="flex items-center justify-between mb-3">
+									<h3 class="font-semibold">Operational</h3>
+									<span class="text-xs text-base-content/60 italic">Wajib diisi</span>
+								</div>
+								<div class="space-y-3">
+									<div>
+										<label class="label text-xs">Jumlah Jam Kerja</label>
+										<input type="number" name="operational_hours" x-model="operationalHours"
+											min="0.5" step="0.5" required @input="clearInvalid('operationalHours')"
+											class="input input-bordered input-xs w-full focus:outline-none focus:ring-info"
+											:class="invalid.operationalHours ? 'ring-1 ring-error' : ''" />
+									</div>
+									<div>
+										<label class="label text-xs">Jumlah Tenaga Kerja</label>
+										<input type="number" name="operational_count" x-model="operationalCount" min="1"
+											required @input="clearInvalid('operationalCount')"
+											class="input input-bordered input-xs w-full focus:outline-none focus:ring-info"
+											:class="invalid.operationalCount ? 'ring-1 ring-error' : ''" />
+									</div>
+								</div>
+							</div>
 
-                            <div class="border border-base-300 rounded-lg p-4 min-w-0">
-                                <div class="flex items-center justify-between mb-3">
-                                    <h3 class="font-semibold">Administrator</h3>
-                                    <label class="cursor-pointer flex items-center gap-2 text-xs">
-                                        <input type="checkbox" class="checkbox checkbox-xs" x-model="hasAdmin">
-                                        <span>Centang Jika Ada Data Administrator</span>
-                                    </label>
-                                </div>
-                                <div class="space-y-3" x-show="hasAdmin">
-                                    <div>
-                                        <label class="label text-xs">Jumlah Jam Kerja</label>
-                                        <input type="number" name="admin_hours" x-model="adminHours" min="0.5"
-                                            step="0.5" x-bind:required="hasAdmin" @input="clearInvalid('adminHours')"
-                                            class="input input-bordered input-xs w-full focus:outline-none focus:ring-info"
-                                            :class="invalid.adminHours ? 'ring-1 ring-error' : ''" />
-                                    </div>
-                                    <div>
-                                        <label class="label text-xs">Jumlah Tenaga Kerja</label>
-                                        <input type="number" name="admin_count" x-model="adminCount" min="1"
-                                            x-bind:required="hasAdmin" @input="clearInvalid('adminCount')"
-                                            class="input input-bordered input-xs w-full focus:outline-none focus:ring-info"
-                                            :class="invalid.adminCount ? 'ring-1 ring-error' : ''" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+							<div class="border border-base-300 rounded-lg p-4 min-w-0">
+								<div class="flex items-center justify-between mb-3">
+									<h3 class="font-semibold">Administrator</h3>
+									<label class="cursor-pointer flex items-center gap-2 text-xs">
+										<input type="checkbox" class="checkbox checkbox-xs" x-model="hasAdmin">
+										<span>Centang Jika Ada Data Administrator</span>
+									</label>
+								</div>
+								<div class="space-y-3" x-show="hasAdmin">
+									<div>
+										<label class="label text-xs">Jumlah Jam Kerja</label>
+										<input type="number" name="admin_hours" x-model="adminHours" min="0.5"
+											step="0.5" x-bind:required="hasAdmin" @input="clearInvalid('adminHours')"
+											class="input input-bordered input-xs w-full focus:outline-none focus:ring-info"
+											:class="invalid.adminHours ? 'ring-1 ring-error' : ''" />
+									</div>
+									<div>
+										<label class="label text-xs">Jumlah Tenaga Kerja</label>
+										<input type="number" name="admin_count" x-model="adminCount" min="1"
+											x-bind:required="hasAdmin" @input="clearInvalid('adminCount')"
+											class="input input-bordered input-xs w-full focus:outline-none focus:ring-info"
+											:class="invalid.adminCount ? 'ring-1 ring-error' : ''" />
+									</div>
+								</div>
+							</div>
+						</div>
 
-                        <div>
-                            <label class="label text-xs">Notes</label>
-                            <textarea name="notes" x-model="notes" rows="3"
-                                class="textarea textarea-bordered textarea-xs w-full focus:ring-info"></textarea>
-                        </div>
-                    </div>
+						<div>
+							<label class="label text-xs">Notes</label>
+							<textarea name="notes" x-model="notes" rows="3"
+								class="textarea textarea-bordered textarea-xs w-full focus:ring-info"></textarea>
+						</div>
+					</div>
 
-                    <div class="modal-action p-4 bg-base-200/50 gap-2">
-                        <button type="button" class="btn btn-ghost btn-xs"
-                            @click="create_manhours.close()">Batal</button>
-                        <button type="submit" class="btn btn-primary btn-xs px-6">
-                            {{ lucide "save" (dict "class" "size-4") }} Simpan
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </dialog>
-    <dialog id="upload_modal" class="modal" :class="{ 'modal-open': showUpload }" x-cloak>
-        <div class="modal-box p-0 border border-base-300 shadow-2xl">
-            <form action="/manhours/upload" method="POST" enctype="multipart/form-data" x-data="{ importing: false }"
-                @submit="importing = true">
+					<div class="modal-action p-4 bg-base-200/50 gap-2">
+						<button type="button" class="btn btn-ghost btn-xs"
+							@click="create_manhours.close()">Batal</button>
+						<button type="submit" class="btn btn-primary btn-xs px-6">
+							{{ lucide "save" (dict "class" "size-4") }} Simpan
+						</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	</dialog>
+	<dialog id="upload_modal" class="modal" :class="{ 'modal-open': showUpload }" x-cloak>
+		<div class="modal-box p-0 border border-base-300 shadow-2xl">
+			<form action="/manhours/upload" method="POST" enctype="multipart/form-data" x-data="{ importing: false }"
+				@submit="importing = true">
 
-                <div class="card bg-base-100 card-xs shadow-sm">
-                    <div class="card-body">
-                        <h2 class="card-title text-base-content font-semibold mb-3">
-                            Upload Data Kontraktor
-                        </h2>
+				<div class="card bg-base-100 card-xs shadow-sm">
+					<div class="card-body">
+						<h2 class="card-title text-base-content font-semibold mb-3">
+							Upload Data Kontraktor
+						</h2>
 
-                        <div class="bg-info/10 p-3 rounded-lg mb-4 border border-info/20">
-                            <p class="text-[10px] leading-relaxed text-info flex gap-2 items-start">
-                                {{ lucide "info" (dict "class" "size-4 shrink-0") }}
-                                <span>Pastikan file <b>.xlsx</b> memiliki nama Kontraktor di <b>Kolom A</b>. Baris
-                                    pertama akan dianggap sebagai header.</span>
-                            </p>
-                        </div>
+						<div class="bg-info/10 p-3 rounded-lg mb-4 border border-info/20">
+							<p class="text-[10px] leading-relaxed text-info flex gap-2 items-start">
+								{{ lucide "info" (dict "class" "size-4 shrink-0") }}
+								<span>Pastikan file <b>.xlsx</b> memiliki nama Kontraktor di <b>Kolom A</b>. Baris
+									pertama akan dianggap sebagai header.
+								</span>
+							</p>
+						</div>
 
-                        <input type="file"
-                            class="file-input file-input-bordered file-input-xs file-input-accent w-full focus:border-info focus:ring-info focus:outline-hidden"
-                            name="excel_file" required />
-                    </div>
+						<input type="file"
+							class="file-input file-input-bordered file-input-xs file-input-accent w-full focus:border-info focus:ring-info focus:outline-hidden"
+							name="excel_file" required />
+					</div>
 
-                    <div class="modal-action p-4 bg-base-200/50 gap-2">
-                        <button type="button" class="btn btn-ghost btn-xs" @click="showUpload = false"
-                            :disabled="importing">
-                            Batal
-                        </button>
+					<div class="modal-action p-4 bg-base-200/50 gap-2">
+						<button type="button" class="btn btn-ghost btn-xs" @click="showUpload = false"
+							:disabled="importing">
+							Batal
+						</button>
 
-                        <button type="submit" class="btn btn-accent btn-xs px-6"
-                            :class="importing ? 'loading loading-spinner' : ''" :disabled="importing">
-                            <template x-if="!importing">
-                                <span class="flex items-center gap-2">
-                                    {{ lucide "upload" (dict "class" "size-4") }} Mulai Import
-                                </span>
-                            </template>
-                            <template x-if="importing">
-                                <span>Memproses...</span>
-                            </template>
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
-        <form method="dialog" class="modal-backdrop bg-black/40" @click="showUpload = false">
-            <button>close</button>
-        </form>
-    </dialog>
+						<button type="submit" class="btn btn-accent btn-xs px-6"
+							:class="importing ? 'loading loading-spinner' : ''" :disabled="importing">
+							<template x-if="!importing">
+								<span class="flex items-center gap-2">
+									{{ lucide "upload" (dict "class" "size-4") }} Mulai Import
+								</span>
+							</template>
+							<template x-if="importing">
+								<span>Memproses...</span>
+							</template>
+						</button>
+					</div>
+				</div>
+			</form>
+		</div>
+		<form method="dialog" class="modal-backdrop bg-black/40" @click="showUpload = false">
+			<button>close</button>
+		</form>
+	</dialog>
 
-    {{ template "card_scroll" . }}
+	{{ template "card_scroll" . }}
 </div>
 {{ end }}
 
 {{ define "slot" }}
 <div class="bg-white p-4 rounded-lg shadow mb-6">
-    <div id="manhoursChart" style="width:100%; height:300px;"></div>
+	<div id="manhoursChart" style="width:100%; height:300px;"></div>
 </div>
 {{ template "pagination" . }}
 <div class="overflow-x-auto bg-base-100 shadow-lg rounded-lg my-4 border border-base-300">
-    <table class="table table-zebra table-xs">
-        <thead class="bg-base-300/50 text-center">
-            <tr>
-                <th class="w-20">NO</th>
-                <th>Bulan</th>
-                <th>Jenis Entitas</th>
-                <th>Perusahaan</th>
-                <th>Department</th>
-                <th>Group</th>
-                <th>Supervisor</th>
-                <th>Operational</th>
-                <th>Administrator</th>
-                <th class="text-center w-32">Aksi</th>
-            </tr>
-        </thead>
-        <tbody class="text-center">
-            {{ range $index, $item := .Manhours }}
-            <tr x-data="{ show: false }" x-init="setTimeout(() => show = true, 50)" x-show="show"
-                x-transition:enter="transition ease-out duration-500"
-                x-transition:enter-start="opacity-0 transform -translate-y-2"
-                x-transition:enter-end="opacity-100 transform translate-y-0">
-                <td class="opacity-50 font-mono italic">{{ add $index 1 }}</td>
-                <td>{{ $item.Month.Format "Jan-2006" }}</td>
-                <td class="capitalize">
-                    {{ if eq $item.EntityType "mine_company" }}{{ $item.BusinessUnit.Company.Name }}{{ else
-                    }}Contractor{{ end }}
-                </td>
-                <td>
-                    {{ if eq $item.EntityType "mine_company" }}
-                    {{ if $item.BusinessUnit.ID }}{{ $item.BusinessUnit.Name }}{{ end }}
-                    {{ else }}
-                    {{ if $item.Contractor.ID }}{{ $item.Contractor.Name }}{{ end }}
-                    {{ end }}
-                </td>
+	<table class="table table-zebra table-xs">
+		<thead class="bg-base-300/50 text-center">
+			<tr>
+				<th class="w-20">NO</th>
+				<th>Bulan</th>
+				<th>Jenis Entitas</th>
+				<th>Perusahaan</th>
+				<th>Department</th>
+				<th>Group</th>
+				<th>Supervisor</th>
+				<th>Operational</th>
+				<th>Administrator</th>
+				<th class="text-center w-32">Aksi</th>
+			</tr>
+		</thead>
+		<tbody class="text-center">
+			{{ range $index, $item := .Manhours }}
+				<tr x-data="{ show: false }" x-init="setTimeout(() => show = true, 50)" x-show="show"
+					x-transition:enter="transition ease-out duration-500"
+					x-transition:enter-start="opacity-0 transform -translate-y-2"
+					x-transition:enter-end="opacity-100 transform translate-y-0">
+					<td class="opacity-50 font-mono italic">{{ add $index 1 }}</td>
+					<td>{{ $item.Month.Format "Jan-2006" }}</td>
+					<td class="capitalize">
+						{{ if eq $item.EntityType "mine_company" }}{{ $item.BusinessUnit.Company.Name }}
+						{{ else }}Contractor
+						{{ end }}
+					</td>
+					<td>
+						{{ if eq $item.EntityType "mine_company" }}
+							{{ if $item.BusinessUnit.ID }}{{ $item.BusinessUnit.Name }}{{ end }}
+						{{ else }}
+							{{ if $item.Contractor.ID }}{{ $item.Contractor.Name }}{{ end }}
+						{{ end }}
+					</td>
 
-                <td>
-                    {{ if eq $item.EntityType "mine_company" }}
-                    {{ if $item.DepartmentGroup.ID }}{{ $item.DepartmentGroup.Department.Name }}{{ end }}
-                    {{ else }}
-                    {{ if $item.Custodian.ID }}{{ $item.Custodian.Contractor.Name }}{{ end }}
-                    {{ end }}
-                </td>
-                <td>
-                    {{ if eq $item.EntityType "mine_company" }}
-                    {{ if $item.DepartmentGroup.ID }}{{ $item.DepartmentGroup.Group.Name }}{{ end }}
-                    {{ else }}
-                    {{ if $item.Custodian.ID }}{{ $item.Custodian.Department.Name }}{{ end }}
-                    {{ end }}
-                </td>
-                <td>
-                    <div class="flex justify-center items-center gap-1 w-full font-semibold">
-                        {{ if gt $item.SupervisorHours 0.0 }}
-                        {{ printf "%.1f" $item.SupervisorHours }}
-                        {{ lucide "clock" (dict "class" "size-4 text-base-content/70") }}
-                        {{ else }}
-                        <span class="text-base-content/30">---</span>
-                        {{ end }}
+					<td>
+						{{ if eq $item.EntityType "mine_company" }}
+							{{ if $item.DepartmentGroup.ID }}{{ $item.DepartmentGroup.Department.Name }}{{ end }}
+						{{ else }}
+							{{ if $item.Custodian.ID }}{{ $item.Custodian.Department.Name }}{{ end }}
+						{{ end }}
+					</td>
+					<td>
+						{{ if eq $item.EntityType "mine_company" }}
+							{{ if $item.DepartmentGroup.ID }}{{ $item.DepartmentGroup.Group.Name }}{{ end }}
+						{{ else }}
+							{{ if $item.Custodian.ID }}
+								{{ range $i, $dg := $item.Custodian.Department.DepartmentGroups }}
+									{{ if $i }}, {{ end }}{{ $dg.Group.Name }}
+								{{ end }}
+							{{ end }}
+						{{ end }}
+					</td>
+					<td>
+						<div class="flex justify-center items-center gap-1 w-full font-semibold">
+							{{ if gt $item.SupervisorHours 0.0 }}
+								{{ printf "%.1f" $item.SupervisorHours }}
+								{{ lucide "clock" (dict "class" "size-4 text-base-content/70") }}
+							{{ else }}
+								<span class="text-base-content/30">---</span>
+							{{ end }}
 
-                        <span class="mx-1 text-base-content/20">/</span>
+							<span class="mx-1 text-base-content/20">/</span>
 
-                        {{ if gt $item.SupervisorCount 0 }}
-                        {{ printf "%d" $item.SupervisorCount }}
-                        {{ lucide "users" (dict "class" "size-4 text-base-content/70") }}
-                        {{ else }}
-                        <span class="text-base-content/30">---</span>
-                        {{ end }}
-                    </div>
-                </td>
-                <td>
-                    <div class="flex justify-center items-center gap-1 w-full font-semibold">
-                        {{ printf "%.1f" $item.OperationalHours }}
-                        {{ lucide "clock" (dict "class" "size-4 text-base-content/70") }}
-                        <span class="mx-1">/</span>
-                        {{ printf "%d" $item.OperationalCount }}
-                        {{ lucide "users" (dict "class" "size-4 text-base-content/70") }}
-                    </div>
-                </td>
-                <td>
-                    <div class="flex justify-center items-center gap-1 w-full font-semibold">
-                        {{ if gt $item.AdminHours 0.0 }}
-                        {{ printf "%.1f" $item.AdminHours }}
-                        {{ lucide "clock" (dict "class" "size-4 text-base-content/70") }}
-                        {{ else }}
-                        <span class="text-base-content/30">---</span>
-                        {{ end }}
+							{{ if gt $item.SupervisorCount 0 }}
+								{{ printf "%d" $item.SupervisorCount }}
+								{{ lucide "users" (dict "class" "size-4 text-base-content/70") }}
+							{{ else }}
+								<span class="text-base-content/30">---</span>
+							{{ end }}
+						</div>
+					</td>
+					<td>
+						<div class="flex justify-center items-center gap-1 w-full font-semibold">
+							{{ printf "%.1f" $item.OperationalHours }}
+							{{ lucide "clock" (dict "class" "size-4 text-base-content/70") }}
+							<span class="mx-1">/</span>
+							{{ printf "%d" $item.OperationalCount }}
+							{{ lucide "users" (dict "class" "size-4 text-base-content/70") }}
+						</div>
+					</td>
+					<td>
+						<div class="flex justify-center items-center gap-1 w-full font-semibold">
+							{{ if gt $item.AdminHours 0.0 }}
+								{{ printf "%.1f" $item.AdminHours }}
+								{{ lucide "clock" (dict "class" "size-4 text-base-content/70") }}
+							{{ else }}
+								<span class="text-base-content/30">---</span>
+							{{ end }}
 
-                        <span class="mx-1 text-base-content/20">/</span>
+							<span class="mx-1 text-base-content/20">/</span>
 
-                        {{ if gt $item.AdminCount 0 }}
-                        {{ printf "%d" $item.AdminCount }}
-                        {{ lucide "users" (dict "class" "size-4 text-base-content/70") }}
-                        {{ else }}
-                        <span class="text-base-content/30">---</span>
-                        {{ end }}
-                    </div>
-                </td>
-                <td class="flex justify-center gap-2">
-                    <button type="button" class="btn btn-square btn-warning btn-xs shadow-sm"
-                        @click="openEdit({ ID: '{{ .ID }}', Month: '{{ .Month.Format " 2006-01" }}',
-                        EntityType: '{{ .EntityType }}' ,
-                        BusinessUnitID: '{{ if .BusinessUnitID }}{{ .BusinessUnitID }}{{ end }}' ,
-                        ContractorID: '{{ if .ContractorID }}{{ .ContractorID }}{{ end }}' ,
-                        DepartmentGroupID: '{{ if .DepartmentGroupID }}{{ .DepartmentGroupID }}{{ end }}' ,
-                        CustodianID: '{{ if .CustodianID }}{{ .CustodianID }}{{ end }}' , SupervisorHours: {{
-                        .SupervisorHours }}, SupervisorCount: {{ .SupervisorCount }}, OperationalHours: {{
-                        .OperationalHours }}, OperationalCount: {{ .OperationalCount }}, AdminHours: {{ .AdminHours }},
-                        AdminCount: {{ .AdminCount }} })">
-                        {{ lucide "pencil" (dict "class" "size-4") }}
-                    </button>
-                    <form action="/manhours/delete" method="POST"
-                        @submit.prevent="if(confirm('Hapus manhours bulan {{ .Month.Format " 2006-01" }}?'))
-                        $el.submit()">
-                        <input type="hidden" name="id" value="{{ .ID }}">
-                        <button type="submit" class="btn btn-square btn-error btn-xs shadow-sm">
-                            {{ lucide "trash-2" (dict "class" "size-4") }}
-                        </button>
-                    </form>
-                </td>
-            </tr>
-            {{ else }}
-            <tr>
-                <td colspan="9" class="text-center py-10 italic text-base-content/40">
-                    {{ if .Search }}Data manhours dengan kata kunci "<span class="font-bold">{{ .Search }}</span>" tidak
-                    ditemukan.
-                    {{ else }}Belum ada data manhours.
-                    {{ end }}
-                </td>
-            </tr>
-            {{ end }}
-        </tbody>
-    </table>
+							{{ if gt $item.AdminCount 0 }}
+								{{ printf "%d" $item.AdminCount }}
+								{{ lucide "users" (dict "class" "size-4 text-base-content/70") }}
+							{{ else }}
+								<span class="text-base-content/30">---</span>
+							{{ end }}
+						</div>
+					</td>
+					<td class="flex justify-center gap-2">
+						<button type="button" class="btn btn-square btn-warning btn-xs shadow-sm"
+							@click="openEdit({ ID: '{{ .ID }}', Month: '{{ .Month.Format " 2006-01" }}',
+							EntityType: '{{ .EntityType }}' ,
+							BusinessUnitID: '{{ if .BusinessUnitID }}{{ .BusinessUnitID }}{{ end }}' ,
+							ContractorID: '{{ if .ContractorID }}{{ .ContractorID }}{{ end }}' ,
+							DepartmentGroupID: '{{ if .DepartmentGroupID }}{{ .DepartmentGroupID }}{{ end }}' ,
+							CustodianID: '{{ if .CustodianID }}{{ .CustodianID }}{{ end }}' , SupervisorHours: {{ .SupervisorHours }}, SupervisorCount: {{ .SupervisorCount }}, OperationalHours: {{ .OperationalHours }}, OperationalCount: {{ .OperationalCount }}, AdminHours: {{ .AdminHours }},
+							AdminCount: {{ .AdminCount }} })">
+							{{ lucide "pencil" (dict "class" "size-4") }}
+						</button>
+						<form action="/manhours/delete" method="POST"
+							@submit.prevent="if(confirm('Hapus manhours bulan {{ .Month.Format " 2006-01" }}?'))
+							$el.submit()">
+							<input type="hidden" name="id" value="{{ .ID }}">
+							<button type="submit" class="btn btn-square btn-error btn-xs shadow-sm">
+								{{ lucide "trash-2" (dict "class" "size-4") }}
+							</button>
+						</form>
+					</td>
+				</tr>
+			{{ else }}
+				<tr>
+					<td colspan="9" class="text-center py-10 italic text-base-content/40">
+						{{ if .Search }}Data manhours dengan kata kunci "<span class="font-bold">{{ .Search }}</span>" tidak
+							ditemukan.
+						{{ else }}Belum ada data manhours.
+						{{ end }}
+					</td>
+				</tr>
+			{{ end }}
+		</tbody>
+	</table>
 </div>
 {{ end }}

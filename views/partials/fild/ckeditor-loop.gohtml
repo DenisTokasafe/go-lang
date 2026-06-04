@@ -1,81 +1,190 @@
 {{ define "ckeditor-loop" }}
-<div class="mt-2" x-data="{ isInvalid: false, internalVal: '' }">
+<div class="mt-2" x-data="{ isInvalid: false }">
 
     {{ if .Label }}
     <label class="label">
         <span class="text-xs font-bold text-base-content opacity-60">
             {{ .Label }}
+
             {{ if or .Required .RequiredBinding }}
             <span class="text-error font-bold ml-0.5">*</span>
             {{ end }}
+
         </span>
     </label>
     {{ end }}
 
-    <div class="border rounded-md overflow-hidden transition-colors" :class="isInvalid ? 'border-error' : 'border-base-300'">
-        <div x-init="
-            $nextTick(() => {
-                if (!window.ClassicEditor) return;
+    <div
+        class="border rounded-md overflow-hidden"
+        :class="isInvalid ? 'border-error' : 'border-base-300'">
 
-                // 1. Ambil nilai awal secara aman
-                let initialData = '';
-                {{ if .Value }}
-                    initialData = `{{ .Value }}`;
-                {{ else if .AlpineVar }}
-                    initialData = {{ .AlpineVar }};
-                {{ end }}
+        <div
+            x-init="
+            (async () => {
 
-                window.ClassicEditor.create($refs.editor, {
-                    toolbar: [ 'heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', 'blockQuote' ]
-                })
-                .then(editor => {
-                    // Simpan instance ke elemen agar bisa di-destroy jika elemen dihapus (mencegah memory leak)
+                try {
+
+                    // =========================
+                    // LOAD CKEDITOR
+                    // =========================
+                    const ClassicEditor =
+                    await window.ClassicEditor;
+
+                    // =========================
+                    // CREATE EDITOR
+                    // =========================
+                    const editor =
+                    await ClassicEditor.create(
+                        $refs.editor,
+                        {
+                            toolbar: [
+                                'heading',
+                                '|',
+                                'bold',
+                                'italic',
+                                'link',
+                                'bulletedList',
+                                'numberedList',
+                                'blockQuote'
+                            ]
+                        }
+                    );
+
+                    // =========================
+                    // SAVE INSTANCE
+                    // =========================
                     $el._editor = editor;
 
-                    // Set data awal ke editor
+                    // =========================
+                    // INITIAL VALUE
+                    // =========================
+                    let initialData = '';
+
+                    {{ if .Value }}
+
+                    initialData = `{{ .Value }}`;
+
+                    {{ else if .AlpineVar }}
+
+                    initialData =
+                    {{ .AlpineVar }} || '';
+
+                    {{ end }}
+
                     editor.setData(initialData);
 
-                    // 2. Sinkronisasi dari CKEditor ke STATE Alpine & Textarea
-                    editor.model.document.on('change:data', () => {
-                        const htmlData = editor.getData();
-                        $refs.editor.value = htmlData;
-                        isInvalid = false;
+                    // =========================
+                    // CKEDITOR -> ALPINE
+                    // =========================
+                    editor.model.document.on(
+                        'change:data',
+                        () => {
 
-                        // Perbarui variabel scope luar (misal: action.followup_action) secara dinamis
-                        {{ if .AlpineVar }}
-                            {{ .AlpineVar }} = htmlData;
-                        {{ end }}
+                            const htmlData =
+                            editor.getData();
 
-                        $refs.editor.dispatchEvent(new Event('input'));
-                    });
+                            $refs.editor.value =
+                            htmlData;
 
-                    // 3. Sinkronisasi dari luar ke dalam CKEditor (Jika data diubah dari luar program)
-                    {{ if .AlpineVar }}
-                    $watch('{{ .AlpineVar }}', (newVal) => {
-                        if (newVal !== editor.getData()) {
-                            editor.setData(newVal || '');
+                            isInvalid = false;
+
+                            {{ if .AlpineVar }}
+
+                            {{ .AlpineVar }} =
+                            htmlData;
+
+                            {{ end }}
+
+                            $refs.editor.dispatchEvent(
+                                new Event('input')
+                            );
                         }
-                    });
-                    {{ end }}
-                })
-                .catch(error => console.error('CKEditor Error:', error));
-            });
-        "
-        x-effect="return () => { if ($el._editor) { $el._editor.destroy().catch(err => console.log(err)); } }">
+                    );
 
-            <textarea id="{{ .ID }}" x-ref="editor" name="{{ .Name }}" class="hidden" 
-                {{ if .AlpineVar }}x-model="{{ .AlpineVar }}"{{ end }}
-                {{ .Attr }} 
-                {{ if .Required }} required {{ end }} 
-                {{ if .RequiredBinding }} x-bind:required="{{ .RequiredBinding }}" {{ end }}
-                @invalid.prevent="isInvalid = true" 
+                    // =========================
+                    // ALPINE -> CKEDITOR
+                    // =========================
+                    {{ if .AlpineVar }}
+
+                    $watch(
+                        '{{ .AlpineVar }}',
+                        (newVal) => {
+
+                            if (
+                                newVal !==
+                                editor.getData()
+                            ) {
+
+                                editor.setData(
+                                    newVal || ''
+                                );
+
+                            }
+                        }
+                    );
+
+                    {{ end }}
+
+                } catch (error) {
+
+                    console.error(
+                        'CKEditor Error:',
+                        error
+                    );
+
+                }
+
+            })()
+            "
+
+             x-effect="
+    if ($el._editor && !$el.isConnected) {
+
+        $el._editor.destroy()
+        .catch(err => console.log(err))
+
+    }
+    ">
+
+            <textarea
+                x-bind:id="{{ .ID }}"
+                x-ref="editor"
+                name="{{ .Name }}"
+                class="hidden"
+
+                {{ if .AlpineVar }}
+                x-model="{{ .AlpineVar }}"
+                {{ end }}
+
+                {{ .Attr }}
+
+                {{ if .Required }}
+                required
+                {{ end }}
+
+                {{ if .RequiredBinding }}
+                x-bind:required="{{ .RequiredBinding }}"
+                {{ end }}
+
+                @invalid.prevent="isInvalid = true"
                 @input="isInvalid = false"
-                aria-label="{{ .Label }}">{{ .Value }}</textarea>
+
+                aria-label="{{ .Label }}">
+
+                {{ .Value }}
+
+            </textarea>
+
         </div>
     </div>
 
-    <div x-show="isInvalid" x-cloak class="text-error text-[9px] font-semibold leading-none mt-1">
+    <div
+        x-show="isInvalid"
+        x-cloak
+        class="text-error text-[9px] font-semibold leading-none mt-1">
+
         Field {{ .Label }} wajib diisi.
+
     </div>
 </div>
 {{ end }}

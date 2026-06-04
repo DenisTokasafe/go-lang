@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"latihan1/middlewares"
 	"latihan1/models"
 	"latihan1/services"
+	"latihan1/utils"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -321,15 +323,64 @@ func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
 		Order("name asc").
 		Find(&eventCategories)
 
-	hc.DB.Order("name asc").Find(&locations)
-
 	hc.DB.
 		Order("risk_consequence_id asc").
 		Find(&riskMatrices)
+	if hazard.LocationID != 0 {
+		// Konversi uint ke string
+		locIDStr := strconv.FormatUint(uint64(hazard.LocationID), 10)
 
-	hc.DB.Order("name asc").Limit(100).Find(&departments)
-	hc.DB.Order("name asc").Limit(100).Find(&contractors)
-	hc.DB.Order("name asc").Limit(100).Find(&users)
+		hc.DB.Where("id = ? OR id NOT IN (?)", hazard.LocationID, hazard.LocationID).
+			Order("CASE WHEN id = " + locIDStr + " THEN 0 ELSE 1 END, name asc").
+			Limit(50).
+			Find(&locations)
+	} else {
+		hc.DB.Order("name asc").Limit(50).Find(&locations)
+	}
+	// ==========================================
+	// 2. DEPARTMENTS (Menggunakan Pointer *uint)
+	// ==========================================
+	if hazard.DepartmentID != nil && *hazard.DepartmentID != 0 {
+		// Ambil nilai asli dari pointer menggunakan *
+		deptIDStr := strconv.FormatUint(uint64(*hazard.DepartmentID), 10)
+
+		hc.DB.Where("id = ? OR id NOT IN (?)", *hazard.DepartmentID, *hazard.DepartmentID).
+			Order("CASE WHEN id = " + deptIDStr + " THEN 0 ELSE 1 END, name asc").
+			Limit(50).
+			Find(&departments)
+	} else {
+		hc.DB.Order("name asc").Limit(50).Find(&departments)
+	}
+
+	// ==========================================
+	// 3. CONTRACTORS (Menggunakan Pointer *uint)
+	// ==========================================
+	if hazard.ContractorID != nil && *hazard.ContractorID != 0 {
+		// Ambil nilai asli dari pointer menggunakan *
+		contIDStr := strconv.FormatUint(uint64(*hazard.ContractorID), 10)
+
+		hc.DB.Where("id = ? OR id NOT IN (?)", *hazard.ContractorID, *hazard.ContractorID).
+			Order("CASE WHEN id = " + contIDStr + " THEN 0 ELSE 1 END, name asc").
+			Limit(50).
+			Find(&contractors)
+	} else {
+		hc.DB.Order("name asc").Limit(50).Find(&contractors)
+	}
+
+	// ==========================================
+	// 4. USERS / ReportBy (Menggunakan Pointer *uint)
+	// ==========================================
+	if hazard.ReportByID != nil && *hazard.ReportByID != 0 {
+		// Ambil nilai asli dari pointer menggunakan *
+		userIDStr := strconv.FormatUint(uint64(*hazard.ReportByID), 10)
+
+		hc.DB.Where("id = ? OR id NOT IN (?)", *hazard.ReportByID, *hazard.ReportByID).
+			Order("CASE WHEN id = " + userIDStr + " THEN 0 ELSE 1 END, name asc").
+			Limit(50).
+			Find(&users)
+	} else {
+		hc.DB.Order("name asc").Limit(50).Find(&users)
+	}
 
 	hc.DB.
 		Where("type IN ?", []string{
@@ -400,6 +451,10 @@ func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
 	// DETERMINE WORK TYPE
 	// =========================
 	workType := "department"
+
+	if hazard.ContractorID != nil {
+		workType = "contractor"
+	}
 	if workType == "department" && hazard.DepartmentID != nil {
 
 		hc.DB.
@@ -408,7 +463,7 @@ func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
 				*hazard.DepartmentID,
 				true,
 			).
-			Order("name asc").
+			Order("name asc").Limit(50).
 			Find(&allPics)
 
 	}
@@ -421,7 +476,7 @@ func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
 				*hazard.ContractorID,
 				true,
 			).
-			Order("name asc").
+			Order("name asc").Limit(50).
 			Find(&allPics)
 
 	}
@@ -432,9 +487,6 @@ func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
 	var correctiveAction models.CorrectiveActionHazard
 
 	statusArea := "aman"
-	correctiveActionType := "department"
-
-	var allPicsTerkait []models.User
 
 	var correctiveActionsDTO []CorrectiveActionDTO
 
@@ -462,7 +514,7 @@ func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
 						*ca.ContractorTerkaitID,
 						true,
 					).
-					Order("name asc").
+					Order("name asc").Limit(50).
 					Find(&pics)
 
 			}
@@ -475,7 +527,7 @@ func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
 						*ca.DepartmentTerkaitID,
 						true,
 					).
-					Order("name asc").
+					Order("name asc").Limit(50).
 					Find(&pics)
 
 			}
@@ -510,27 +562,61 @@ func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
 			)
 		}
 
-		// prefill allPicsTerkait from first action (keeps prior behaviour)
-		if correctiveAction.ContractorTerkaitID != nil {
-			correctiveActionType = "contractor"
-			hc.DB.
-				Where(
-					"contractor_id = ? AND is_pic = ?",
-					*correctiveAction.ContractorTerkaitID,
-					true,
-				).
-				Order("name asc").
-				Find(&allPicsTerkait)
-		} else if correctiveAction.DepartmentTerkaitID != nil {
-			correctiveActionType = "department"
-			hc.DB.
-				Where(
-					"department_id = ? AND is_pic = ?",
-					*correctiveAction.DepartmentTerkaitID,
-					true,
-				).
-				Order("name asc").
-				Find(&allPicsTerkait)
+	}
+
+	// =========================
+	// CURRENT USER
+	// =========================
+	userRaw, ok := r.Context().
+		Value(middlewares.AuthUserKey).(models.User)
+
+	if !ok {
+		http.Error(
+			w,
+			"Unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// reload lengkap relasi user
+	var currentUser models.User
+
+	hc.DB.
+		Preload("ModeratedCategories").
+		First(&currentUser, userRaw.ID)
+
+	// =========================
+	// CHECK PERMISSION REOPEN
+	// =========================
+	canReopen := false
+
+	// PIC hazard
+	if currentUser.ID == hazard.PicID {
+		canReopen = true
+	}
+
+	// Moderator kategori hazard
+	for _, cat := range currentUser.ModeratedCategories {
+
+		// parent category moderator
+		if hazard.EventCategory.ParentID != nil {
+
+			if cat.ID == *hazard.EventCategory.ParentID {
+				canReopen = true
+				break
+			}
+		}
+
+		// direct category moderator
+		if cat.ID == hazard.EventCategoryID {
+			canReopen = true
+			break
 		}
 	}
 
@@ -539,9 +625,9 @@ func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
 	// =========================
 	data := map[string]interface{}{
 		"Title":                "Edit Hazard",
+		"CanReopen":            canReopen,
 		"Hazard":               hazard,
 		"CorrectiveAction":     correctiveAction,
-		"CorrectiveActionType": correctiveActionType,
 		"CorrectiveActions":    toJSON(correctiveActionsDTO),
 		"CorrectiveActionsRaw": hazard.CorrectiveActions,
 		"Matrices":             matrices,
@@ -558,9 +644,8 @@ func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
 		"ScatOptions":          scatOptions,
 
 		// dynamic select
-		"AllTypes":       allTypes,
-		"AllPics":        allPics,
-		"AllPicsTerkait": allPicsTerkait,
+		"AllTypes": allTypes,
+		"AllPics":  allPics,
 		// =========================
 		// FIXED: JSON SAFE FOR ALPINE
 		// =========================
@@ -580,26 +665,135 @@ func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
 }
 func (hc *HazardController) Update(w http.ResponseWriter, r *http.Request) {
 
-	idStr := r.PathValue("id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+	// ========================
+	// VALIDASI METHOD
+	// ========================
+	if r.Method != http.MethodPost {
+
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+
 		return
 	}
 
+	// ========================
+	// VALIDASI SERVICE
+	// ========================
 	if hc.Service == nil {
-		http.Error(w, "service nil", http.StatusInternalServerError)
+
+		http.Error(
+			w,
+			"service nil",
+			http.StatusInternalServerError,
+		)
+
 		return
 	}
 
-	hazard, err := hc.Service.UpdateWithFiles(uint(id), r)
+	// ========================
+	// GET PARAM ID
+	// ========================
+	idStr := r.PathValue("id")
+
+	id, err := strconv.ParseUint(
+		idStr,
+		10,
+		64,
+	)
+
 	if err != nil {
-		log.Println("Update error:", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+
+		http.Error(
+			w,
+			"invalid id",
+			http.StatusBadRequest,
+		)
+
 		return
 	}
-	hc.setFlash(w, "Data Hazard berhasil diupdate!!!", "success")
-	http.Redirect(w, r, "/hazard/edit/"+strconv.Itoa(int(hazard.ID)), http.StatusSeeOther)
+
+	// ========================
+	// UPDATE DATA
+	// ========================
+	hazard, err := hc.Service.UpdateWithFiles(
+		uint(id),
+		r,
+	)
+
+	if err != nil {
+
+		log.Printf(
+			"Hazard Update Error ID %s: %v\n",
+			idStr,
+			err,
+		)
+
+		hc.setFlash(
+			w,
+			err.Error(),
+			"error",
+		)
+
+		http.Redirect(
+			w,
+			r,
+			"/hazard/edit/"+idStr,
+			http.StatusSeeOther,
+		)
+
+		return
+	}
+
+	// ========================
+	// SUCCESS
+	// ========================
+	hc.setFlash(
+		w,
+		"Data Hazard berhasil diupdate!",
+		"success",
+	)
+
+	http.Redirect(
+		w,
+		r,
+		"/hazard/edit/"+strconv.Itoa(
+			int(hazard.ID),
+		),
+		http.StatusSeeOther,
+	)
+}
+func (hc *HazardController) UpdateStatus(w http.ResponseWriter, r *http.Request) {
+
+	id := r.PathValue("id")
+
+	status := r.FormValue("status")
+
+	err := hc.DB.
+		Model(&models.Hazard{}).
+		Where("id = ?", id).
+		UpdateColumn("status", status).Error
+
+	if err != nil {
+
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+
+		return
+	}
+	hc.setFlash(w, "Laporan Hazard Dibuka!", "success")
+
+	http.Redirect(
+		w,
+		r,
+		"/hazard/edit/"+id,
+		http.StatusSeeOther,
+	)
 }
 func (hc *HazardController) SyncField(w http.ResponseWriter, r *http.Request) {
 
@@ -780,4 +974,17 @@ func GetMatrixFunc() template.FuncMap {
 			return string([]rune(s)[0])
 		},
 	}
+}
+
+// PENCARIAN USER
+func (hc *HazardController) Search(w http.ResponseWriter, r *http.Request) {
+	// models.User{} memberi tahu GORM untuk mencari di tabel users
+	utils.GlobalSearch(hc.DB, w, r, models.User{}, "name")
+}
+
+// PENCARIAN LAIN (Contoh: Unit Kerja / Departemen)
+// PENCARIAN LOKASI
+func (hc *HazardController) SearchLocation(w http.ResponseWriter, r *http.Request) {
+	// models.Location{} memberi tahu GORM untuk mencari di tabel locations
+	utils.GlobalSearch(hc.DB, w, r, models.Location{}, "name")
 }

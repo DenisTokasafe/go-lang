@@ -53,6 +53,9 @@ func RegisterRoutes(db *gorm.DB, c *bootstrap.Controllers) {
 		helpers.RenderTemplate(db, w, r, "/dashboard.html", nil)
 	}))
 
+	// Panggil DashboardController, bukan HazardController lagi
+	http.HandleFunc("GET /api/dashboard/hazard-summary", withAuth(c.DashboardController.GetSummary))
+
 	// =========================
 	// COMPANY
 	// =========================
@@ -224,4 +227,7 @@ func RegisterRoutes(db *gorm.DB, c *bootstrap.Controllers) {
 	http.HandleFunc("/hazard/store", withAuth(c.HazardController.Store))
 	http.HandleFunc("GET /hazard/edit/{id}", withAuth(c.HazardController.Edit))
 	http.HandleFunc("POST /hazard/update/{id}", withAuth(c.HazardController.Update))
+	http.HandleFunc("POST /hazard/update-status/{id}", withAuth(c.HazardController.UpdateStatus))
+	http.HandleFunc("GET /api/users/search", withAuth(c.HazardController.Search))
+	http.HandleFunc("GET /api/locations/search", withAuth(c.HazardController.SearchLocation))
 }

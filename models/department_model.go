@@ -5,9 +5,12 @@ import (
 )
 
 type Department struct {
-	Name       string `gorm:"unique;not null"`
-	Users      []User `gorm:"foreignKey:DepartmentID"`
-	gorm.Model        // Otomatis menambahkan ID, CreatedAt, UpdatedAt, DeletedAt
+	Name  string `gorm:"unique;not null"`
+	Users []User `gorm:"foreignKey:DepartmentID"`
+	// Tambahkan 2 baris relasi ini:
+	Custodians       []Custodian       `gorm:"foreignKey:DepartmentID"`
+	DepartmentGroups []DepartmentGroup `gorm:"foreignKey:DepartmentID"`
+	gorm.Model                         // Otomatis menambahkan ID, CreatedAt, UpdatedAt, DeletedAt
 }
 
 // Fungsi bantu untuk CRUD menggunakan GORM

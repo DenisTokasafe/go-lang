@@ -1,0 +1,140 @@
+{{ define "input-flatpickr" }}
+<fieldset
+	class="fieldset"
+	x-modelable="value" {{/* 🔥 PERBAIKAN 1: Menghubungkan x-model Parent dengan state internal Alpine */}}
+	x-data="{
+	value: '{{ .Value }}',
+	isInvalid: false,
+	errorMsg: '',
+	_fp: null,
+
+	isFuture(val) {
+	if (!val) return false;
+	const inputDate = new Date(val);
+	const now = new Date();
+	return inputDate > now;
+	},
+
+	validate() {
+	const isRequired =
+{{ if .Required }}
+	true
+{{ else if .RequiredBinding }}
+{{ .RequiredBinding }}
+{{ else }}
+	false
+{{ end }};
+
+	if (isRequired && (!this.value || this.value.trim() === '')) {
+	this.isInvalid = true;
+	this.errorMsg = '{{ .Label }} wajib diisi.';
+	this.updateStyles();
+	return false;
+	}
+
+	if (this.value && this.isFuture(this.value)) {
+	this.isInvalid = true;
+	this.errorMsg = 'Tanggal tidak boleh melebihi waktu sekarang.';
+	this.updateStyles();
+	return false;
+	}
+
+	this.isInvalid = false;
+	this.errorMsg = '';
+	this.updateStyles();
+	return true;
+	},
+
+	updateStyles() {
+	if (this._fp && this._fp.altInput) {
+	if (this.isInvalid) {
+	this._fp.altInput.classList.add('input-error');
+	} else {
+	this._fp.altInput.classList.remove('input-error');
+	}
+	}
+	},
+
+	async init() {
+	// 💡 JALUR PENYELAMATAN DATA: Jika x-model parent sempat mengosongkan state saat binding awal, paksa isi kembali dari database Go
+	if ((this.value === undefined || this.value === '') && '{{ .Value }}' !== '') {
+	this.value = '{{ .Value }}';
+	}
+
+	const pickerSetup = await window.setupDatepicker({
+	enableTime: {{ if eq .Type "date" }}false{{ else }}true{{ end }},
+	altFormat: {{ if eq .Type "date" }}'j F, Y'{{ else }}'j F, Y H:i'{{ end }},
+	dateFormat: {{ if eq .Type "date" }}'Y-m-d'{{ else }}'Y-m-d H:i'{{ end }},
+	time_24hr: true,
+	disableMobile: true,
+	altInputClass: 'input input-bordered input-xs w-full focus:outline-none focus:border-info focus:ring-info'
+	});
+
+	pickerSetup.value = this.value;
+	pickerSetup.init.call(this);
+
+	if (this.value) {
+	this.$nextTick(() => this.validate());
+	}
+
+	this.$watch('value', val => {
+	this.$dispatch('input', val);
+	this.$dispatch('change', val);
+	this.validate(); 
+	});
+
+{{ if .RequiredBinding }}
+	this.$watch(
+	() => {{ .RequiredBinding }},
+	(val) => {
+	if (!val) {
+	this.isInvalid = false;
+	this.errorMsg = '';
+	this.updateStyles();
+	} else {
+	this.validate();
+	}
+	}
+	);
+{{ end }}
+	}
+	}"
+	@validate-me="validate()"
+	{{ with .Attr }}{{ . | htmlattr }}{{ end }}>
+
+	{{ if .Label }}
+		<label class="label">
+			<span class="text-xs font-bold text-base-content opacity-60">
+				{{ .Label }}
+				{{ if or .Required .RequiredBinding }}
+					<span class="text-error font-bold ml-0.5">*</span>
+				{{ end }}
+			</span>
+		</label>
+	{{ end }}
+
+	<div class="relative w-full">
+		<input
+			type="text"
+			name="{{ .Name }}"
+			id="{{ .Id }}"
+			x-ref="datepicker"
+			value="{{ .Value }}" {{/* 🔥 PERBAIKAN 2: Menyediakan data mentah awal agar dibaca Flatpickr */}}
+			placeholder="{{ .Placeholder }}"
+			@change="validate()"
+			@input="validate()"
+			@invalid.prevent="validate()"
+			:class="isInvalid ? 'input-error' : 'focus:input-info'"
+			class="input input-xs w-full focus:outline-none focus:border-info leading-normal focus:ring-info appearance-none"
+
+			{{ if .Required }} required {{ end }}
+			{{ if .DisabledBinding }} :disabled="{{ .DisabledBinding }}" {{ end }}
+			{{ if .RequiredBinding }} x-bind:required="{{ .RequiredBinding }}" {{ end }}
+		/>
+	</div>
+
+	<div x-show="isInvalid && errorMsg" x-cloak class="mt-1">
+		<p class="text-error text-[9px] font-semibold leading-none" x-text="errorMsg"></p>
+	</div>
+</fieldset>
+{{ end }}

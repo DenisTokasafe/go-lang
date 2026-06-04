@@ -5,12 +5,20 @@ import (
 	"latihan1/cmd/web/bootstrap"
 	"latihan1/cmd/web/config"
 	"latihan1/cmd/web/routes"
+	"log"
 	"net/http"
 	"os"
+
+	"github.com/joho/godotenv" // Tambahkan library godotenv
 )
 
 func main() {
 
+	// PENTING: Load file .env di awal sebelum fungsi lain berjalan
+	errEnv := godotenv.Load()
+	if errEnv != nil {
+		log.Println("Peringatan: File .env tidak ditemukan, menggunakan env system")
+	}
 	// Init Database
 	db := config.InitDB()
 

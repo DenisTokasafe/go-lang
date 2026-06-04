@@ -1,83 +1,313 @@
 {{ define "sidebar.html" }}
-<div class="flex min-h-full flex-col items-start bg-base-200 is-drawer-close:w-14 is-drawer-open:w-64">
-    <div style=" height: 45px;" class="sticky top-0 z-10 flex  w-full items-center is-drawer-open:justify-center border-b border-base-300 bg-base-200 p-2 shadow-mb">
-        <div class=" flex items-center gap-2">
-            <div style=" height: 40px;" class="avatar">
-                <div class="rounded-full">
-                    <img src="/public/images/logo.png" alt="Sentry Logo" />
-                </div>
-            </div>
-            <div class="px-2 font-semibold italic tracking-tighter is-drawer-close:hidden">SENTRY <span class="font-light">Interlock</span></div>
-        </div>
-    </div>
-    <ul class="menu w-full grow">
-        <li class="py-1">
-            <a href="/" class="is-drawer-close:tooltip is-drawer-close:tooltip-right {{ if eq .CurrentPath "/" }}menu-active {{ end }}" data-tip="Homepage">
-                {{ lucide "home" (dict "class" "size-4") }}
-                <span class="is-drawer-close:hidden text-xs">Homepage</span>
-            </a>
-        </li>
-        <li class="overflow-visible">
-            <details {{ if hasPrefix .CurrentPath "/hazard" }}open{{ end }} class="overflow-visible">
-                <summary class="is-drawer-close:tooltip is-drawer-close:tooltip-right text-xs  {{ if hasPrefix .CurrentPath "/hazard" }}menu-active {{ end }}" data-tip="Hazard Report">
-                    {{ lucide "triangle-alert" (dict "class" "size-4") }}
-                    <span class="is-drawer-close:hidden">Hazard Report</span>
-                </summary>
-                <ul class="is-drawer-close:hidden">
-            <li><a href="/hazard" class="my-1 text-xs {{ if eq .CurrentPath "/hazard" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">List Report</a></li>
-            <li><a href="/hazard/create" class="my-1 text-xs {{ if eq .CurrentPath "/hazard/create" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Create Report</a></li>
-              {{ if hasPrefix .CurrentPath "/hazard/edit" }}
-            <li><a href="{{ .CurrentPath }}" class="my-1 text-xs {{ if hasPrefix .CurrentPath "/hazard/edit" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Detail Report</a></li>
-                {{ end }}
-                </ul>
-            </details>
-        </li>
-        <li class="py-1">
-            <a href="/manhours" class="is-drawer-close:tooltip is-drawer-close:tooltip-right {{ if eq .CurrentPath "/manhours" }}menu-active {{ end }}" data-tip="Manhours">
-                {{ lucide "calendar-clock" (dict "class" "size-4") }}
-                <span class="is-drawer-close:hidden text-xs">Manhours</span>
-            </a>
-        </li>
-        <li class="py-1">
-            <a href="/people" class="is-drawer-close:tooltip is-drawer-close:tooltip-right {{ if eq .CurrentPath "/people" }}menu-active {{ end }}" data-tip="People">
-                {{ lucide "users" (dict "class" "size-4") }}
-                <span class="is-drawer-close:hidden text-xs">People</span>
-            </a>
-        </li>
-        {{ if eq .AuthUser.Role.Name "Administrator" }}
-        <li class="overflow-visible">
-            <details {{ if hasPrefix .CurrentPath "/administration" }}open{{ end }} class="overflow-visible">
-                <summary class="is-drawer-close:tooltip is-drawer-close:tooltip-right text-xs  {{ if hasPrefix .CurrentPath "/administration" }}menu-active {{ end }}" data-tip="Administration">
-                    {{ lucide "shield-user" (dict "class" "size-4") }}
-                    <span class="is-drawer-close:hidden">Administration</span>
-                </summary>
-                <ul class="is-drawer-close:hidden">
-                    <li><a href="/administration/company" class="my-1 text-xs {{ if eq .CurrentPath "/administration/company" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Company Management</a></li>
-                    <li><a href="/administration/contractor" class="my-1 text-xs {{ if eq .CurrentPath "/administration/contractor" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Contractor Management</a></li>
-                    <li><a href="/administration/department" class="my-1 text-xs {{ if eq .CurrentPath "/administration/department" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Department Management</a></li>
-                    <li><a href="/administration/business-unit" class="my-1 text-xs {{ if eq .CurrentPath "/administration/business-unit" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Business-unit Management</a></li>
-                    <li><a href="/administration/custodian" class="my-1 text-xs {{ if eq .CurrentPath "/administration/custodian" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Kustodian Management</a></li>
-                    <li><a href="/administration/department-group" class="my-1 text-xs {{ if hasPrefix .CurrentPath "/administration/department-group" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Dept Group Management</a></li>
-                    <li><a href="/administration/risk/matrix" class="my-1 text-xs {{ if hasPrefix .CurrentPath "/administration/risk" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Risk Management</a></li>
-                    <li><a href="/administration/location" class="my-1 text-xs {{ if eq .CurrentPath "/administration/location" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Location Management</a></li>
-                    <li><a href="/administration/event-category" class="my-1 text-xs {{ if eq .CurrentPath "/administration/event-category" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Event Category Management</a></li>
-                    <li><a href="/administration/scat-option" class="my-1 text-xs {{ if eq .CurrentPath "/administration/scat-option" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Scat Option Management</a></li>
-                    <li><a href="/administration/body-part" class="my-1 text-xs {{ if eq .CurrentPath "/administration/body-part" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Body Part Management</a></li>
-                    <li><a href="/administration/role" class="my-1 text-xs {{ if eq .CurrentPath "/administration/role" }} border-l-4 rounded-l-lg border-accent bg-accent/30 {{ end }}">Role Management</a></li>
-                    <li>
-                        <details class="group">
-                            <summary class="text-xs">
-                                <span class="is-drawer-close:hidden">Administrative</span>
-                            </summary>
-                            <ul class="is-drawer-close:hidden">
-                                <li><a href="/administration/training" class="my-1 text-xs">Training Data</a></li>
-                            </ul>
-                        </details>
-                    </li>
-                </ul>
-            </details>
-        </li>
-        {{ end }}
-    </ul>
+
+<div class="h-screen overflow-hidden bg-base-200
+	is-drawer-close:w-14
+	is-drawer-open:w-64
+	shrink-0 border-r border-base-300">
+
+	<div class="flex h-full flex-col">
+
+		<!-- HEADER -->
+		<div
+			style="height:45px"
+			class="shrink-0 sticky top-0 z-10 flex w-full items-center
+			is-drawer-open:justify-start
+			border-b border-base-300 bg-base-200 p-2 shadow-md">
+			<div class="flex justify-start">
+				<div class="flex items-center gap-2 overflow-hidden ">
+
+					<div
+						style="height:35px"
+						class="avatar  shrink-0 transition-transform duration-300 hover:scale-105 ">
+
+						<div class="rounded-full">
+							<img src="/public/images/logo.png" alt="Sentry Logo" />
+						</div>
+
+					</div>
+
+					<div class="truncate px-2 font-semibold italic tracking-tighter is-drawer-close:hidden">
+						SENTRY <span class="font-light">Interlock</span>
+					</div>
+
+				</div>
+			</div>
+		</div>
+
+		<!-- MENU -->
+		<div class="flex-1 overflow-y-auto overflow-x-hidden">
+
+			<ul class="menu w-full whitespace-nowrap px-2 py-2">
+
+				<!-- HOME -->
+				<li class="py-1">
+
+					<a href="/"
+						class="sidebar-menu-item
+						is-drawer-close:tooltip
+						is-drawer-close:tooltip-right
+						truncate rounded-xl
+					{{ if eq .CurrentPath "/" }}sidebar-menu-active{{ end }}"
+						data-tip="Homepage">
+
+						{{ lucide "home" (dict "class" "sidebar-icon size-4 shrink-0") }}
+
+						<span class="truncate is-drawer-close:hidden text-xs">
+							Homepage
+						</span>
+
+					</a>
+
+				</li>
+
+				<!-- HAZARD -->
+				<li class="py-1">
+
+					<details {{ if hasPrefix .CurrentPath "/hazard" }}open{{ end }}
+						class="group">
+
+						<summary
+							class="sidebar-menu-item
+							is-drawer-close:tooltip
+							is-drawer-close:tooltip-right
+							truncate rounded-xl text-xs
+						{{ if hasPrefix .CurrentPath "/hazard" }}sidebar-menu-active{{ end }}"
+							data-tip="Hazard Report">
+
+							<div class="flex items-center gap-2 overflow-hidden">
+
+								{{ lucide "triangle-alert" (dict "class" "sidebar-icon size-4 shrink-0") }}
+
+								<span class="truncate is-drawer-close:hidden">
+									Hazard Report
+								</span>
+
+							</div>
+
+
+
+						</summary>
+
+						<ul class="is-drawer-close:hidden mt-1 space-y-1">
+
+							<li>
+
+								<a href="/hazard"
+									class="sidebar-submenu-item my-1 truncate rounded-lg text-xs
+{{ if eq .CurrentPath "/hazard" }}
+									bg-accent/20 text-accent border-l-4 border-accent font-medium
+{{ end }}">
+
+									List Report
+
+								</a>
+
+							</li>
+
+							<li>
+
+								<a href="/hazard/create"
+									class="sidebar-submenu-item my-1 truncate rounded-lg text-xs
+{{ if eq .CurrentPath "/hazard/create" }}
+									bg-accent/20 text-accent border-l-4 border-accent font-medium
+{{ end }}">
+
+									Create Report
+
+								</a>
+
+							</li>
+							{{ if hasPrefix .CurrentPath "/hazard/edit" }}
+								<li>
+
+									<a href="{{ .CurrentPath }}"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs
+									{{ if hasPrefix .CurrentPath "/hazard/edit" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}}">
+
+										Detail Report
+
+									</a>
+
+								</li>
+							{{ end }}
+						</ul>
+
+					</details>
+
+				</li>
+
+				<!-- MANHOURS -->
+				<li class="py-1">
+
+					<a href="/manhours"
+						class="sidebar-menu-item
+						is-drawer-close:tooltip
+						is-drawer-close:tooltip-right
+						truncate rounded-xl
+					{{ if eq .CurrentPath "/manhours" }}sidebar-menu-active{{ end }}"
+						data-tip="Manhours">
+
+						{{ lucide "calendar-clock" (dict "class" "sidebar-icon size-4 shrink-0") }}
+
+						<span class="truncate is-drawer-close:hidden text-xs">
+							Manhours
+						</span>
+
+					</a>
+
+				</li>
+
+				<!-- PEOPLE -->
+				<li class="py-1">
+
+					<a href="/people"
+						class="sidebar-menu-item
+						is-drawer-close:tooltip
+						is-drawer-close:tooltip-right
+						truncate rounded-xl
+					{{ if eq .CurrentPath "/people" }}sidebar-menu-active{{ end }}"
+						data-tip="People">
+
+						{{ lucide "users" (dict "class" "sidebar-icon size-4 shrink-0") }}
+
+						<span class="truncate is-drawer-close:hidden text-xs">
+							People
+						</span>
+
+					</a>
+
+				</li>
+
+				<!-- ADMIN -->
+				{{ if eq .AuthUser.Role.Name "Administrator" }}
+
+					<li class="py-1">
+
+						<details {{ if hasPrefix .CurrentPath "/administration" }}open{{ end }}
+							class="group">
+
+							<summary
+								class="sidebar-menu-item
+								is-drawer-close:tooltip
+								is-drawer-close:tooltip-right
+								truncate rounded-xl text-xs
+							{{ if hasPrefix .CurrentPath "/administration" }}sidebar-menu-active{{ end }}"
+								data-tip="Administration">
+
+								<div class="flex items-center gap-2 overflow-hidden">
+
+									{{ lucide "shield-user" (dict "class" "sidebar-icon size-4 shrink-0") }}
+
+									<span class="truncate is-drawer-close:hidden">
+										Administration
+									</span>
+
+								</div>
+
+
+
+							</summary>
+
+							<ul class="is-drawer-close:hidden mt-1 space-y-1">
+
+								<li>
+									<a href="/administration/company"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/administration/company" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+										Company Management
+									</a>
+								</li>
+
+								<li>
+									<a href="/administration/contractor"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/administration/contractor" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }} ">
+										Contractor Management
+									</a>
+								</li>
+
+								<li>
+									<a href="/administration/department"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/administration/department" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+										Department Management
+									</a>
+								</li>
+
+								<li>
+									<a href="/administration/business-unit"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/administration/business-unit" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+										Business-unit Management
+									</a>
+								</li>
+
+								<li>
+									<a href="/administration/custodian"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/administration/custodian" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+										Kustodian Management
+									</a>
+								</li>
+
+								<li>
+									<a href="/administration/department-group"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/administration/department-group" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+										Dept Group Management
+									</a>
+								</li>
+
+								<li>
+									<a href="/administration/risk/matrix"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/administration/risk/matrix" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+										Risk Management
+									</a>
+								</li>
+
+								<li>
+									<a href="/administration/location"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/administration/location" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+										Location Management
+									</a>
+								</li>
+
+								<li>
+									<a href="/administration/event-category"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/administration/event-category" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+										Event Category Management
+									</a>
+								</li>
+
+								<li>
+									<a href="/administration/scat-option"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/administration/scat-option" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+										Scat Option Management
+									</a>
+								</li>
+
+								<li>
+									<a href="/administration/body-part"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/administration/body-part" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+										Body Part Management
+									</a>
+								</li>
+
+								<li>
+									<a href="/administration/role"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/administration/role" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+										Role Management
+									</a>
+								</li>
+
+							</ul>
+
+						</details>
+
+					</li>
+
+				{{ end }}
+
+			</ul>
+
+		</div>
+
+	</div>
+
 </div>
+
 {{ end }}

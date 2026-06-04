@@ -1,0 +1,42 @@
+# --- SECURITY ---
+# Wajib menyembunyikan file kredensial dan password
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- GOLANG ---
+# Mengabaikan file hasil compile/executable Golang
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+# Jika Anda melakukan compile menjadi binary bernama 'main'
+main
+/dist/
+
+# --- NODE / FRONTEND (Vite) ---
+# Mengabaikan folder download library node_modules (karena sangat berat)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- IDE / EDITOR ---
+# Mengabaikan konfigurasi lokal editor (opsional, tergantung selera tim)
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+.cursor/
+
+# --- OS SYSTEM ---
+# Mengabaikan file sampah otomatis dari sistem operasi
+DS_Store
+Thumbs.db

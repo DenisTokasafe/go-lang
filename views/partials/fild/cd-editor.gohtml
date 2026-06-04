@@ -1,80 +1,124 @@
 {{ define "ckeditor" }}
 <div class="mt-2" x-data="{ isInvalid: false }">
 
-    {{ if .Label }}
-    <label class="label">
-        <span class="text-xs font-bold text-base-content opacity-60">
-            {{ .Label }}
+	{{ if .Label }}
+		<label class="label">
+			<span class="text-xs font-bold text-base-content opacity-60">
+				{{ .Label }}
 
-            {{ if or .Required .RequiredBinding }}
-            <span class="text-error font-bold ml-0.5">*</span>
-            {{ end }}
+				{{ if or .Required .RequiredBinding }}
+					<span class="text-error font-bold ml-0.5">*</span>
+				{{ end }}
+			</span>
+		</label>
+	{{ end }}
 
-        </span>
-    </label>
-    {{ end }}
+	<div class="border rounded-md overflow-hidden"
+		:class="isInvalid ? 'border-error' : 'border-base-300'">
 
-    <div class="border rounded-md overflow-hidden" :class="isInvalid ? 'border-error' : 'border-base-300'">
+		<div x-init="
+			(async () => {
+			try {
 
-        <div x-init="
-            (async () => {
-                try {
+			const ClassicEditor = await window.ClassicEditor;
 
-                    // Tunggu Promise dari window.ClassicEditor selesai (Lazy Load)
-                    const ClassicEditor = await window.ClassicEditor;
+			const editor = await ClassicEditor.create($refs.editor, {
+			toolbar: [
+			'heading',
+			'|',
+			'bold',
+			'italic',
+			'link',
+			'bulletedList',
+			'numberedList',
+			'blockQuote'
+			]
+			});
 
-                    const editor = await ClassicEditor.create($refs.editor, {
-                        toolbar: [
-                            'heading',
-                            '|',
-                            'bold',
-                            'italic',
-                            'link',
-                            'bulletedList',
-                            'numberedList',
-                            'blockQuote'
-                        ]
-                    });
+			// =========================
+			// DISABLED SUPPORT
+			// =========================
+{{ if .DisabledBinding }}
 
-                    // Set nilai awal dari Go Template
-                   editor.setData(
-                        {{ if .Value }}
-                            '{{ .Value }}'
-                        {{ else }}
-                            {{ .AlpineVar }}
-                        {{ end }}
-                    );
+			const applyReadOnly = () => {
 
-                    // Sinkronisasi data ke textarea agar bisa divalidasi native HTML5
-                    editor.model.document.on('change:data', () => {
+			if ({{ .DisabledBinding }}) {
 
-                        $refs.editor.value = editor.getData();
+			editor.enableReadOnlyMode('lock');
 
-                        isInvalid = false;
+			editor.ui.view.editable.element.classList.add(
+			'bg-base-200',
+			'cursor-not-allowed',
+			'opacity-70'
+			);
 
-                        // Trigger event input manual agar Alpine/Browser sadar ada perubahan
-                        $refs.editor.dispatchEvent(
-                            new Event('input')
-                        );
-                    });
+			} else {
 
-                } catch (error) {
-                    console.error('CKEditor Error:', error);
-                }
-            })()
-        ">
+			editor.disableReadOnlyMode('lock');
 
-            <textarea id="{{ .ID }}" x-ref="editor" name="{{ .Name }}" class="hidden"   {{ .Attr }} {{ if .Required }} required {{ end }} {{ if .RequiredBinding }} x-bind:required="{{ .RequiredBinding }}" {{ end }}
-                @invalid.prevent="isInvalid = true" @input="isInvalid = false"
-                aria-label="{{ .Label }}">{{ .Value }}</textarea>
+			editor.ui.view.editable.element.classList.remove(
+			'bg-base-200',
+			'cursor-not-allowed',
+			'opacity-70'
+			);
+			}
+			};
 
-        </div>
-    </div>
+			applyReadOnly();
 
-    <div x-show="isInvalid" x-cloak class="text-error text-[9px] font-semibold leading-none mt-1">
+			$watch(
+			() => {{ .DisabledBinding }},
+			() => applyReadOnly()
+			);
 
-        Field {{ .Label }} wajib diisi.
+{{ end }}
 
-    </div>
+			// =========================
+			// INITIAL VALUE (AMAN & ESCAPE)
+			// =========================
+			const initialData = {{ if .Value }}{{ printf "%q" .Value }}{{ else }}''{{ end }};
+
+			editor.setData(initialData);
+
+			// =========================
+			// SYNC CKEDITOR -> TEXTAREA
+			// =========================
+			editor.model.document.on('change:data', () => {
+
+			const data = editor.getData();
+
+			$refs.editor.value = data;
+
+			isInvalid = false;
+
+			$refs.editor.dispatchEvent(new Event('input'));
+			});
+
+			} catch (error) {
+			console.error('CKEditor Error:', error);
+			}
+			})()
+			">
+
+			<textarea
+				id="{{ .ID }}"
+				x-ref="editor"
+				name="{{ .Name }}"
+				class="hidden"
+			{{ .Attr }}
+				{{ if .Required }} required {{ end }}
+				{{ if .RequiredBinding }} x-bind:required="{{ .RequiredBinding }}" {{ end }}
+				@invalid.prevent="isInvalid = true"
+				@input="isInvalid = false"
+				aria-label="{{ .Label }}"
+			>{{ .Value }}</textarea>
+
+		</div>
+	</div>
+
+	<div x-show="isInvalid" x-cloak class="text-error text-[9px] font-semibold leading-none mt-1">
+		{{ .Label }} wajib diisi.
+	</div>
+
 </div>
 {{ end }}

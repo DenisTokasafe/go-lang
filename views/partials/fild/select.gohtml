@@ -1,56 +1,66 @@
 {{ define "select_input" }}
 <fieldset class="fieldset w-full" x-data="{ isInvalid: false }">
 
-{{ if .Label }} <label class="label"> <span class="text-xs font-bold text-base-content opacity-60">{{ .Label }}{{ if .Required }}<span class="text-error font-bold ml-0.5">*</span>{{ end }}</span></label>{{ end }}
+	{{ if .Label }} <label class="label"> <span class="text-xs font-bold text-base-content opacity-60">{{ .Label }}{{ if .Required }}<span class="text-error font-bold ml-0.5">*</span>{{ end }}</span></label>{{ end }}
 
-    <select
-        name="{{ .Name }}"
-        x-model="{{ .Model }}"
-        {{ if .Attr }}{{ .Attr | safe }}{{ end }}
-        {{ if .Required }}required{{ end }}
+	<select
+		name="{{ .Name }}"
+		x-model="{{ .Model }}"
+		{{ if .Attr }}{{ .Attr | safe }}{{ end }}
+		{{ if .Required }}required{{ end }}
+		{{ if .DisabledBinding }}
+			:disabled="{{ .DisabledBinding }}"
+		{{ end }}
+		@invalid.prevent="isInvalid = true"
+		@change="isInvalid = false"
+		@input="isInvalid = false"
 
-        @invalid.prevent="isInvalid = true"
-        @change="isInvalid = false"
-        @input="isInvalid = false"
+		:class="[isInvalid
+		? 'select-error border-error text-error font-semibold'
+		: 'focus:select-info',
+{{ if .DisabledBinding }}
+		({{ .DisabledBinding }})
+		? 'opacity-50 cursor-not-allowed bg-base-200'
+		: ''
+{{ else }}
+		''
+{{ end }}
+		]"
 
-        :class="isInvalid
-            ? 'select-error border-error text-error font-semibold'
-            : 'focus:select-info'"
+		class="select select-bordered select-xs w-full
+		focus:outline-none focus:border-info
+		leading-normal focus:ring-info
+		appearance-none {{ .Class }}">
 
-        class="select select-bordered select-xs w-full
-               focus:outline-none focus:border-info
-               leading-normal focus:ring-info
-               appearance-none {{ .Class }}">
+		<option value="">
+			-- {{ .Placeholder }} --
+		</option>
 
-        <option value="">
-            -- {{ .Placeholder }} --
-        </option>
+		{{ range .Options }}
+			<option value="{{ .ID }}">
 
-        {{ range .Options }}
-        <option value="{{ .ID }}">
+				{{ if $.ShowType }}
+					{{ .Type }} -
+				{{ end }}
 
-            {{ if $.ShowType }}
-            {{ .Type }} -
-            {{ end }}
+				{{ .Name }}
 
-            {{ .Name }}
+			</option>
+		{{ end }}
 
-        </option>
-        {{ end }}
+		{{ if .Slot }}
+			{{ .Slot | safe }}
+		{{ end }}
 
-        {{ if .Slot }}
-        {{ .Slot | safe }}
-        {{ end }}
+	</select>
 
-    </select>
-
-    <div class="">
-        <template x-if="isInvalid">
-            <p class="text-error text-[9px] font-semibold leading-none ">
-                Field ini wajib diisi.
-            </p>
-        </template>
-    </div>
+	<div class="">
+		<template x-if="isInvalid">
+			<p class="text-error text-[9px] font-semibold leading-none ">
+				'{{ .Label }} ini wajib diisi.
+			</p>
+		</template>
+	</div>
 
 </fieldset>
 {{ end }}

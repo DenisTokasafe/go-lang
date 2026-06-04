@@ -1,8 +1,653 @@
 {{ define "content" }}
-<h1 class="text-2xl font-bold">Dashboard SENTRY</h1>
-<div class="grid grid-cols-3 gap-4 mt-4">
-    <div class="card bg-primary text-primary-content p-4">Total Hazards: 12</div>
-    <div class="card bg-secondary text-secondary-content p-4">Incidents: 2</div>
-    <div class="card bg-accent text-accent-content p-4">Manhours: 1,200</div>
+<div 
+	x-data="hazardDashboardComponent()" 
+	x-init="initDashboard()"
+	class="px-4 w-full">
+
+	<div class="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-base-100 px-4 py-2 rounded-xl shadow-sm border border-base-300 mb-2">
+		<div>
+			<h1 class="text-xl font-bold tracking-tight">SENTRY Interlock Dashboard</h1>
+			<p class="text-xs text-base-content/60 mt-0.5">Sistem Pemantauan dan Analisis Hazard Report Real-time</p>
+		</div>
+
+		<div class="w-full max-w-xs">
+			{{ template "input-flatpickr-range" dict
+				"Name" "hazard_period"
+				"Id" "hazard_period"
+				"Placeholder" "Pilih tanggal mulai s/d selesai..."
+				"Value" ""
+				"Attr" (slice "x-model='dateRange'")
+			}}
+		</div>
+	</div>
+
+	{{ template "card_scroll" . }}
 </div>
-{{end}}
+
+<script>
+function hazardDashboardComponent() {
+    let myTrendChart = null;
+    let myPieOHSChart = null;
+    let myPieEnvChart = null;
+    let categoryBarOhsChart = null;
+    let categoryBarEnvChart = null;
+
+    return {
+        kpi: { submit: 0, in_progress: 0, pending: 0, closed: 0 },
+        trendData: [],
+        topLocations: [],
+        scatPieOHSData: [],
+        scatPieEnvData: [],
+        categoryBarOhsChart: [],
+        categoryBarEnvChart: [],
+        dateRange: '', 
+        recentHazards: [], 
+
+        get maxLocationCount() {
+            return Math.max(...this.topLocations.map(l => l.count), 1);
+        },
+
+        async initDashboard() {
+            const pickerEl = document.getElementById('hazard_period');
+            
+            if (pickerEl) {
+                setTimeout(() => {
+                    if (pickerEl._flatpickr) {
+                        pickerEl._flatpickr.set('onChange', (selectedDates, dateStr, instance) => {
+                            const formattedRange = instance.formatDate(selectedDates[0], "Y-m-d") + 
+                                (selectedDates[1] ? " to " + instance.formatDate(selectedDates[1], "Y-m-d") : "");
+                            this.dateRange = formattedRange;
+                        });
+                    }
+                }, 500); 
+            }
+
+            await this.fetchDashboardData();
+
+            if (window.getEchartsInstance) {
+                const echarts = await window.getEchartsInstance();
+                
+                if (this.$refs.trendChart) {
+                    myTrendChart = echarts.init(this.$refs.trendChart);
+                    this.renderChart();
+                }
+                if (this.$refs.scatPieOHSChart) {
+                    myPieOHSChart = echarts.init(this.$refs.scatPieOHSChart);
+                    this.renderPieOHSChart();
+                }
+
+                if (this.$refs.scatPieEnvChart) {
+                    myPieEnvChart = echarts.init(this.$refs.scatPieEnvChart);
+                    this.renderPieEnvChart();
+                }
+
+                if (this.$refs.categoryBarOhsChart) {
+                    categoryBarOhsChart = echarts.init(this.$refs.categoryBarOhsChart);
+                    this.rendercategoryBarOhsChart();
+                }
+                if (this.$refs.categoryBarEnvChart) {
+                    categoryBarEnvChart = echarts.init(this.$refs.categoryBarEnvChart);
+                    this.rendercategoryBarEnvChart();
+                }
+            }
+
+            window.addEventListener('resize', () => {
+                myTrendChart && myTrendChart.resize();
+                myPieOHSChart && myPieOHSChart.resize();
+                myPieEnvChart && myPieEnvChart.resize();
+                categoryBarOhsChart && categoryBarOhsChart.resize();
+                categoryBarEnvChart && categoryBarEnvChart.resize();
+            });
+
+            this.$watch('dateRange', async (newValue) => {
+                await this.fetchDashboardData(newValue);
+                this.renderChart(); 
+                this.renderPieOHSChart();
+                this.renderPieEnvChart();
+                this.rendercategoryBarOhsChart();
+                this.rendercategoryBarEnvChart();
+            });
+        },
+
+        async fetchDashboardData(period = '') {
+            try {
+                const url = `/api/dashboard/hazard-summary?hazard_period=${encodeURIComponent(period)}`;
+                const response = await fetch(url);
+                
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+                
+                // Distribusi data dari API
+                this.recentHazards = data.recent_hazards || [];
+                this.topLocations = data.top_locations || [];
+                this.scatPieOHSData = data.scat_pie_data || [];
+                this.scatPieEnvData = data.env_scat_pie_data || [];
+                this.categoryBarOhsChart = data.category_bar_data || [];
+                this.categoryBarEnvChart = data.env_category_bar_data || [];
+                this.kpi = data.kpi || { submit: 0, in_progress: 0, pending: 0, closed: 0 };
+                this.trendData = data.monthly_trend || [];
+            } catch (error) {
+                if (window.showToast) window.showToast('Gagal memuat data dashboard', 'error');
+            }
+        },
+
+        renderLocations() {
+            const totalItems = this.topLocations.length;
+
+            return this.topLocations.map((loc, index) => {
+                let colorClass = 'progress-info';
+
+                if (index === 0) {
+                    colorClass = 'progress-error';
+                } else if (index === totalItems - 1) {
+                    colorClass = 'progress-success';
+                } else {
+                    colorClass = 'progress-warning';
+                }
+
+                return `
+                    <div>
+                        <div class="flex justify-between mb-1 font-medium">
+                            <span class="font-semibold text-base-content/80">${loc.name}</span>
+                            <span class="font-bold">${loc.count} Reports</span>
+                        </div>
+                        <progress class="progress w-full h-2 ${colorClass}" 
+                            value="${loc.count}" 
+                            max="${this.maxLocationCount}">
+                        </progress>
+                    </div>
+                `;
+            }).join('');
+        },
+
+        renderHazards() {
+            if (!this.recentHazards || this.recentHazards.length === 0) {
+                return `<tr><td colspan="5" class="text-center py-4 text-base-content/50">Belum ada log temuan terbaru.</td></tr>`;
+            }
+
+            return this.recentHazards.map(haz => {
+                let badgeClass = 'badge-primary';
+                let statusText = 'New Submit';
+
+                switch (haz.status.toLowerCase()) {
+                    case 'in_progress':
+                    case 'in progress':
+                        badgeClass = 'badge-info';
+                        statusText = 'In Progress';
+                        break;
+                    case 'pending':
+                        badgeClass = 'badge-warning';
+                        statusText = 'Pending';
+                        break;
+                    case 'closed':
+                        badgeClass = 'badge-success';
+                        statusText = 'Closed';
+                        break;
+                }
+
+                const formattedDate = haz.tanggal_waktu ? haz.tanggal_waktu.substring(0, 16) : '-';
+
+                return `
+                    <tr>
+                        <td class="font-medium whitespace-nowrap">${formattedDate}</td>
+                        <td>
+                            <div class="font-semibold">${haz.location_name || 'N/A'}</div>
+                            <span class="text-[10px] text-base-content/50">${haz.dept_name || '-'}</span>
+                        </td>
+                        <td class="max-w-xs truncate" title="${haz.description || ''}">${haz.description || '-'}</td>
+                        <td class="max-w-xs truncate" title="${haz.mitigation || ''}">${haz.mitigation || '-'}</td>
+                        <td><span class="badge ${badgeClass} badge-sm font-semibold">${statusText}</span></td>
+                    </tr>
+                `;
+            }).join('');
+        },
+
+        // 1. Line Chart: Tren Total Temuan Gabungan (Ungu/Violet Soft)
+        renderChart() {
+            if (!myTrendChart) return;
+
+            const months = this.trendData.map(item => item.month) || [];
+            const counts = this.trendData.map(item => item.count) || [];
+
+            const option = {
+                tooltip: { trigger: 'axis', confine: true },
+                grid: { top: '10%', left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                xAxis: { type: 'category', boundaryGap: false, data: months },
+                yAxis: { type: 'value' },
+                series: [
+                    {
+                        name: 'Jumlah Temuan',
+                        type: 'line',
+                        smooth: true,
+                        data: counts,
+                        itemStyle: { color: '#8b5cf6' }, // Warna Violet Muted
+                        areaStyle: { color: 'rgba(139, 92, 246, 0.15)' } // Isian bawah garis transparan lembut
+                    }
+                ]
+            };
+
+            myTrendChart.setOption(option);
+        },
+
+        // 2. Pie Chart OHS SCAT (Kombinasi Indigo & Amber)
+        renderPieOHSChart() {
+            if (!myPieOHSChart) return;
+         
+            const labelMapping = {
+                'unsafe_act': 'Unsafe Act (Tindakan Tidak Aman)',
+                'personal_factor': 'Personal Factor (Faktor Pribadi)'
+            };
+
+            const formattedPieData = this.scatPieOHSData.map(item => ({
+                value: item.total,
+                name: labelMapping[item.type] || item.type
+            }));
+
+            const option = {
+                color: ['#4f46e5', '#f59e0b'], // Tampilan khusus OHS (Indigo & Amber)
+                tooltip: {
+                    trigger: 'item',
+                    confine: true,
+                    formatter: '{b}: <b>{c} Temuan</b> ({d}%)'
+                },
+                legend: {
+                    bottom: '0%',
+                    left: 'center',
+                    textStyle: { fontSize: 11 }
+                },
+                series: [
+                    {
+                        name: 'Faktor SCAT',
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        avoidLabelOverlap: false,
+                        itemStyle: {
+                            borderRadius: 6,
+                            borderColor: '#fff',
+                            borderWidth: 2
+                        },
+                        label: { show: false, position: 'center' },
+                        emphasis: {
+                            label: { show: true, fontSize: 14, fontWeight: 'bold' }
+                        },
+                        labelLine: { show: false },
+                        data: formattedPieData
+                    }
+                ]
+            };
+
+            myPieOHSChart.setOption(option);
+        },
+
+        // 3. Pie Chart ENV SCAT (Kombinasi Emerald Green & Cyan/Teal - Membedakan Lingkungan)
+        renderPieEnvChart() {
+            if (!myPieEnvChart) return;
+         
+            const labelMapping = {
+                'unsafe_act': 'Unsafe Act (Tindakan Tidak Aman)',
+                'personal_factor': 'Personal Factor (Faktor Pribadi)'
+            };
+
+            const formattedPieData = this.scatPieEnvData.map(item => ({
+                value: item.total,
+                name: labelMapping[item.type] || item.type
+            }));
+
+            const option = {
+                color: ['#10b981', '#06b6d4'], // Tampilan khusus ENV (Emerald & Cyan)
+                tooltip: {
+                    trigger: 'item',
+                    confine: true,
+                    formatter: '{b}: <b>{c} Temuan</b> ({d}%)'
+                },
+                legend: {
+                    bottom: '0%',
+                    left: 'center',
+                    textStyle: { fontSize: 11 }
+                },
+                series: [
+                    {
+                        name: 'Faktor SCAT',
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        avoidLabelOverlap: false,
+                        itemStyle: {
+                            borderRadius: 6,
+                            borderColor: '#fff',
+                            borderWidth: 2
+                        },
+                        label: { show: false, position: 'center' },
+                        emphasis: {
+                            label: { show: true, fontSize: 14, fontWeight: 'bold' }
+                        },
+                        labelLine: { show: false },
+                        data: formattedPieData
+                    }
+                ]
+            };
+
+            myPieEnvChart.setOption(option);
+        },
+        
+        // 4. Bar Chart OHS: Kategori Dinamis Berwarna-warni Lembut (Matte Multi-color Palette)
+        rendercategoryBarOhsChart() {
+            if (!categoryBarOhsChart) return;
+            if (!this.categoryBarOhsChart || this.categoryBarOhsChart.length === 0) {
+                categoryBarOhsChart.clear(); 
+                return;
+            }
+            const months = [...new Set(this.categoryBarOhsChart.map(d => d.month))].sort();
+            const categories = [...new Set(this.categoryBarOhsChart.map(d => d.category_name))];
+
+            const formatMonth = (m) => {
+                const date = new Date(m + "-01");
+                return date.toLocaleString('default', { month: 'short' });
+            };
+
+            const labelOption = {
+                show: true,
+                position: 'top',
+                distance: 10,
+                align: 'center',
+                verticalAlign: 'middle',
+                fontSize: 11,
+                formatter: '{c}' 
+            };
+
+            const seriesData = categories.map(cat => ({
+                name: cat,
+                type: 'bar',
+                barGap: 0, 
+                label: labelOption,
+                emphasis: { focus: 'series' },
+                data: months.map(m => {
+                    const item = this.categoryBarOhsChart.find(d => d.month === m && d.category_name === cat);
+                    return item ? item.total : 0;
+                })
+            }));
+
+            const option = {
+                // Palet warna kategori untuk OHS (Biru, Oranye, Indigo, Merah Muda, Ungu lembut)
+                color: ['#4f46e5', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6', '#6366f1'],
+                tooltip: {
+                    trigger: 'axis',
+                    confine: true,
+                    axisPointer: {
+                        type: 'shadow',
+                        shadowStyle: { color: 'rgba(150, 150, 150, 0.1)' }
+                    },
+                    formatter: function(params) {
+                        if (!params || params.length === 0) return '';
+                        let html = `<div class="p-2 z-[9999] relative bg-white border border-gray-200 rounded-xl shadow-2xl">
+                            <div class="font-bold text-gray-800 border-b border-gray-200 pb-1 mb-2">${params[0].name}</div>`;
+                        params.forEach(item => {
+                            html += `
+                                <div class="flex items-center justify-between gap-6 py-0.5">
+                                    <div class="flex items-center">
+                                        <span class="w-3 h-3 rounded-full mr-2" style="background-color: ${item.color};"></span>
+                                        <span class="text-sm text-gray-600">${item.seriesName}</span>
+                                    </div>
+                                    <span class="font-bold text-sm text-gray-900">${item.value}</span>
+                                </div>`;
+                        });
+                        html += `</div>`;
+                        return html;
+                    }
+                },
+                legend: { 
+                    data: categories, 
+                    bottom: '0%',
+                    textStyle: { fontSize: 11 }
+                },
+                grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
+                xAxis: { 
+                    type: 'category', 
+                    data: months.map(m => formatMonth(m)),
+                    axisTick: { show: false }
+                },
+                yAxis: { type: 'value' },
+                series: seriesData
+            };
+
+            categoryBarOhsChart.setOption(option);
+        },
+
+        // 5. Bar Chart ENV: Kategori Dinamis Bernuansa Alam (Hijau, Toska, Slate, Lemon, Teal)
+        rendercategoryBarEnvChart() {
+            if (!categoryBarEnvChart) return;
+            if (!this.categoryBarEnvChart || this.categoryBarEnvChart.length === 0) {
+                categoryBarEnvChart.clear(); 
+                return;
+            }
+            const months = [...new Set(this.categoryBarEnvChart.map(d => d.month))].sort();
+            const categories = [...new Set(this.categoryBarEnvChart.map(d => d.category_name))];
+
+            const formatMonth = (m) => {
+                const date = new Date(m + "-01");
+                return date.toLocaleString('default', { month: 'short' });
+            };
+
+            const labelOption = {
+                show: true,
+                position: 'top',
+                distance: 10,
+                align: 'center',
+                verticalAlign: 'middle',
+                fontSize: 11,
+                formatter: '{c}' 
+            };
+
+            const seriesData = categories.map(cat => ({
+                name: cat,
+                type: 'bar',
+                barGap: 0, 
+                label: labelOption,
+                emphasis: { focus: 'series' },
+                data: months.map(m => {
+                    const item = this.categoryBarEnvChart.find(d => d.month === m && d.category_name === cat);
+                    return item ? item.total : 0;
+                })
+            }));
+
+            const option = {
+                // Palet warna kategori untuk ENV (Emerald, Cyan, Slate-Gray, Lime, Teal, Amber)
+                color: ['#10b981', '#06b6d4', '#64748b', '#84cc16', '#14b8a6', '#f59e0b'],
+                tooltip: {
+                    trigger: 'axis',
+                    confine: true,
+                    axisPointer: {
+                        type: 'shadow',
+                        shadowStyle: { color: 'rgba(150, 150, 150, 0.1)' }
+                    },
+                    formatter: function(params) {
+                        if (!params || params.length === 0) return '';
+                        let html = `<div class="p-2 z-[9999] relative bg-white border border-gray-200 rounded-xl shadow-2xl">
+                            <div class="font-bold text-gray-800 border-b border-gray-200 pb-1 mb-2">${params[0].name}</div>`;
+                        params.forEach(item => {
+                            html += `
+                                <div class="flex items-center justify-between gap-6 py-0.5">
+                                    <div class="flex items-center">
+                                        <span class="w-3 h-3 rounded-full mr-2" style="background-color: ${item.color};"></span>
+                                        <span class="text-sm text-gray-600">${item.seriesName}</span>
+                                    </div>
+                                    <span class="font-bold text-sm text-gray-900">${item.value}</span>
+                                </div>`;
+                        });
+                        html += `</div>`;
+                        return html;
+                    }
+                },
+                legend: { 
+                    data: categories, 
+                    bottom: '0%',
+                    textStyle: { fontSize: 11 }
+                },
+                grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
+                xAxis: { 
+                    type: 'category', 
+                    data: months.map(m => formatMonth(m)),
+                    axisTick: { show: false }
+                },
+                yAxis: { type: 'value' },
+                series: seriesData
+            };
+
+            categoryBarEnvChart.setOption(option);
+        },
+
+        async refreshData() {
+            await this.fetchDashboardData(this.dateRange);
+            this.renderChart();
+            this.renderPieOHSChart();
+            this.renderPieEnvChart();
+            this.rendercategoryBarOhsChart();
+            this.rendercategoryBarEnvChart();
+            if (window.showToast) window.showToast('Data berhasil diperbarui');
+        }
+    }
+}
+</script>
+{{ end }}
+
+{{ define "slot" }}
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
+	<div class="stats shadow border-l-4 border-primary bg-base-100 w-full">
+		<div class="stat p-4">
+			<div class="stat-figure">
+				<div class="badge badge-primary badge-sm font-semibold py-2">Validasi</div>
+			</div>
+			<div class="stat-title text-xs font-bold uppercase tracking-wider text-base-content/50">New Submit</div>
+			<div class="stat-value text-2xl font-black mt-1" x-text="kpi.submit">0</div>
+		</div>
+	</div>
+
+	<div class="stats shadow border-l-4 border-info bg-base-100 w-full">
+		<div class="stat p-4">
+			<div class="stat-figure text-info">
+				<div class="badge badge-info text-info-content badge-sm font-semibold py-2">Mitigasi</div>
+			</div>
+			<div class="stat-title text-xs font-bold uppercase tracking-wider text-base-content/50">In Progress</div>
+			<div class="stat-value text-2xl font-black mt-1 text-info" x-text="kpi.in_progress">0</div>
+		</div>
+	</div>
+
+	<div class="stats shadow border-l-4 border-warning bg-base-100 w-full">
+		<div class="stat p-4">
+			<div class="stat-figure text-warning">
+				<div class="badge badge-warning text-warning-content badge-sm font-semibold py-2">Review</div>
+			</div>
+			<div class="stat-title text-xs font-bold uppercase tracking-wider text-base-content/50">Pending</div>
+			<div class="stat-value text-2xl font-black mt-1 text-warning" x-text="kpi.pending">0</div>
+		</div>
+	</div>
+
+	<div class="stats shadow border-l-4 border-success bg-base-100 w-full">
+		<div class="stat p-4">
+			<div class="stat-figure text-success">
+				<div class="badge badge-success text-success-content badge-sm font-semibold py-2">Selesai</div>
+			</div>
+			<div class="stat-title text-xs font-bold uppercase tracking-wider text-base-content/50">Closed</div>
+			<div class="stat-value text-2xl font-black mt-1 text-success" x-text="kpi.closed">0</div>
+		</div>
+	</div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 my-6">
+	<div class="card lg:col-span-2 bg-base-100 shadow-sm rounded-xl border border-base-300">
+		<div class="p-4 border-b border-base-200 flex justify-between items-center">
+			<h2 class="font-bold text-sm text-base-content/80 flex items-center gap-2">
+				<span class="w-2 h-4 bg-primary rounded-full"></span>
+				Tren Temuan Bulanan OHS Hazard Report
+			</h2>
+			<span class="text-xs text-base-content/40">Tipe Bahaya</span>
+		</div>
+		<div class="p-4 overflow-visible">
+			<div x-ref="categoryBarOhsChart" class="w-full h-72"></div>
+		</div>
+	</div>
+	<div class="card bg-base-100 shadow-sm rounded-xl border border-base-300">
+		<div class="p-4 border-b border-base-200 flex justify-between items-center">
+			<h2 class="font-bold text-xs text-base-content/80 flex items-center gap-2">
+				<span class="w-2 h-4 bg-secondary rounded-full"></span>
+				Analisis Faktor SCAT (Unsafe Act vs Personal Factor) OHS Hazard Report
+			</h2>
+		</div>
+		<div class="p-4 flex justify-center items-center">
+			<div x-ref="scatPieOHSChart" class="w-full h-72"></div>
+		</div>
+	</div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 my-6">
+	<div class="card lg:col-span-2 bg-base-100 shadow-sm rounded-xl border border-base-300">
+		<div class="p-4 border-b border-base-200 flex justify-between items-center">
+			<h2 class="font-bold text-sm text-base-content/80 flex items-center gap-2">
+				<span class="w-2 h-4 bg-accent rounded-full"></span>
+				Tren Temuan Bulanan ENV Hazard Report
+			</h2>
+			<span class="text-xs text-base-content/40">Tipe Bahaya</span>
+		</div>
+		<div class="p-4 overflow-visible">
+			<div x-ref="categoryBarEnvChart" class="w-full h-72"></div>
+		</div>
+	</div>
+	<div class="card bg-base-100 shadow-sm rounded-xl border border-base-300">
+		<div class="p-4 border-b border-base-200 flex justify-between items-center">
+			<h2 class="font-bold text-xs text-base-content/80 flex items-center gap-2">
+				<span class="w-2 h-4 bg-success rounded-full"></span>
+				Analisis Faktor SCAT (Unsafe Act vs Personal Factor) ENV Hazard Report
+			</h2>
+		</div>
+		<div class="p-4 flex justify-center items-center">
+			<div x-ref="scatPieEnvChart" class="w-full h-72"></div>
+		</div>
+	</div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 my-6">
+	<div class="card lg:col-span-2 bg-base-100 shadow-sm rounded-xl border border-base-300">
+		<div class="p-4 border-b border-base-200 flex justify-between items-center">
+			<h2 class="font-bold text-sm text-base-content/80 flex items-center gap-2">
+				<span class="w-2 h-4 bg-primary rounded-full"></span>
+				Tren Temuan Bulanan (Total Keseluruhan)
+			</h2>
+			<span class="text-xs text-base-content/40">6 Bulan Terakhir</span>
+		</div>
+		<div class="p-4">
+			<div x-ref="trendChart" class="w-full h-72"></div>
+		</div>
+	</div>
+
+	<div class="card bg-base-100 shadow-sm rounded-xl border border-base-300">
+		<div class="p-4 border-b border-base-200">
+			<h2 class="font-bold text-sm text-base-content/80">Lokasi & Area Kritis</h2>
+		</div>
+		<div class="p-4 space-y-4 overflow-y-auto max-h-72 text-xs">
+			<p x-show="topLocations.length === 0" class="text-base-content/50 text-center py-4">Belum ada data lokasi.</p>
+			<div class="space-y-4" x-html="renderLocations()"></div>
+		</div>
+	</div>
+</div>
+
+<div class="card bg-base-100 shadow-sm rounded-xl border border-base-300 overflow-hidden">
+	<div class="p-4 border-b border-base-200 flex justify-between items-center">
+		<h2 class="font-bold text-sm text-base-content/80">Log Temuan Lapangan Terbaru</h2>
+		<a href="/hazard" class="btn btn-ghost btn-xs text-primary normal-case">Lihat Semua ↗</a>
+	</div>
+
+	<div class="overflow-x-auto w-full">
+		<table class="table table-sm w-full text-xs table-zebra">
+			<thead>
+				<tr class="bg-base-200/50 text-base-content/70">
+					<th>Tanggal & Waktu</th>
+					<th>Lokasi Spesifik</th>
+					<th>Deskripsi Bahaya</th>
+					<th>Tindakan Korektif (Mitigasi)</th>
+					<th>Status</th>
+				</tr>
+			</thead>
+			<tbody x-html="renderHazards()"></tbody>
+		</table>
+	</div>
+</div>
+{{ end }}

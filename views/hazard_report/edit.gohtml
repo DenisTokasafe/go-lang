@@ -1,13 +1,15 @@
 {{ define "content" }}
 
-<div class="px-4 w-full"
-	x-data="{
+<div class="px-4 w-full" x-data="{
 
 	// =========================
 	// BASIC STATE
 	// =========================
+
 	type_error: false,
 	status_area: '{{ .StatusArea }}', // default value
+	status_laporan: '{{ printf "%s" .Hazard.Status }}',
+	isClosed: '{{ printf "%s" .Hazard.Status }}' === 'closed',
 	status_area_error: false,
 	description: `{{ .Hazard.Deskripsi }}`,
 	corrective_action: `{{ .Hazard.CorrectiveAction }}`,
@@ -18,87 +20,60 @@
 	// =========================
 	// EVENT DATA
 	// =========================
+
 	event_category_id: '{{ .Hazard.EventCategory.ParentID }}',
 	event_type_id: '{{ .Hazard.EventCategoryID }}',
 	scat_option_id: '{{ .Hazard.ScatOptionID }}',
-
+	report_by_id: '{{ .Hazard.ReportByID }}',
 	location_id: '{{ .Hazard.LocationID }}',
 	location_specific: `{{ .Hazard.LocationSpecific }}`,
-	event_date: '{{ .Hazard.TanggalWaktu.Format "2006-01-02T15:04" }}',
-
-	// =========================
-	// RISK MATRIX
-	// =========================
-	risk_matrix_id: '{{ .Hazard.RiskMatrixID }}',
-	consequence_id: '{{ .Hazard.RiskMatrix.RiskConsequenceID }}',
-	likelihood_id: '{{ .Hazard.RiskMatrix.RiskLikelihoodID }}',
-	assessment_id: '{{ .Hazard.RiskMatrix.RiskAssessmentID }}',
-
-	matrices: {{ json .Matrices }},
-	consequences: {{ json .Consequences }},
-	likelihoods: {{ json .Likelihoods }},
-	assessments: {{ json .Assessments }},
-
-	isManualMatrixSelect: false,
-
-	// =========================
-	// PIC & WORK TYPE
-	// =========================
-	work_type: '{{ .WorkType }}',
-
-	department_id: '{{ if .Hazard.DepartmentID }}{{ .Hazard.DepartmentID }}{{ end }}',
-	contractor_id: '{{ if .Hazard.ContractorID }}{{ .Hazard.ContractorID }}{{ end }}',
-	pic_id: '{{ .Hazard.PicID }}',
-
-	all_pics: {{ json .AllPics }},
-	all_types: {{ json .AllTypes }},
-
-	// =========================
-	// MULTIPLE CORRECTIVE ACTION
-	// =========================
-	corrective_actions: {{ .CorrectiveActions }},
-
-	all_pics_terkait_master: {{ json .AllPicsTerkait }},
-
-	// =========================
-	// ADD CORRECTIVE ACTION
-	// =========================
+	event_date: '{{ .Hazard.TanggalWaktu.Format " 2006-01-02T15:04" }}', 
+	risk_matrix_id: '{{ .Hazard.RiskMatrixID }}' ,
+	consequence_id: '{{ .Hazard.RiskMatrix.RiskConsequenceID }}' ,
+	likelihood_id: '{{ .Hazard.RiskMatrix.RiskLikelihoodID }}' ,
+	assessment_id: '{{ .Hazard.RiskMatrix.RiskAssessmentID }}' , matrices: {{ json .Matrices }}, consequences: {{ json .Consequences }}, likelihoods: {{ json .Likelihoods }}, assessments: {{ json .Assessments }}, isManualMatrixSelect:
+	false, work_type: '{{ .WorkType }}' ,
+	department_id: '{{ if .Hazard.DepartmentID }}{{ .Hazard.DepartmentID }}{{ end }}' ,
+	contractor_id: '{{ if .Hazard.ContractorID }}{{ .Hazard.ContractorID }}{{ end }}' , pic_id: '{{ .Hazard.PicID }}' ,
+	all_pics: {{ json .AllPics }}, all_types: {{ json .AllTypes }},corrective_actions: {{ .CorrectiveActions }}, 
 	addCorrectiveAction() {
 
+	// =========================
+	// NORMALIZE NULL
+	// =========================
+
+	if (!Array.isArray(this.corrective_actions)) {
+	this.corrective_actions = []
+	}
+
 	this.corrective_actions.push({
+
 	id: '',
+
 	followup_action: '',
+
 	type: 'department',
 
 	department_terkait_id: '',
 	contractor_terkait_id: '',
+
 	pic_terkait_id: '',
 
 	due_date: '',
 	completed_on: '',
 
 	pics: []
+
 	})
 
 	},
-
-	// =========================
-	// REMOVE CORRECTIVE ACTION
-	// =========================
-	removeCorrectiveAction(index) {
-
-	this.corrective_actions.splice(index, 1)
-
-	},
-
-	// =========================
-	// OTHER STATE
-	// =========================
+	removeCorrectiveAction(index) { this.corrective_actions.splice(index,
+	1) },
 	selected_units: [],
 	filteredPics: [],
 
-	checkFlash() {
-	const getCookie = (name) => {
+	checkFlash() { const getCookie=(name)=> 
+	{
 	let value = `; ${document.cookie}`;
 	let parts = value.split(`; ${name}=`);
 	if (parts.length === 2) return parts.pop().split(';').shift();
@@ -126,6 +101,13 @@
 	// INIT
 	// =========================
 	async init() {
+	console.log(this.report_by_id)
+	// =========================
+	// PASTIKAN ARRAY
+	// =========================
+	if (!Array.isArray(this.corrective_actions)) {
+	this.corrective_actions = []
+	}
 
 	// =========================
 	// DEFAULT EMPTY ACTION
@@ -138,6 +120,8 @@
 	this.addCorrectiveAction()
 
 	}
+
+
 
 	// =========================
 	// NORMALIZE ACTIONS
@@ -183,7 +167,7 @@
 	this.event_category_id = String(this.event_category_id || '')
 	this.event_type_id = String(this.event_type_id || '')
 	this.scat_option_id = String(this.scat_option_id || '')
-
+	this.report_by_id = String(this.report_by_id || '')
 	this.location_id = String(this.location_id || '')
 
 	this.department_id = String(this.department_id || '')
@@ -289,6 +273,20 @@
 
 	this.$watch('likelihood_id', () => {
 	this.findMatrix()
+	})
+
+	this.$watch('status_area', (val) => {
+
+	if (
+	val === 'sementara' &&
+	(!Array.isArray(this.corrective_actions) ||
+	this.corrective_actions.length === 0)
+	) {
+
+	this.corrective_actions = []
+
+	this.addCorrectiveAction()
+	}
 	})
 
 	this.$watch('work_type', (value) => {
@@ -449,34 +447,85 @@
 
 	},
 
+	validateCorrectiveActions() {
+	let isValid = true
+
+	this.corrective_actions.forEach((action, index) => {
+	action.errors = action.errors || {}
+
+	// reset
+	action.errors.pic = false
+	action.errors.due_date = false
+
+	const isRequired = this.status_area === 'sementara'
+
+	if (isRequired) {
+	if (!action.pic_terkait_id) {
+	action.errors.pic = true
+	isValid = false
+	}
+
+	if (!action.due_date) {
+	action.errors.due_date = true
+	isValid = false
+	}
+	}
+	})
+
+	return isValid
+	},
+
+
+
 	// =========================
 	// FORM SUBMIT
 	// =========================
 	handleSubmit() {
 
-	this.$dispatch('validate-me')
-
-	setTimeout(() => {
-
 	const form = this.$refs.form
 
 	if (!form) return
 
-	if (!form.checkValidity()) {
+	// =========================
+	// RESET ERROR LAMA
+	// =========================
+	form.querySelectorAll('[data-error]')
+	.forEach(el => {
+	el.removeAttribute('data-error')
+	})
 
-	const firstInvalid =
-	form.querySelector(':invalid')
+	// =========================
+	// TRIGGER VALIDATION
+	// =========================
+	this.$dispatch('validate-me')
 
-	if (firstInvalid) {
-	firstInvalid.focus()
+	// tunggu Alpine render
+	setTimeout(() => {
+	const validCA = this.validateCorrectiveActions()
+
+	if (!validCA) {
+	return
 	}
+	// =========================
+	// CEK ERROR CUSTOM
+	// =========================
+	const invalidFields =
+	form.querySelectorAll('[data-error]')
+
+	if (invalidFields.length > 0) {
+
+	invalidFields[0].focus()
 
 	return
 	}
 
+	// =========================
+	// PREVENT DOUBLE SUBMIT
+	// =========================
 	if (
 	form.dataset.submitting === 'true'
 	) {
+
 	return
 	}
 
@@ -484,7 +533,7 @@
 
 	form.submit()
 
-	}, 0)
+	}, 50)
 	},
 
 
@@ -592,118 +641,218 @@
 	}"
 >
 
-	<div class="flex justify-between px-4">
+	<div class="flex md:flex-row flex-col justify-between px-4">
 		<h1 class="text-sm font-bold mb-2 text-base-content uppercase tracking-wider">
 			Edit Laporan Hazard
 		</h1>
 		<!-- You can open the modal using ID.showModal() method -->
+		<div class="gap-2 flex items-center mb-2">
+			{{ if .CanReopen }}
+				<form
+					x-ref="reopenForm"
+					action="/hazard/update-status/{{ .Hazard.ID }}"
+					method="POST">
 
-		<div class="tooltip ">
-			<div class="tooltip-content">
-				<div class="animate-bounce text-orange-400 -rotate-5 text-xs font-black">Audit Trail</div>
+					<input
+						type="hidden"
+						name="status"
+						x-model="status_laporan">
+
+					<div x-show="isClosed">
+						<button
+							type="button"
+							class="btn btn-xs btn-outline btn-error"
+
+							@click.prevent="
+							let hasAction = Array.isArray(corrective_actions) && corrective_actions.length > 0;
+
+							let hasCompleted = hasAction && corrective_actions.every(a => a.completed_on && a.completed_on !== '');
+
+							if (!hasAction) {
+							status_laporan = 'submit';
+							} 
+							else if (!hasCompleted) {
+							status_laporan = 'in_progress';
+							} 
+							else {
+							status_laporan = 'in_progress';
+							}
+
+							isClosed = false;
+
+							$nextTick(() => {
+							$refs.reopenForm.submit()
+							})
+							">
+
+							{{ lucide "rotate-ccw" (dict "class" "size-4") }}
+
+							Re-open Laporan
+
+						</button>
+					</div>
+
+				</form>
+			{{ end }}
+			<div class="tooltip ">
+				<div class="tooltip-content">
+					<div class="animate-bounce text-orange-400 -rotate-5 text-xs font-black">Audit Trail</div>
+				</div>
+				<button class="btn btn-square btn-xs btn-accent " onclick="my_modal_3.showModal()"> {{ lucide "history" (dict "class" "size-4") }}</button>
 			</div>
-			<button class="btn btn-square btn-xs btn-accent mb-2" onclick="my_modal_3.showModal()"> {{ lucide "history" (dict "class" "size-4") }}</button>
 		</div>
 
 	</div>
 
 	<dialog id="my_modal_3" class="modal">
-		<div class="modal-box ">
-			<form method="dialog">
-				<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
-			</form>
-			<h3 class="text-lg font-bold">Hello!</h3>
-			<div class="card bg-base-100 border border-base-300 mt-5 ">
-				<div class="card-body">
 
-					<h2 class="card-title text-sm">
+		<div class="modal-box max-w-6xl p-0 overflow-hidden">
+
+			<!-- HEADER -->
+			<div class="sticky top-0 z-20 bg-base-100 border-b border-base-300 px-6 py-4">
+
+				<form method="dialog">
+					<button
+						class="btn btn-sm btn-circle btn-ghost absolute right-4 top-4">
+						✕
+					</button>
+				</form>
+
+				<div>
+					<h3 class="text-lg font-bold">
 						Audit Trail
-					</h2>
+					</h3>
 
-					<div class="overflow-x-auto">
+					<p class="text-xs opacity-60 mt-1">
+						Riwayat perubahan data hazard
+					</p>
+				</div>
 
-						<table class="table table-xs">
+			</div>
 
-							<thead>
-								<tr>
-									<th>Waktu</th>
-									<th>Action</th>
-									<th>User</th>
-								</tr>
-							</thead>
+			<!-- BODY -->
+			<div class="p-5 max-h-[80vh] overflow-y-auto bg-base-200/30">
 
-							<tbody>
+				{{ if .Audits }}
 
-								{{ range .Audits }}
+					<div class="space-y-4">
 
-									<tr>
-										<td>
-											{{ .ChangedAt.Format "02 Jan 2006 15:04" }}
-										</td>
+						{{ range .Audits }}
 
-										<td>
-											<span class="badge badge-sm
-											{{ if eq .Action " CREATE" }} badge-success {{ else }} badge-warning {{ end }}">
+							<div class="card bg-base-100 border border-base-300 shadow-sm">
+
+								<div class="card-body p-4 space-y-4">
+
+									<!-- TOP INFO -->
+									<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+
+										<div class="flex items-center gap-3 flex-wrap">
+
+											<div class="badge badge-outline badge-sm">
+												{{ .ChangedAt.Format "02 Jan 2006 15:04" }}
+											</div>
+
+											<span
+												class="badge badge-sm
+{{ if eq .Action "CREATE" }}
+												badge-success
+{{ else if eq .Action "UPDATE" }}
+												badge-warning
+{{ else if eq .Action "DELETE" }}
+												badge-error
+{{ else }}
+												badge-neutral
+{{ end }}">
 												{{ .Action }}
 											</span>
-										</td>
 
-										<td>
-											{{ .User.Name }}
-										</td>
-									</tr>
+										</div>
 
-									<tr>
-										<td colspan="3">
+										<div class="text-xs opacity-70">
+											By <span class="font-semibold">{{ .User.Name }}</span>
+										</div>
 
-											<details
-												class="collapse collapse-arrow bg-base-200 overflow-x-auto  rounded-2xl">
+									</div>
 
-												<summary class="collapse-title text-xs font-semibold">
-													Lihat Perubahan
-												</summary>
+									<!-- DETAIL -->
+									<details class="collapse collapse-arrow border border-base-300 bg-base-100 rounded-xl">
 
-												<div class="collapse-content">
+										<summary class="collapse-title text-sm font-semibold min-h-0 py-3 px-4">
 
-													{{ if and .Before .After }}
+											Lihat Perubahan
+
+										</summary>
+
+										<div class="collapse-content px-4 pb-4">
+
+											{{ if and .Before .After }}
+
+												<div class="overflow-x-auto rounded-xl border border-base-300 bg-base-100">
+
+													<div class="min-w-[700px] p-3 text-xs">
+
 														{{ diffJSON .Before .After }}
-													{{ else if .After }}
 
-														<div class="bg-green-50 border border-green-200 rounded-xl">
-
-															<div class="px-4 py-2 bg-green-100 border-b border-green-200">
-																<div class="font-bold text-success text-xs tracking-wide">
-																	CREATED DATA
-																</div>
-															</div>
-
-															<div class="p-4 overflow-x-auto max-h-[400px]">
-																<pre
-																	class="text-[11px] leading-5 whitespace-pre-wrap break-words text-gray-700 font-mono">{{ prettyJSON .After }}</pre>
-															</div>
-
-														</div>
-
-													{{ end }}
+													</div>
 
 												</div>
 
-											</details>
+											{{ else if .After }}
 
-										</td>
-									</tr>
+												<div class="rounded-xl border border-success/30 bg-success/5 overflow-hidden">
 
-								{{ end }}
+													<div class="px-4 py-3 border-b border-success/20 bg-success/10">
 
-							</tbody>
+														<h4 class="text-xs font-bold tracking-wide text-success">
 
-						</table>
+															CREATED DATA
+
+														</h4>
+
+													</div>
+
+													<div class="overflow-auto max-h-[400px] p-4">
+
+														<pre class="text-[11px] leading-5 whitespace-pre-wrap break-words font-mono text-base-content">{{ prettyJSON .After }}</pre>
+
+													</div>
+
+												</div>
+
+											{{ end }}
+
+										</div>
+
+									</details>
+
+								</div>
+
+							</div>
+
+						{{ end }}
 
 					</div>
 
-				</div>
+				{{ else }}
+
+					<div class="flex flex-col items-center justify-center py-16 text-center">
+
+						<div class="text-base font-semibold opacity-70">
+							Belum ada audit trail
+						</div>
+
+						<p class="text-xs opacity-50 mt-1">
+							Perubahan data akan muncul di sini
+						</p>
+
+					</div>
+
+				{{ end }}
+
 			</div>
+
 		</div>
+
 	</dialog>
 
 	{{ template "card_scroll" . }}
@@ -714,48 +863,105 @@
 
 {{ define "slot" }}
 
-<form
-	x-ref="form"
-	action="/hazard/update/{{ .Hazard.ID }}"
-	method="POST"
-	enctype="multipart/form-data"
+<form x-ref="form" action="/hazard/update/{{ .Hazard.ID }}" method="POST" enctype="multipart/form-data"
 	@submit.prevent="handleSubmit">
 
 	<input type="hidden" name="_method" value="PUT">
 
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-2 ">
 
-		<div class="relative "
-			@change="syncData('event_category_id', $event.detail)">
+		<div class="relative " @change="syncData('event_category_id', $event.detail)">
 
-			{{ template "select-search" (dict "Label" "Tipe Bahaya" "Name" "event_category_id" "ModelName" "event_category_id" "Value" .Hazard.EventCategory.ParentID "Options" .EventCategories "Required" true "DefaultText" "-- Pilih Tipe Bahaya --" "Placeholder" "Cari tipe bahaya...") }}
+			{{ template "select-search" (dict
+				"Label" "Tipe Bahaya"
+				"Name" "event_category_id"
+				"ModelName" "event_category_id"
+				"Value" .Hazard.EventCategory.ParentID
+				"Options" .EventCategories
+				"Required" true
+				"DefaultText" "-- Pilih Tipe Bahaya --"
+				"Placeholder" "Cari tipe bahaya..."
+				"DisabledBinding" "isClosed"
+				)
+			}}
 
 		</div>
 
-		{{ template "select-dynamic" (dict "Label" "Jenis bahaya" "Name" "event_type_id" "Model" "event_type_id" "Value" .Hazard.EventCategoryID "OptionsArray" "all_types" "ShowCondition" "event_category_id" "DefaultText" "-- Pilih Type --" "Required" true) }}
+		{{ template "select-dynamic" (dict
+			"Label" "Jenis bahaya"
+			"Name" "event_type_id"
+			"Model" "event_type_id"
+			"Value" .Hazard.EventCategoryID
+			"OptionsArray" "all_types"
+			"ShowCondition" "event_category_id"
+			"DefaultText" "-- Pilih Type --"
+			"Required" true
+			"DisabledBinding" "isClosed"
+			)
+		}}
 
-		{{ template "select_input" (dict "Label" "Kategori Bahaya" "Name" "scat_option_id" "ShowType" true "Model" "scat_option_id" "Placeholder" "Pilih Kategory Bahaya" "Options" .ScatOptions "Required" true) }}
+		{{ template "select_input" (dict
+			"Label" "Kategori Bahaya"
+			"Name" "scat_option_id"
+			"ShowType" true
+			"Model" "scat_option_id"
+			"Placeholder" "Pilih Kategory Bahaya"
+			"Options" .ScatOptions
+			"Required" true
+			"DisabledBinding" "isClosed"
+			)
+		}}
 
-		<div class="relative my-select-field"
-			@change="location_id = $event.detail">
+		<div class="relative my-select-field" @change="location_id = $event.detail">
 
-			{{ template "select-search" (dict "Label" "Lokasi" "Name" "location_id" "ModelName" "location_id" "Value" .Hazard.LocationID "Options" .Locations "Required" true "DefaultText" "-- Pilih Lokasi --" "Placeholder" "Cari lokasi...") }}
+			{{ template "select-search" (dict "Label" "Lokasi" "Name" "location_id" "ModelName" "location_id" "SearchURL" "/api/locations/search" "Value" .Hazard.LocationID "Options" .Locations "Required" true "DefaultText" "-- Pilih Lokasi --" "Placeholder" "Cari lokasi..." "DisabledBinding" "isClosed") }}
 
 		</div>
 
 		<div x-show="location_id" x-transition>
 
-			{{ template "input" (dict "Label" "Lokasi spesifik" "Name" "location_specific" "Placeholder" "Isi Lokasi spesifik..." "Required" true "Attr" "x-model='location_specific'") }}
+			{{ template "input" (dict
+				"Label" "Lokasi spesifik"
+				"Name" "location_specific"
+				"Placeholder" "Isi Lokasi spesifik..."
+				"Required" true
+				"Attr" "x-model='location_specific'"
+				"DisabledBinding" "isClosed"
+				)
+			}}
 
 		</div>
 
 		<div class="relative ">
 
-			{{ template "select-user-search" (dict "Label" "Nama Pelapor" "Options" .Users "Value" .Hazard.ReportBy.ID "SelectedLabel" .Hazard.ReportBy.Name "DefaultValue" .Hazard.ReportBy.ID "DefaultText" "-- Pilih atau Ketik Nama --" "Attr" "x-model='report_by_id'" "Required" true) }}
+			{{ template "select-user-search" (dict
+				"Label" "Nama Pelapor"
+				"Options" .Users
+				"Value" .Hazard.ReportBy.ID
+				"SelectedLabel" .Hazard.ReportBy.Name
+				"DefaultText" "-- Pilih atau Ketik Nama --"
+				"Attr" "x-model='report_by_id'"
+				"Required" true
+				"DisabledBinding" "isClosed"
+				)
+			}}
 
 		</div>
 
-		{{ template "input-date" (dict "Label" "Tanggal & Waktu Kejadian" "Type" "datetime-local" "Name" "event_date" "Id" "event_date" "Placeholder" "Pilih Tanggal" "Required" true "Value" (.Hazard.TanggalWaktu.Format "2006-01-02T15:04") "Attr" "x-model=event_date") }}
+
+		{{ template "input-flatpickr" (dict
+			"Label" "Tanggal & Waktu Kejadian"
+			"Name" "event_date"
+			"Id" "event_date"
+			"Value" (.Hazard.TanggalWaktu.Format "2006-01-02 15:04")
+			"Type" "date-time"
+			"Placeholder" "Pilih tanggal..."
+			"Required" true
+			"RequiredBinding" ""
+			"DisabledBinding" "isClosed"
+			"Attr" "x-model=event_date"
+			)
+		}}
 	</div>
 
 	<fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border px-2">
@@ -774,11 +980,16 @@
 					type="radio"
 					value="department"
 					name="work_type"
-					x-model="work_type" />
+					x-model="work_type"
+					:disabled="isClosed"
+				/>
 
 				<label
 					for="draft"
-					class="peer-checked/draft:text-sky-500 text-sm font-semibold text-base-content opacity-60 mb-1 ">
+					:class="isClosed
+					? 'opacity-50 cursor-not-allowed'
+					: 'peer-checked/draft:text-sky-500'"
+					class="text-sm font-semibold text-base-content opacity-60 mb-1">
 					Department
 				</label>
 
@@ -788,68 +999,74 @@
 					type="radio"
 					name="work_type"
 					value="contractor"
-					x-model="work_type" />
+					x-model="work_type"
+					:disabled="isClosed"
+				/>
 
 				<label
 					for="published"
-					class="peer-checked/published:text-sky-500 text-sm font-semibold mb-1 text-base-content opacity-60">
+					:class="isClosed
+					? 'opacity-50 cursor-not-allowed'
+					: 'peer-checked/published:text-sky-500'"
+					class="text-sm font-semibold mb-1 text-base-content opacity-60">
 					Contractor
 				</label>
 
-				<div
-					class="hidden peer-checked/draft:block  relative"
+				<div class="hidden peer-checked/draft:block  relative"
 					@change="syncData('department_id', $event.detail)">
 
-					{{ template "select-search" (dict "Label" "" "Name" "department_id" "ModelName" "department_id" "Value" .Hazard.DepartmentID "Options" .Departments "DefaultText" "-- Pilih Department --" "Placeholder" "Cari department..." "RequiredBinding" "work_type === 'department'") }}
+					{{ template "select-search" (dict "Label" "" "Name" "department_id" "ModelName" "department_id" "Value" .Hazard.DepartmentID "Options" .Departments "DefaultText" "-- Pilih Department --" "Placeholder" "Cari department..." "RequiredBinding" "work_type === 'department'" "DisabledBinding" "isClosed") }}
 
 				</div>
 
-				<div
-					class="hidden peer-checked/published:block  relative"
+				<div class="hidden peer-checked/published:block  relative"
 					@change="syncData('contractor_id', $event.detail)">
 
-					{{ template "select-search" (dict "Label" "" "Name" "contractor_id" "ModelName" "contractor_id" "Value" .Hazard.ContractorID "Options" .Contractors "DefaultText" "-- Pilih Contractor --" "Attr" "x-model='contractor_id'" "RequiredBinding" "work_type === 'contractor'") }}
+					{{ template "select-search" (dict "Label" "" "Name" "contractor_id" "ModelName" "contractor_id" "Value" .Hazard.ContractorID "Options" .Contractors "DefaultText" "-- Pilih Contractor --" "Attr" "x-model='contractor_id'" "RequiredBinding" "work_type === 'contractor'" "DisabledBinding" "isClosed") }}
 
 				</div>
 
 			</fieldset>
 
-			{{ template "select-dynamic" (dict "Label" "Person In Charge (PIC)" "Name" "pic_id" "Model" "pic_id" "Value" .Hazard.PicID "OptionsArray" "all_pics" "ShowCondition" "work_type" "DefaultText" "-- Pilih PIC --" "Required" true) }}
+			{{ template "select-dynamic" (dict "Label" "Person In Charge (PIC)" "Name" "pic_id" "Model" "pic_id" "Value" .Hazard.PicID "OptionsArray" "all_pics" "ShowCondition" "work_type" "DefaultText" "-- Pilih PIC --" "Required" true "DisabledBinding" "isClosed") }}
 		</div>
 
 	</fieldset>
 
-	{{ template "ckeditor" dict "ID" "hazardDescription" "Label" "Deskripsi Bahaya" "Name" "description" "AlpineVar" "hazardDescription" "Value" .Hazard.Deskripsi "Required" true }}
+	{{ template "ckeditor" (dict
+		"ID" "hazardDescription"
+		"Label" "Deskripsi Bahaya"
+		"Name" "description"
+		"AlpineVar" "hazardDescription"
+		"Value" .Hazard.Deskripsi
+		"Required" true
+		"DisabledBinding" "isClosed"
+		)
+	}}
 
-	{{ template "input-file" (dict "Label" "Upload Dokumentasi Deskripsi" "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "ExistingFiles" .DescDocs) }}
-	{{ template "ckeditor" dict "ID" "hazardCorrective_action" "Label" "Tindakan Perbaikan Langsung" "Name" "corrective_action" "AlpineVar" "hazardCorrective_action" "Value" .Hazard.CorrectiveAction "Required" true }}
+	{{ template "input-file" (dict "Label" "Upload Dokumentasi Deskripsi" "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "ExistingFiles" .DescDocs "DisabledBinding" "isClosed") }}
+	{{ template "ckeditor" (dict "ID" "hazardCorrective_action" "Label" "Tindakan Perbaikan Langsung" "Name" "corrective_action" "AlpineVar" "hazardCorrective_action" "Value" .Hazard.CorrectiveAction "Required" true "DisabledBinding" "isClosed") }}
 
 
-	{{ template "input-file" (dict "Label" "Upload Dokumentasi Corrective" "Name" "dokumentasi_corrective" "Id" "dokumentasi_corrective" "Required" true "ExistingFiles" .CorrectiveDocs) }}
+	{{ template "input-file" (dict "Label" "Upload Dokumentasi Corrective" "Name" "dokumentasi_corrective" "Id" "dokumentasi_corrective" "Required" true "ExistingFiles" .CorrectiveDocs "DisabledBinding" "isClosed") }}
 
 	<div class="flex flex-col md:flex-row gap-2 ">
 
 		<div class="col-span-2 md:grow">
 
-			{{ template "select_input" (dict "Label" "Consequences" "Name" "consequence_id" "Model" "consequence_id" "Placeholder" "Pilih Consequences" "Class" "max-w-sm" "Options" .Consequences "Required" true) }}
+			{{ template "select_input" (dict "Label" "Consequences" "Name" "consequence_id" "Model" "consequence_id" "Placeholder" "Pilih Consequences" "Class" "max-w-sm" "Options" .Consequences "Required" true "DisabledBinding" "isClosed") }}
 
 			<div x-show="consequence_id" x-transition>
 
-				<textarea
-					class="textarea textarea-bordered w-full"
-					x-text="getConsequenceDesc()"
-					readonly></textarea>
+				<textarea :disabled="isClosed" class="textarea textarea-bordered w-full" x-text="getConsequenceDesc()" readonly></textarea>
 
 			</div>
 
-			{{ template "select_input" (dict "Label" "Likelihood" "Name" "likelihood_id" "Model" "likelihood_id" "Placeholder" "Pilih Likelihood" "Class" "max-w-sm" "Options" .Likelihoods "Required" true) }}
+			{{ template "select_input" (dict "Label" "Likelihood" "Name" "likelihood_id" "Model" "likelihood_id" "Placeholder" "Pilih Likelihood" "Class" "max-w-sm" "Options" .Likelihoods "Required" true "DisabledBinding" "isClosed") }}
 
 			<div x-show="likelihood_id" x-transition>
 
-				<textarea
-					class="textarea textarea-bordered w-full"
-					x-text="getLikelihoodNotes()"
-					readonly></textarea>
+				<textarea :disabled="isClosed" class="textarea textarea-bordered w-full" x-text="getLikelihoodNotes()" readonly></textarea>
 
 			</div>
 
@@ -866,18 +1083,12 @@
 					</caption>
 
 					<thead>
-
 						<tr>
-
-							<th
-								rowspan="2"
-								colspan="2"
-								class="border border-base-300 p-2 bg-base-200 italic">
+							<th rowspan="2" colspan="2" class="border border-base-300 p-2 bg-base-200 italic">
 								Likelihood
 							</th>
 
-							<th colspan="5"
-								class="border border-base-300 p-1 bg-base-200">
+							<th colspan="5" class="border border-base-300 p-1 bg-base-200">
 								Consequence
 							</th>
 
@@ -929,14 +1140,26 @@
 									{{ $aID := getMatrixAssessmentID $.Matrices $c.ID $l.ID }}
 
 									<td
-										class="border border-base-300 text-center font-bold text-base-content uppercase shadow-inner cursor-pointer hover:opacity-80 hover:scale-[1.02] transition-all"
-										:class="risk_matrix_id == '{{ $mID }}'
+										class="border border-base-300 text-center font-bold text-base-content uppercase shadow-inner transition-all"
+
+										:class="[
+										risk_matrix_id == '{{ $mID }}'
 										? 'ring-2 ring-black ring-inset scale-105 z-10'
-										: ''"
+										: '',
+
+										isClosed
+										? 'opacity-60 cursor-not-allowed'
+										: 'cursor-pointer hover:opacity-80 hover:scale-[1.02]'
+										]"
+
 										style="background-color: {{ getMatrixColor $.Matrices $c.ID $l.ID }};"
-										@click="if('{{ $mID }}' !== '0') {
-										openEdit('{{ $mID }}', '{{ $c.ID }}', '{{ $l.ID }}', '{{ $aID }}')
-										}">
+
+										@click="!isClosed && '{{ $mID }}' !== '0' && openEdit(
+										'{{ $mID }}',
+										'{{ $c.ID }}',
+										'{{ $l.ID }}',
+										'{{ $aID }}'
+										)">
 
 										{{ firstChar (getMatrixName $.Matrices $c.ID $l.ID) }}
 
@@ -963,10 +1186,7 @@
 
 	</div>
 
-	<div
-		x-show="assessment_id"
-		x-transition
-		class="mt-3 overflow-x-auto">
+	<div x-show="assessment_id" x-transition class="mt-3 overflow-x-auto">
 
 		<table class="table table-xs table-zebra w-full border border-base-300 rounded-box">
 
@@ -980,9 +1200,7 @@
 
 					<td>
 
-						<span
-							class="font-bold"
-							x-text="getAssessment().name || '-'"></span>
+						<span class="font-bold" x-text="getAssessment().name || '-'"></span>
 
 					</td>
 
@@ -996,9 +1214,7 @@
 
 					<td>
 
-						<div
-							class="whitespace-pre-line text-sm"
-							x-text="getAssessment().notes || '-'"></div>
+						<div class="whitespace-pre-line text-sm" x-text="getAssessment().notes || '-'"></div>
 
 					</td>
 
@@ -1012,9 +1228,8 @@
 
 					<td>
 
-						<div
-							class="whitespace-pre-line text-sm"
-							x-text="getAssessment().investigation_reqd || '-'"></div>
+						<div class="whitespace-pre-line text-sm" x-text="getAssessment().investigation_reqd || '-'">
+						</div>
 
 					</td>
 
@@ -1028,8 +1243,7 @@
 
 					<td>
 
-						<span
-							x-text="getAssessment().reporting_obligation || '-'"></span>
+						<span x-text="getAssessment().reporting_obligation || '-'"></span>
 
 					</td>
 
@@ -1053,90 +1267,132 @@
 		<div x-ref="statusAreaWrapper" class="space-y-2">
 
 			<!-- RADIO GROUP -->
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-3 p-2 rounded-xl transition-all duration-200"
-				:class="status_area_error
+			<div
+				class="grid grid-cols-1 md:grid-cols-2 gap-3 p-2 rounded-xl transition-all duration-200"
+				:class="[
+				status_area_error
 				? 'border-2 border-error bg-error/5'
-				: 'border border-transparent'">
+				: 'border border-transparent',
+
+				isClosed
+				? 'opacity-60 pointer-events-none'
+				: ''
+				]">
 
 				<!-- Opsi 1: Aman Total -->
 				<label
-					class="flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all duration-200"
-					:class="status_area === 'aman'
+					class="flex items-center justify-between p-3 rounded-xl border transition-all duration-200"
+					:class="[
+					status_area === 'aman'
 					? 'bg-success/10 border-success shadow-sm'
-					: 'bg-base-200 border-transparent'">
+					: 'bg-base-200 border-transparent',
+
+					isClosed
+					? 'cursor-not-allowed'
+					: 'cursor-pointer'
+					]">
 
 					<div class="flex items-center gap-3">
+
 						<span class="text-xl">✅</span>
 
 						<div>
-							<p class="font-bold text-sm"
-								:class="status_area === 'aman' ? 'text-success' : ''">
+
+							<p
+								class="font-bold text-sm"
+								:class="status_area === 'aman'
+								? 'text-success'
+								: ''">
+
 								Sudah Aman Total
+
 							</p>
 
 							<p class="text-[10px] opacity-60 italic">
 								Masalah selesai di tempat
 							</p>
+
 						</div>
+
 					</div>
 
 					<input
 						type="radio"
 						name="status_area"
 						value="aman"
+
 						x-model="status_area"
+
+						:disabled="isClosed"
+
 						@change="status_area_error = false"
-						class="radio radio-success radio-sm"
-					/>
+
+						class="radio radio-success radio-sm" />
+
 				</label>
 
 				<!-- Opsi 2: Aman Sementara -->
 				<label
-					class="flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all duration-200"
-					:class="status_area === 'sementara'
+					class="flex items-center justify-between p-3 rounded-xl border transition-all duration-200"
+					:class="[
+					status_area === 'sementara'
 					? 'bg-warning/10 border-warning shadow-sm'
-					: 'bg-base-200 border-transparent'">
+					: 'bg-base-200 border-transparent',
+
+					isClosed
+					? 'cursor-not-allowed'
+					: 'cursor-pointer'
+					]">
 
 					<div class="flex items-center gap-3">
+
 						<span class="text-xl">⚠️</span>
 
 						<div>
-							<p class="font-bold text-sm"
-								:class="status_area === 'sementara' ? 'text-warning' : ''">
+
+							<p
+								class="font-bold text-sm"
+								:class="status_area === 'sementara'
+								? 'text-warning'
+								: ''">
+
 								Aman Sementara
+
 							</p>
 
 							<p class="text-[10px] opacity-60 italic">
 								Perlu perbaikan lebih lanjut
 							</p>
+
 						</div>
+
 					</div>
 
 					<input
 						type="radio"
 						name="status_area"
 						value="sementara"
+
 						x-model="status_area"
+
+						:disabled="isClosed"
+
 						@change="status_area_error = false"
-						class="radio radio-warning radio-sm"
-					/>
+
+						class="radio radio-warning radio-sm" />
+
 				</label>
+
 			</div>
 
 			<!-- ERROR MESSAGE -->
-			<p
-				x-show="status_area_error"
-				x-transition
-				class="text-error text-xs font-semibold"
-			>
+			<p x-show="status_area_error" x-transition class="text-error text-xs font-semibold">
 				Silakan pilih status area terlebih dahulu
 			</p>
 		</div>
 
 		<!-- Field Lanjutan -->
-		<div
-			x-show="status_area === 'sementara'"
-			x-transition
+		<div x-show="status_area === 'sementara'" x-transition
 			class="mt-4 space-y-4 pt-3 border-t border-dashed border-base-300">
 
 			<!-- HEADER -->
@@ -1146,10 +1402,7 @@
 					Corrective Action Lanjutan
 				</h3>
 
-				<button
-					type="button"
-					class="btn btn-primary btn-sm"
-					@click="addCorrectiveAction()">
+				<button type="button" class="btn btn-primary btn-sm" @click="addCorrectiveAction()">
 
 					Tambah Action
 
@@ -1158,12 +1411,10 @@
 			</div>
 
 			<!-- LOOP -->
-			<template
-				x-for="(action, index) in corrective_actions"
-				:key="index">
+			<template x-for="(action, index) in corrective_actions" :key="index">
 
 				<div class="border border-base-300 rounded-xl p-4 space-y-3">
-
+					<input type="hidden" name="type[]" :value="action.type">
 					<!-- ACTION HEADER -->
 					<div class="flex justify-between items-center">
 
@@ -1171,10 +1422,7 @@
 							Action #<span x-text="index + 1"></span>
 						</h4>
 
-						<button
-							type="button"
-							class="btn btn-error btn-xs"
-							@click="removeCorrectiveAction(index)">
+						<button type="button" class="btn btn-error btn-xs" @click="removeCorrectiveAction(index)">
 
 							Hapus
 
@@ -1184,14 +1432,7 @@
 
 					<!-- FOLLOWUP -->
 					<div>
-						{{ template "ckeditor" (dict
-							"Label" "Tindakan Lanjut"
-							"Name" "followup_action[]"
-							"ID" "followup"
-							"AlpineVar" "action.followup_action"
-							"Required" true
-							)
-						}}
+						{{ template "ckeditor-loop" (dict "Label" "Tindakan Lanjut" "Name" "followup_action[]" "ID" "`followup_${index}`" "AlpineVar" "action.followup_action" "RequiredBinding" "status_area === 'sementara'") }}
 					</div>
 
 					<!-- TYPE -->
@@ -1207,12 +1448,11 @@
 
 									<label class="label cursor-pointer gap-2">
 
-										<input
-											type="radio"
-											value="department"
-											x-model="action.type"
-											:name="`corrective_action_type_${index}`"
-											class="radio radio-xs" />
+										<input type="radio" value="department" x-model="action.type" @change="
+											action.department_terkait_id = ''
+											action.pic_terkait_id = ''
+											action.pics = []
+											" :name="`corrective_action_type_${index}`" class="radio radio-xs" />
 
 										<span class="label-text">
 											Department
@@ -1222,12 +1462,11 @@
 
 									<label class="label cursor-pointer gap-2">
 
-										<input
-											type="radio"
-											value="contractor"
-											x-model="action.type"
-											:name="`corrective_action_type_${index}`"
-											class="radio radio-xs" />
+										<input type="radio" value="contractor" x-model="action.type" @change="
+											action.contractor_terkait_id = ''
+											action.pic_terkait_id = ''
+											action.pics = []
+											" :name="`corrective_action_type_${index}`" class="radio radio-xs" />
 
 										<span class="label-text">
 											Contractor
@@ -1237,34 +1476,29 @@
 
 								</div>
 
-								<div 
-									x-show="action.type === 'department'" 
-									@change="syncData('department_terkait_id', $event.detail, index)">
+								<div x-show="action.type === 'department'" @change="
+									syncData(
+									'department_terkait_id',
+									$event.detail,
+									index
+									)
+									">
 
-									{{ template "select-search-loop" (dict
-										"Name" "department_terkait_id[]"
-										"Placeholder" "Cari & Pilih Department..."
-										"DefaultText" "-- Pilih Department --"
-										"AlpineVar" "action.department_terkait_id"
-										"Options" $.Departments
-										"Required" true
-										)
-									}}
+									{{ template "select-search-loop" (dict "Name" "department_terkait_id[]" "Placeholder" "Cari & Pilih Department..." "DefaultText" "-- Pilih Department --" "AlpineVar" "action.department_terkait_id" "Options" $.Departments "RequiredBinding" "status_area === 'sementara' && action.type=== 'department'" "Attr" "@change=\"syncData('department_terkait_id', action.department_terkait_id, index)\"") }}
+
 								</div>
 
 								<!-- CONTRACTOR -->
-								<div x-show="action.type === 'contractor'"
-									@change="syncData('contractor_terkait_id', $event.detail, index)">
+								<div x-show="action.type === 'contractor'" @change="
+									syncData(
+									'contractor_terkait_id',
+									$event.detail,
+									index
+									)
+									">
 
-									{{ template "select-search-loop" (dict
-										"Name" "contractor_terkait_id[]"
-										"Placeholder" "Cari & Pilih Contractor..."
-										"DefaultText" "-- Pilih Contractor --"
-										"AlpineVar" "action.contractor_terkait_id"
-										"Options" $.Contractors
-										"Required" true
-										)
-									}}
+									{{ template "select-search-loop" (dict "Name" "contractor_terkait_id[]" "Placeholder" "Cari & Pilih Contractor..." "DefaultText" "-- Pilih Contractor --" "AlpineVar" "action.contractor_terkait_id" "Options" $.Contractors "RequiredBinding" "status_area === 'sementara' && action.type=== 'contractor'" "Attr" "@change=\"syncData('contractor_terkait_id', action.contractor_terkait_id, index)\"") }}
+
 								</div>
 							</div>
 							<!-- PIC -->
@@ -1272,13 +1506,14 @@
 								<label class="label mb-0.5">
 									<span class="text-xs font-bold text-base-content opacity-60">
 										PIC
+										<span class="text-error font-bold ml-0.5">*</span>
 									</span>
+
 								</label>
 								<select
 									class="select select-bordered select-xs w-full focus:outline-none leading-normal focus:ring-0 appearance-none"
-									:name="`pic_terkait_id[]`"
-
-									@change="
+									:class="action.errors?.pic ? 'border-error text-error' : ''"
+									:name="`pic_terkait_id[]`" @change="
 									action.pic_terkait_id =
 									$event.target.value
 									">
@@ -1287,24 +1522,23 @@
 										-- Pilih PIC --
 									</option>
 
-									<template
-										x-for="pic in action.pics"
-										:key="pic.ID">
+									<template x-for="pic in action.pics" :key="pic.ID">
 
-										<option
-											:value="String(pic.ID)"
-											:selected="
+										<option :value="String(pic.ID)" :selected="
 											String(action.pic_terkait_id)
 											===
 											String(pic.ID)
-											"
-											x-text="pic.name">
+											" x-text="pic.name">
 										</option>
 
 									</template>
 
 								</select>
-
+								<template x-if="action.errors?.pic">
+									<p class="text-error text-[10px] mt-1 font-semibold">
+										PIC wajib dipilih
+									</p>
+								</template>
 							</div>
 							<!-- DUE DATE -->
 							<div>
@@ -1314,13 +1548,15 @@
 										Due Date
 									</span>
 								</label>
-								<input
-									type="date"
-									@click="$el.showPicker()"
+								<input type="date" @click="$el.showPicker()"
 									class="input input-bordered input-xs w-full focus:outline-none focus:border-info focus:ring-info"
-									:name="`due_date[]`"
-									x-model="action.due_date">
-
+									:class="action.errors?.due_date ? 'border-error' : ''"
+									:name="`due_date[]`" x-model="action.due_date">
+								<template x-if="action.errors?.due_date">
+									<p class="text-error text-[10px] mt-1 font-semibold">
+										Due date wajib diisi
+									</p>
+								</template>
 
 							</div>
 
@@ -1333,12 +1569,9 @@
 								</label>
 
 
-								<input
-									type="date"
-									@click="$el.showPicker()"
+								<input type="date" @click="$el.showPicker()"
 									class="input input-bordered input-xs w-full focus:outline-none focus:border-info focus:ring-info"
-									:name="`completed_on[]`"
-									x-model="action.completed_on">
+									:name="`completed_on[]`" x-model="action.completed_on">
 
 							</div>
 						</div>
@@ -1351,9 +1584,7 @@
 
 	<div class="justify-self-end w-full max-w-md">
 
-		<button
-			type="submit"
-			class="btn btn-warning btn-sm px-6 mt-4 btn-block">
+		<button type="submit" class="btn btn-warning btn-sm px-6 mt-4 btn-block">
 
 			{{ lucide "save" (dict "class" "size-4") }}
 

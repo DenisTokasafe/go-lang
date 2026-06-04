@@ -1,0 +1,187 @@
+{{ define "input-flatpickr-range" }}
+<fieldset
+	class="fieldset w-full"
+	x-modelable="value"
+	x-data="{
+	value: '{{ .Value }}',
+	isInvalid: false,
+	errorMsg: '',
+	_fp: null,
+
+	isFuture(val) {
+	if (!val) return false;
+	const dates = val.split(' to ');
+	const lastDateStr = dates[dates.length - 1];
+	if (!lastDateStr) return false;
+
+	const inputDate = new Date(lastDateStr);
+	const now = new Date();
+	now.setHours(23, 59, 59, 999);
+	return inputDate > now;
+	},
+
+	validate() {
+	const isRequired =
+{{ if .Required }}
+	true
+{{ else if .RequiredBinding }}
+{{ .RequiredBinding }}
+{{ else }}
+	false
+{{ end }};
+
+	if (isRequired && (!this.value || this.value.trim() === '')) {
+	this.isInvalid = true;
+	this.errorMsg = '{{ .Label }} wajib diisi.';
+	this.updateStyles();
+	return false;
+	}
+
+	if (this.value && this.value.trim() !== '') {
+	const dates = this.value.split(' to ');
+	if (dates.length < 2 || !dates[1]) {
+	this.isInvalid = true;
+	this.errorMsg = 'Rentang tanggal harus lengkap (Pilih tanggal mulai & selesai).';
+	this.updateStyles();
+	return false;
+	}
+	}
+
+
+
+	this.isInvalid = false;
+	this.errorMsg = '';
+	this.updateStyles();
+	return true;
+	},
+
+	updateStyles() {
+	if (this._fp && this._fp.altInput) {
+	if (this.isInvalid) {
+	this._fp.altInput.classList.add('input-error');
+	this._fp.altInput.classList.remove('focus:border-info', 'focus:ring-info');
+	} else {
+	this._fp.altInput.classList.remove('input-error');
+	this._fp.altInput.classList.add('focus:border-info', 'focus:ring-info');
+	}
+	}
+	},
+
+	// 💡 FITUR BARU: Fungsi untuk mereset tanggal murni
+	clearPicker() {
+	this.value = '';
+	if (this._fp) {
+	this._fp.clear(); // Bersihkan Flatpickr secara core instance
+	}
+	this.validate();
+	},
+
+	async init() {
+	if ((this.value === undefined || this.value === '') && '{{ .Value }}' !== '') {
+	this.value = '{{ .Value }}';
+	}
+
+	const pickerSetup = await window.setupDatepicker({
+	mode: 'range', 
+	enableTime: false,
+	altFormat: 'j F, Y',
+	dateFormat: 'Y-m-d',
+	locale: {
+	rangeSeparator: ' to '
+	},
+	disableMobile: true,
+	// 💡 Penyesuaian: Menambahkan pr-6 (padding-right) agar teks tanggal tidak menabrak tombol silang (X)
+	altInputClass: 'input input-bordered input-xs w-full pr-6 focus:outline-none focus:border-info focus:ring-info',
+
+	onChange: (selectedDates, dateStr) => {
+	if (selectedDates.length === 2 || selectedDates.length === 0) {
+	this.value = dateStr; 
+	}
+	}
+	});
+
+	pickerSetup.value = this.value;
+	pickerSetup.init.call(this);
+
+	// 💡 Amankan referensi instance flatpickr yang dibuat oleh helper global Anda ke properti lokal
+	if (this.$refs.datepicker && this.$refs.datepicker._flatpickr) {
+	this._fp = this.$refs.datepicker._flatpickr;
+	}
+
+	if (this.value) {
+	this.$nextTick(() => this.validate());
+	}
+
+	this.$watch('value', val => {
+	this.$dispatch('input', val);
+	this.$dispatch('change', val);
+	this.validate(); 
+	});
+
+{{ if .RequiredBinding }}
+	this.$watch(
+	() => {{ .RequiredBinding }},
+	(val) => {
+	if (!val) {
+	this.isInvalid = false;
+	this.errorMsg = '';
+	this.updateStyles();
+	} else {
+	this.validate();
+	}
+	}
+	);
+{{ end }}
+	}
+	}"
+	@validate-me="validate()"
+	{{ with .Attr }}{{ . | htmlattr }}{{ end }}>
+
+	{{ if .Label }}
+		<label class="label">
+			<span class="text-xs font-bold text-base-content opacity-60">
+				{{ .Label }}
+				{{ if or .Required .RequiredBinding }}
+					<span class="text-error font-bold ml-0.5">*</span>
+				{{ end }}
+			</span>
+		</label>
+	{{ end }}
+
+	<div class="relative w-full flex items-center">
+		<input
+			type="text"
+			name="{{ .Name }}"
+			id="{{ .Id }}"
+			x-ref="datepicker"
+			value="{{ .Value }}"
+			placeholder="{{ .Placeholder }}"
+			@change="validate()"
+			@input="validate()"
+			@invalid.prevent="validate()"
+			:class="isInvalid ? 'input-error' : 'focus:input-info '"
+			class="input input-xs w-full pr-6 focus:outline-none focus:border-info leading-normal focus:ring-info appearance-none"
+
+			{{ if .Required }} required {{ end }}
+			{{ if .DisabledBinding }} :disabled="{{ .DisabledBinding }}" {{ end }}
+			{{ if .RequiredBinding }} x-bind:required="{{ .RequiredBinding }}" {{ end }}
+		/>
+
+		<button 
+			type="button"
+			x-show="value" 
+			x-cloak
+			@click.stop="clearPicker()" 
+			class="absolute right-2 text-base-content/40 hover:text-error transition-colors duration-150 focus:outline-none"
+			title="Clear date">
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+			</svg>
+		</button>
+	</div>
+
+	<div x-show="isInvalid && errorMsg" x-cloak class="mt-1">
+		<p class="text-error text-[9px] font-semibold leading-none" x-text="errorMsg"></p>
+	</div>
+</fieldset>
+{{ end }}

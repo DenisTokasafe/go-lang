@@ -63,7 +63,7 @@ func (mc *ManhoursController) Index(w http.ResponseWriter, r *http.Request) {
 
 	// --- LOGIKA AGREGASI HIGHCHARTS ---
 	type ChartData struct {
-		Month string  `json:"month"`
+		Month string  `json:"month"` // Ini akan menghasilkan format seperti "Jan 2025" (berdasarkan DATE_FORMAT)
 		Total float64 `json:"total"`
 		Count int64   `json:"count"`
 	}
@@ -75,14 +75,15 @@ func (mc *ManhoursController) Index(w http.ResponseWriter, r *http.Request) {
             DATE_FORMAT(manhours.month, '%b %Y') as month, 
             SUM(operational_hours + supervisor_hours + admin_hours) as total,
             SUM(operational_count + supervisor_count + admin_count) as count,
-            manhours.month as raw_month
-        `)
+            DATE(manhours.month) as raw_month
+        `) // UBAH: Menggunakan DATE(manhours.month) agar menghasilkan format '2025-01-01'
 
 	// KONDISI KHUSUS: Jika tanpa search dan tanpa date range
 	if querySearch == "" && startDate == "" && endDate == "" {
 		// Tampilkan hanya 12 bulan terakhir
 		chartQuery = chartQuery.
-			Where("manhours.month > DATE_SUB(NOW(), INTERVAL 13 MONTH)")
+			// UBAH: Menggunakan CURDATE() untuk menggantikan NOW() agar berbasis tanggal murni
+			Where("manhours.month > DATE_SUB(CURDATE(), INTERVAL 13 MONTH)")
 	} else {
 		// Jika ada filter, grafik mengikuti filter tersebut
 		chartQuery = chartQuery.Joins("LEFT JOIN business_units ON business_units.id = manhours.business_unit_id").
@@ -93,7 +94,7 @@ func (mc *ManhoursController) Index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chartQuery.
-		Group("month, raw_month").
+		Group("DATE_FORMAT(manhours.month, '%b %Y'), DATE(manhours.month)"). // UBAH: Grouping disesuaikan dengan fungsi select asli
 		Order("raw_month ASC").
 		Scan(&chartResults)
 
@@ -108,6 +109,7 @@ func (mc *ManhoursController) Index(w http.ResponseWriter, r *http.Request) {
 		Preload("DepartmentGroup.Group").
 		Preload("Custodian.Department").
 		Preload("Custodian.Contractor").
+		Preload("Custodian.Department.DepartmentGroups.Group").
 		Limit(pageSize).
 		Offset(offset).
 		Order("month DESC").
@@ -531,6 +533,8 @@ func (mc *ManhoursController) Update(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.SetCookie(w, &http.Cookie{Name: "flash_msg", Value: "Manhours berhasil diperbarui", Path: "/"})
 		http.SetCookie(w, &http.Cookie{Name: "flash_type", Value: "success", Path: "/"})
+		// Kirim email notifikasi (Bungkus dengan goroutine 'go' agar tidak membuat loading web lambat)
+
 	}
 
 	http.Redirect(w, r, "/manhours", http.StatusSeeOther)
@@ -553,6 +557,7 @@ func (mc *ManhoursController) Delete(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, &http.Cookie{Name: "flash_msg", Value: "Manhours berhasil dihapus", Path: "/"})
 	http.SetCookie(w, &http.Cookie{Name: "flash_type", Value: "error", Path: "/"})
+
 	http.Redirect(w, r, "/manhours", http.StatusSeeOther)
 }
 func (mc *ManhoursController) UploadExcel(w http.ResponseWriter, r *http.Request) {
