@@ -1,16 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"latihan1/cmd/web/bootstrap"
 	"latihan1/cmd/web/config"
 	"latihan1/cmd/web/helpers"
 	"latihan1/cmd/web/routes"
 	"log"
-	"net/http"
-	"os"
+	"net/http/fcgi" // 1. IMPORT PACKAGE FASTCGI INI
 
-	"github.com/joho/godotenv" // Tambahkan library godotenv
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -20,11 +18,13 @@ func main() {
 	if errEnv != nil {
 		log.Println("Peringatan: File .env tidak ditemukan, menggunakan env system")
 	}
+
 	// LOAD TERJEMAHAN YAML DI SINI
 	errLang := helpers.LoadTranslations()
 	if errLang != nil {
 		log.Fatalf("Gagal memuat file terjemahan bahasa: %v", errLang)
 	}
+
 	// Init Database
 	db := config.InitDB()
 
@@ -32,18 +32,14 @@ func main() {
 	controllers := bootstrap.InitControllers(db)
 
 	// Register Routes
+	// Karena routes Anda terdaftar ke default mux, fcgi akan otomatis membacanya
 	routes.RegisterRoutes(db, controllers)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	addr := ":" + port
+	log.Println("Aplikasi Golang berjalan menggunakan FastCGI di Hostinger...")
 
-	fmt.Printf("Server is running on http://localhost:%s\n", port)
-
-	err := http.ListenAndServe(addr, nil)
+	// 2. GANTI LISTENANDSERVE DENGAN INI
+	err := fcgi.Serve(nil, nil)
 	if err != nil {
-		fmt.Printf("Failed to start server: %v\n", err)
+		log.Fatalf("Gagal menjalankan FastCGI server: %v\n", err)
 	}
 }

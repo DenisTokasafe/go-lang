@@ -1,0 +1,6 @@
+Options +ExecCGI
+AddHandler cgi-script .fcgi
+
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^(.*)$ app.fcgi/$1 [L]
