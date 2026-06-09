@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"latihan1/cmd/web/helpers"
 	"latihan1/models"
 	"math"
 	"net/http"
@@ -62,7 +63,14 @@ func (rmc *RiskMatrixController) Index(w http.ResponseWriter, r *http.Request) {
 	rmc.DB.Order("sequence ASC").Find(&likelihoods)
 	rmc.DB.Find(&assessments)
 	// 5. Data untuk Template
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":         lang,
+		"Tr":           helpers.Translations[lang],
 		"Matrices":     matrices,
 		"Consequences": consequences, // Untuk header kolom grid
 		"Likelihoods":  likelihoods,  // Untuk row baris grid

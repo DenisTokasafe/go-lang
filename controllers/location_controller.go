@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"latihan1/cmd/web/helpers"
 	"latihan1/models" // Sesuaikan dengan nama module di go.mod Anda
 	"math"
 	"net/http"
@@ -52,7 +53,14 @@ func (lc *LocationController) Index(w http.ResponseWriter, r *http.Request) {
 	totalPages := int(math.Ceil(float64(totalRows) / float64(pageSize)))
 
 	// 8. Kirim data ke template
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":        lang,
+		"Tr":          helpers.Translations[lang],
 		"Locations":   locations, // Data utama untuk tabel
 		"CurrentPage": page,
 		"TotalPages":  totalPages,

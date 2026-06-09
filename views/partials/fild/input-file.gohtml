@@ -44,7 +44,9 @@
 
 			<template x-if="!disabled">
 				<span>
-					Drag & Drop file di sini atau klik untuk upload
+					{{ if .DragDropUpload }}
+						{{ .DragDropUpload }}
+					{{ end }}
 				</span>
 			</template>
 
@@ -171,7 +173,7 @@
 	</div>
 
 	<!-- VALIDATION -->
-	<div class="h-4 mt-1">
+	<div class=" mt-1">
 
 		<template x-if="isInvalid">
 			<p class="text-error text-[9px] font-semibold leading-none">

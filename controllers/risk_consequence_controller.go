@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"latihan1/cmd/web/helpers"
 	"latihan1/models"
 	"math"
 	"net/http"
@@ -47,7 +48,14 @@ func (rcc *RiskConsequenceController) Index(w http.ResponseWriter, r *http.Reque
 	totalPages := int(math.Ceil(float64(totalRows) / float64(pageSize)))
 
 	// 3. Siapkan Data untuk Template
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":         lang,
+		"Tr":           helpers.Translations[lang],
 		"Consequences": consequences,
 		"CurrentPage":  page,
 		"TotalPages":   totalPages,

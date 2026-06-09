@@ -1,116 +1,116 @@
 {{ define "content" }}
 <div  x-data="{
-   searchQuery: '{{ .Search }}',
+	searchQuery: '{{ .Search }}',
 
-    filterCategory: '{{ .FilterCategory }}',
-    FilterLocation: '{{ .FilterLocation }}',
-    filterRisk: '{{ .FilterRisk }}',
-    filterScat: '{{ .FilterScat }}',
-    startDate: '{{ .StartDate }}',
-    endDate: '{{ .EndDate }}',
-    async initRangePicker(el) {
-    // Proteksi jika module belum ter-load sempurna
-    if (typeof window.initRangePicker !== 'function') return;
+	filterCategory: '{{ .FilterCategory }}',
+	FilterLocation: '{{ .FilterLocation }}',
+	filterRisk: '{{ .FilterRisk }}',
+	filterScat: '{{ .FilterScat }}',
+	startDate: '{{ .StartDate }}',
+	endDate: '{{ .EndDate }}',
+	async initRangePicker(el) {
+	// Proteksi jika module belum ter-load sempurna
+	if (typeof window.initRangePicker !== 'function') return;
 
-    this.rangePicker = await window.initRangePicker(el, {
-            altInputClass: 'input input-bordered  input-xs w-full  focus:border-info focus:ring-info focus:outline-hidden',
-            defaultDate: this.startDate && this.endDate ? [this.startDate, this.endDate] : null,
-            onClose: (selectedDates, dateStr, instance) => {
-                if (selectedDates.length === 2) {
-                    this.startDate = instance.formatDate(selectedDates[0], 'Y-m-d');
-                    this.endDate = instance.formatDate(selectedDates[1], 'Y-m-d');
-                    this.doSearch();
-                }
-            }
-        });
-    },
+	this.rangePicker = await window.initRangePicker(el, {
+	altInputClass: 'input input-bordered  input-xs w-full  focus:border-info focus:ring-info focus:outline-hidden',
+	defaultDate: this.startDate && this.endDate ? [this.startDate, this.endDate] : null,
+	onClose: (selectedDates, dateStr, instance) => {
+	if (selectedDates.length === 2) {
+	this.startDate = instance.formatDate(selectedDates[0], 'Y-m-d');
+	this.endDate = instance.formatDate(selectedDates[1], 'Y-m-d');
+	this.doSearch();
+	}
+	}
+	});
+	},
 
-    resetDateRange() {
-        this.startDate = '';
-        this.endDate = '';
-        if (this.rangePicker) {
-            this.rangePicker.clear(); 
-        }
-        this.doSearch();
-    },
+	resetDateRange() {
+	this.startDate = '';
+	this.endDate = '';
+	if (this.rangePicker) {
+	this.rangePicker.clear(); 
+	}
+	this.doSearch();
+	},
 
-    doSearch() {
-        const params = new URLSearchParams();
+	doSearch() {
+	const params = new URLSearchParams();
 
-        // SEARCH
-        if (this.searchQuery?.trim() !== '') {
-            params.set('search', this.searchQuery)
-        } else {
-            params.delete('search')
-        }
+	// SEARCH
+	if (this.searchQuery?.trim() !== '') {
+	params.set('search', this.searchQuery)
+	} else {
+	params.delete('search')
+	}
 
-        // CATEGORY
-        if (this.filterCategory !== '') {
-            params.set('category', this.filterCategory)
-        } else {
-            params.delete('category')
-        }
-        // LOCATION
-        if (this.FilterLocation !== '') {
-            params.set('location', this.FilterLocation)
-        } else {
-            params.delete('location')
-        }
-          // Tambahkan start_date jika ada
-        if (this.startDate && this.startDate !== '') {
-            params.set('start_date', this.startDate);
-        }
+	// CATEGORY
+	if (this.filterCategory !== '') {
+	params.set('category', this.filterCategory)
+	} else {
+	params.delete('category')
+	}
+	// LOCATION
+	if (this.FilterLocation !== '') {
+	params.set('location', this.FilterLocation)
+	} else {
+	params.delete('location')
+	}
+	// Tambahkan start_date jika ada
+	if (this.startDate && this.startDate !== '') {
+	params.set('start_date', this.startDate);
+	}
 
-        // Tambahkan end_date jika ada
-        if (this.endDate && this.endDate !== '') {
-            params.set('end_date', this.endDate);
-        }
-        // RISK
-        if (this.filterRisk !== '') {
-            params.set('risk', this.filterRisk)
-        } else {
-            params.delete('risk')
-        }
+	// Tambahkan end_date jika ada
+	if (this.endDate && this.endDate !== '') {
+	params.set('end_date', this.endDate);
+	}
+	// RISK
+	if (this.filterRisk !== '') {
+	params.set('risk', this.filterRisk)
+	} else {
+	params.delete('risk')
+	}
 
-        // SCAT
-        if (this.filterScat !== '') {
-            params.set('scat', this.filterScat)
-        } else {
-            params.delete('scat')
-        }
+	// SCAT
+	if (this.filterScat !== '') {
+	params.set('scat', this.filterScat)
+	} else {
+	params.delete('scat')
+	}
 
-        params.set('page', '1')
+	params.set('page', '1')
 
-        window.location.href =
-            window.location.pathname + '?' + params.toString()
-    }
-}">
- <h1 class=" text-sm font-bold mb-2 text-base-content uppercase tracking-wider">List Laporan Hazard</h1>
-<div class="w-full mb-2 flex justify-between gap 2">
-{{ template "input-floating" (dict "Label" "Cari Hazard" "Name" "search" "Placeholder" "Ketik untuk mencari..." "Attr" " x-model='searchQuery' @input.debounce.750ms='doSearch()' autofocus " ) }}
-<div class="flex items-center ">
-                <div class="relative w-64">
-                    <label class="floating-label">
-                        <input type="text"
-                            x-init="window.initRangePicker ? initRangePicker($el) : document.addEventListener('DOMContentLoaded', () => initRangePicker($el))"
-                            placeholder="Rentang Tanggal..." readonly
-                            class="input input-bordered  input-xs w-full  focus:border-info focus:ring-info focus:outline-hidden" />
-                        <span>Rentang Tanggal</span>
-                    </label>
+	window.location.href =
+	window.location.pathname + '?' + params.toString()
+	}
+	}">
+	<h1 class=" text-sm font-bold mb-2 text-base-content uppercase tracking-wider">List Laporan Hazard</h1>
+	<div class="w-full mb-2 flex justify-between gap 2">
+		{{ template "input-floating" (dict "Label" "Cari Hazard" "Name" "search" "Placeholder" "Ketik untuk mencari..." "Attr" " x-model='searchQuery' @input.debounce.750ms='doSearch()' autofocus ") }}
+		<div class="flex items-center ">
+			<div class="relative w-64">
+				<label class="floating-label">
+					<input type="text"
+						x-init="window.initRangePicker ? initRangePicker($el) : document.addEventListener('DOMContentLoaded', () => initRangePicker($el))"
+						placeholder="Rentang Tanggal..." readonly
+						class="input input-bordered  input-xs w-full  focus:border-info focus:ring-info focus:outline-hidden" />
+					<span>Rentang Tanggal</span>
+				</label>
 
 
-                    <template x-if="startDate && endDate">
-                        <button type="button" @click="resetDateRange()"
-                            class="absolute right-2 top-1/2 -translate-y-1/2 text-error hover:text-red-700 z-10"
-                            title="Hapus Filter Tanggal">
-                            {{ lucide "x" (dict "class" "h-4 w-4") }}
-                        </button>
-                    </template>
-                </div>
-            </div>
-</div>
+				<template x-if="startDate && endDate">
+					<button type="button" @click="resetDateRange()"
+						class="absolute right-2 top-1/2 -translate-y-1/2 text-error hover:text-red-700 z-10"
+						title="Hapus Filter Tanggal">
+						{{ lucide "x" (dict "class" "h-4 w-4") }}
+					</button>
+				</template>
+			</div>
+		</div>
+	</div>
 
-{{ template "card_scroll" . }}
+	{{ template "card_scroll" . }}
 </div>
 
 {{ end }}
@@ -120,397 +120,398 @@
 {{ template "pagination" . }}
 <div class="overflow-x-auto bg-base-100 shadow-lg rounded-2xl my-4 border border-base-300">
 
-   <table class="table table-zebra table-pin-rows table-xs">
+	<table class="table table-zebra table-pin-rows table-xs">
 
-    <thead class="sticky top-0 z-20 bg-base-200 border-b border-base-300 shadow-sm">
+		<thead class="sticky top-0 z-20 bg-base-200 border-b border-base-300 shadow-sm">
 
-        <tr class="text-[11px] uppercase tracking-wide text-base-content/70 align-top">
+			<tr class="text-[11px] uppercase tracking-wide text-base-content/70 align-top">
 
-            <!-- NO -->
-            <th class="text-center w-14font-semibold whitespace-nowrap">
-                No
-            </th>
+				<!-- NO -->
+				<th class="text-center w-14 font-semibold whitespace-nowrap">
+					No
+				</th>
 
-            <!-- DATE -->
-            <th class="font-semibold whitespace-nowrap">
+				<!-- DATE -->
+				<th class="min-w-32 text-xs font-semibold">
 
-                <div class="flex flex-col gap-2">
+					<div class="flex flex-col gap-2">
 
-                    <span>Tanggal</span>
+						<span>References</span>
 
-                </div>
+					</div>
 
-            </th>
+				</th>
+				<th class="font-semibold whitespace-nowrap">
 
-            <!-- CATEGORY -->
-            <th class="min-w-32 font-semibold">
+					<div class="flex flex-col gap-2">
 
-                <div class="flex flex-col gap-2">
+						<span>Tanggal</span>
 
-                    <select
-                        class="select select-ghost select-xs w-full normal-case font-semibold bg-base-100"
-                        x-model="filterCategory"
-                        @change="doSearch()">
+					</div>
 
-                        <option value="">Kategori</option>
+				</th>
 
-                        {{ range .Categories }}
-                        <option value="{{ printf "%d" .ID }}">
-                            {{ .Name }}
-                        </option>
-                        {{ end }}
+				<!-- CATEGORY -->
+				<th class="min-w-32 font-semibold">
 
-                    </select>
+					<div class="flex flex-col gap-2">
 
-                </div>
+						<select
+							class="select select-ghost select-xs w-full normal-case font-semibold bg-base-100"
+							x-model="filterCategory"
+							@change="doSearch()">
 
-            </th>
+							<option value="">KATEGORI</option>
 
-            <!-- SCAT -->
-            <th class="font-semibold">
+							{{ range .Categories }}
+								<option value="{{ printf "%d" .ID }}">
+									{{ .Name }}
+								</option>
+							{{ end }}
 
-                <div class="flex flex-col gap-2">
+						</select>
 
-                    <select
-                        class="select select-ghost select-xs w-full normal-case font-semibold bg-base-100"
-                        x-model="filterScat"
-                        @change="doSearch()">
+					</div>
 
-                        <option value="">SCAT</option>
+				</th>
 
-                        {{ range .ScatOptions }}
-                        <option value="{{ printf "%d" .ID }}">
-                            {{ .Name }}
-                        </option>
-                        {{ end }}
+				<!-- SCAT -->
+				<th class="font-semibold">
 
-                    </select>
+					<div class="flex flex-col gap-2">
 
-                </div>
+						<select
+							class="select select-ghost select-xs w-full normal-case font-semibold bg-base-100"
+							x-model="filterScat"
+							@change="doSearch()">
 
-            </th>
+							<option value="">SCAT</option>
 
-            <!-- LOCATION -->
-            <th class="font-semibold">
+							{{ range .ScatOptions }}
+								<option value="{{ printf "%d" .ID }}">
+									{{ .Name }}
+								</option>
+							{{ end }}
 
-               <div class="flex flex-col gap-2">
+						</select>
 
-                    <select
-                        class="select select-ghost select-xs w-full normal-case font-semibold bg-base-100"
-                        x-model="FilterLocation"
-                        @change="doSearch()">
+					</div>
 
-                        <option value="">Location</option>
+				</th>
 
-                        {{ range .Location }}
-                        <option value="{{ printf "%d" .ID }}">
-                            {{ .Name }}
-                        </option>
-                        {{ end }}
+				<!-- LOCATION -->
+				<th class="font-semibold">
 
-                    </select>
+					<div class="flex flex-col gap-2">
 
-                </div>
+						<select
+							class="select select-ghost select-xs w-full normal-case font-semibold bg-base-100"
+							x-model="FilterLocation"
+							@change="doSearch()">
 
-            </th>
+							<option value="">LOCATION</option>
 
-            <!-- REPORTER -->
-            <th class="font-semibold">
+							{{ range .Location }}
+								<option value="{{ printf "%d" .ID }}">
+									{{ .Name }}
+								</option>
+							{{ end }}
 
-                <div class="flex flex-col gap-2">
+						</select>
 
-                    <span>Pelapor</span>
+					</div>
 
-                </div>
+				</th>
 
-            </th>
-            <th class="font-semibold">
+				<!-- REPORTER -->
+				<th class="font-semibold">
 
-                <div class="flex flex-col gap-2">
+					<div class="flex flex-col gap-2">
 
-                    <span>Status</span>
+						<span>Pelapor</span>
 
-                </div>
+					</div>
 
-            </th>
+				</th>
+				<th class="font-semibold">
 
-            <!-- PIC -->
-            <th class="font-semibold">
+					<div class="flex flex-col gap-2">
 
-                <div class="flex flex-col gap-2">
+						<span>Status</span>
 
-                    <span>PIC</span>
+					</div>
 
-                </div>
+				</th>
 
-            </th>
+				<!-- PIC -->
+				<th class="font-semibold">
 
-            <!-- RISK -->
-           <th class="min-w-32 font-semibold">
+					<div class="flex flex-col gap-2">
 
-                <div class="flex flex-col gap-2">
+						<span>PIC</span>
 
-                   
+					</div>
 
-                    <select
-                        class="select select-ghost select-xs w-full normal-case font-semibold bg-base-100"
-                        x-model="filterRisk"
-                        @change="doSearch()">
+				</th>
 
-                        <option value="">Risk</option>
+				<!-- RISK -->
+				<th class="min-w-32 font-semibold">
 
-                        {{ range .RiskAssessments }}
-                        <option value="{{ printf "%d" .ID }}">
-                            {{ .Name }}
-                        </option>
-                        {{ end }}
+					<div class="flex flex-col gap-2">
 
-                    </select>
 
-                </div>
 
-            </th>
+						<select
+							class="select select-ghost select-xs w-full normal-case font-semibold bg-base-100"
+							x-model="filterRisk"
+							@change="doSearch()">
 
-            <!-- DESCRIPTION -->
-            <th class="font-semibold">
+							<option value="">RISK</option>
 
-                <div class="flex flex-col gap-2">
+							{{ range .RiskAssessments }}
+								<option value="{{ printf "%d" .ID }}">
+									{{ .Name }}
+								</option>
+							{{ end }}
 
-                    <span>Deskripsi Hazard</span>
+						</select>
 
-                </div>
+					</div>
 
-            </th>
+				</th>
 
-            <!-- ACTION -->
-            <th class="text-center w-24font-semibold whitespace-nowrap">
+				<!-- DESCRIPTION -->
+				<th class="font-semibold">
 
-                Aksi
+					<div class="flex flex-col gap-2">
 
-            </th>
+						<span>Deskripsi Hazard</span>
 
-        </tr>
+					</div>
 
-    </thead>
+				</th>
 
-    <tbody>
 
-    {{ range $index, $item := .Hazards }}
 
-    <tr class="hover transition-colors duration-200">
+			</tr>
 
-        <!-- NUMBER -->
-        <td class="text-center opacity-50 font-mono align-top pt-4">
-            {{ add $index 1 }}
-        </td>
+		</thead>
 
-        <!-- DATE -->
-        <td class="whitespace-nowrap align-top pt-4">
+		<tbody>
 
-            <div class="font-semibold text-sm">
-                {{ $item.TanggalWaktu.Format "02 Jan 2006" }}
-            </div>
+			{{ range $index, $item := .Hazards }}
 
-            <div class="text-[10px] opacity-60 mt-1">
-                {{ $item.TanggalWaktu.Format "15:04" }}
-            </div>
+				<tr class="hover transition-colors duration-200">
 
-        </td>
+					<!-- NUMBER -->
+					<td class="text-center opacity-50 font-mono align-top pt-4">
+						{{ add $index 1 }}
+					</td>
 
-        <!-- CATEGORY -->
-        <td class="align-top pt-4">
+					<td class="font-mono">
+						{{ if $item.CanAccess }}
+							<a href="/hazard/edit/{{ $item.ID }}" class="btn btn-link btn-xs text-sm">
+								{{ $item.RefNumber }}
+							</a>
+						{{ else }}
+							<span class="px-2 text-sm text-base-content/40 cursor-not-allowed select-none inline-block align-middle">
+								{{ $item.RefNumber }}
+							</span>
+						{{ end }}
+					</td>
+					<!-- DATE -->
+					<td class="whitespace-nowrap align-top pt-4">
 
-            <div class="font-semibold leading-5">
-                {{ $item.EventCategory.Name }}
-            </div>
+						<div class="font-semibold text-sm">
+							{{ $item.TanggalWaktu.Format "02 Jan 2006" }}
+						</div>
 
-            {{ if $item.EventCategory.ParentID }}
-            <div class="text-[10px] opacity-60 mt-1">
-                {{ $item.EventCategory.Parent.Name }}
-            </div>
-            {{ end }}
+						<div class="text-[10px] opacity-60 mt-1">
+							{{ $item.TanggalWaktu.Format "15:04" }}
+						</div>
 
-        </td>
+					</td>
 
-        <!-- SCAT -->
-        <td class="align-top pt-4">
+					<!-- CATEGORY -->
+					<td class="align-top pt-4">
 
-            <span class="badge badge-warning badge-sm px-3 font-medium">
-                {{ $item.ScatOption.Name }}
-            </span>
+						<div class="font-semibold leading-5">
+							{{ $item.EventCategory.Name }}
+						</div>
 
-        </td>
+						{{ if $item.EventCategory.ParentID }}
+							<div class="text-[10px] opacity-60 mt-1">
+								{{ $item.EventCategory.Parent.Name }}
+							</div>
+						{{ end }}
 
-        <!-- LOCATION -->
-        <td class="align-top pt-4">
+					</td>
 
-            <div class="font-semibold leading-5">
-                {{ $item.Location.Name }}
-            </div>
+					<!-- SCAT -->
+					<td class="align-top pt-4">
 
-            {{ if $item.LocationSpecific }}
-            <div class="text-[10px] opacity-70 mt-1">
-                {{ $item.LocationSpecific }}
-            </div>
-            {{ end }}
+						<span class="badge badge-warning badge-sm px-3 font-medium">
+							{{ $item.ScatOption.Name }}
+						</span>
 
-        </td>
+					</td>
 
-        <!-- REPORTER -->
-        <td class="align-top pt-4">
+					<!-- LOCATION -->
+					<td class="align-top pt-4">
 
-            {{ if $item.ReportBy }}
+						<div class="font-semibold leading-5">
+							{{ $item.Location.Name }}
+						</div>
 
-            <div class="font-semibold leading-5">
-                {{ $item.ReportBy.Name }}
-            </div>
+						{{ if $item.LocationSpecific }}
+							<div class="text-[10px] opacity-70 mt-1">
+								{{ $item.LocationSpecific }}
+							</div>
+						{{ end }}
 
-            {{ else }}
+					</td>
 
-            <div class="italic opacity-70">
-                {{ $item.ReporterManual }}
-            </div>
+					<!-- REPORTER -->
+					<td class="align-top pt-4">
 
-            {{ end }}
+						{{ if $item.ReportBy }}
 
-        </td>
+							<div class="font-semibold leading-5">
+								{{ $item.ReportBy.Name }}
+							</div>
 
-        <!-- STATUS -->
-        <td class="align-top pt-4">
+						{{ else }}
 
-            {{ if eq $item.Status "submit" }}
+							<div class="italic opacity-70">
+								{{ $item.ReporterManual }}
+							</div>
 
-            <div class="badge badge-info badge-sm font-medium px-3">
-                Submit
-            </div>
+						{{ end }}
 
-            {{ else if eq $item.Status "in_progress" }}
+					</td>
 
-            <div class="badge badge-warning badge-sm font-medium px-3">
-                In Progress
-            </div>
+					<!-- STATUS -->
+					<td class="align-top pt-4">
 
-            {{ else if eq $item.Status "pending" }}
+						{{ if eq $item.Status "submit" }}
 
-            <div class="badge badge-secondary badge-sm font-medium px-3">
-                Pending
-            </div>
+							<div class="badge badge-info badge-sm font-medium px-3">
+								Submit
+							</div>
 
-            {{ else if eq $item.Status "closed" }}
+						{{ else if eq $item.Status "in_progress" }}
 
-            <div class="badge badge-success badge-sm font-medium px-3">
-                Closed
-            </div>
+							<div class="badge badge-warning badge-sm font-medium px-3">
+								In Progress
+							</div>
 
-            {{ else if eq $item.Status "cancelled" }}
+						{{ else if eq $item.Status "pending" }}
 
-            <div class="badge badge-error badge-sm font-medium px-3">
-                Cancelled
-            </div>
+							<div class="badge badge-secondary badge-sm font-medium px-3">
+								Pending
+							</div>
 
-            {{ else }}
+						{{ else if eq $item.Status "closed" }}
 
-            <div class="badge badge-ghost badge-sm font-medium px-3">
-                Unknown
-            </div>
+							<div class="badge badge-success badge-sm font-medium px-3">
+								Closed
+							</div>
 
-            {{ end }}
+						{{ else if eq $item.Status "cancelled" }}
 
-        </td>
+							<div class="badge badge-error badge-sm font-medium px-3">
+								Cancelled
+							</div>
 
-        <!-- PIC -->
-        <td class="align-top pt-4">
+						{{ else }}
 
-            <div class="font-semibold leading-5">
-                {{ $item.PIC.Name }}
-            </div>
+							<div class="badge badge-ghost badge-sm font-medium px-3">
+								Unknown
+							</div>
 
-            {{ if $item.Department }}
-            <div class="text-[10px] opacity-60 mt-1">
-                {{ $item.Department.Name }}
-            </div>
-            {{ end }}
+						{{ end }}
 
-            {{ if $item.Contractor }}
-            <div class="text-[10px] opacity-60 mt-1">
-                {{ $item.Contractor.Name }}
-            </div>
-            {{ end }}
+					</td>
 
-        </td>
+					<!-- PIC -->
+					<td class="align-top pt-4">
 
-        <!-- RISK -->
-        <td class="text-center align-top pt-4">
+						<div class="font-semibold leading-5">
+							{{ $item.PIC.Name }}
+						</div>
 
-            <div
-                class="badge badge-sm text-base-content font-bold px-3 border-0"
-                style="background: {{ $item.RiskMatrix.RiskAssessment.Colour }}">
+						{{ if $item.Department }}
+							<div class="text-[10px] opacity-60 mt-1">
+								{{ $item.Department.Name }}
+							</div>
+						{{ end }}
 
-                {{ $item.RiskMatrix.RiskAssessment.Name }}
+						{{ if $item.Contractor }}
+							<div class="text-[10px] opacity-60 mt-1">
+								{{ $item.Contractor.Name }}
+							</div>
+						{{ end }}
 
-            </div>
+					</td>
 
-        </td>
+					<!-- RISK -->
+					<td class="text-center align-top pt-4">
 
-        <!-- DESCRIPTION -->
-        <td class="align-top pt-4">
+						<div
+							class="badge badge-sm text-base-content font-bold px-3 border-0"
+							style="background: {{ $item.RiskMatrix.RiskAssessment.Colour }}">
 
-            <div class="line-clamp-3 leading-5 text-sm">
-                {{ safeHTML $item.Deskripsi }}
-            </div>
+							{{ $item.RiskMatrix.RiskAssessment.Name }}
 
-            {{ if $item.CorrectiveAction }}
-            <div class="mt-3 text-[10px] text-success leading-4">
-                {{ safeHTML $item.CorrectiveAction }}
-            </div>
-            {{ end }}
+						</div>
 
-        </td>
+					</td>
 
-        <!-- ACTION -->
-        <td class="align-top pt-4">
+					<!-- DESCRIPTION -->
+					<td class="align-top pt-4">
 
-            <div class="flex justify-center">
+						<div class="line-clamp-3 leading-5 text-sm">
+							{{ safeHTML $item.Deskripsi }}
+						</div>
 
-                <a
-                    href="/hazard/edit/{{ $item.ID }}"
-                    class="btn btn-warning btn-square btn-xs">
+						{{ if $item.CorrectiveAction }}
+							<div class="mt-3 text-[10px] text-success leading-4">
+								{{ safeHTML $item.CorrectiveAction }}
+							</div>
+						{{ end }}
 
-                    {{ lucide "pencil" (dict "class" "size-4") }}
+					</td>
 
-                </a>
 
-            </div>
 
-        </td>
 
-    </tr>
+				</tr>
 
-    {{ else }}
+			{{ else }}
 
-    <tr>
+				<tr>
 
-        <td colspan="10" class="text-center py-16">
+					<td colspan="10" class="text-center py-16">
 
-            <div class="flex flex-col items-center gap-3 opacity-50">
+						<div class="flex flex-col items-center gap-3 opacity-50">
 
-                {{ lucide "database-x" (dict "class" "size-10") }}
+							{{ lucide "database-x" (dict "class" "size-10") }}
 
-                <span class="text-sm italic">
-                    Belum ada laporan hazard
-                </span>
+							<span class="text-sm italic">
+								Belum ada laporan hazard
+							</span>
 
-            </div>
+						</div>
 
-        </td>
+					</td>
 
-    </tr>
+				</tr>
 
-    {{ end }}
+			{{ end }}
 
-</tbody>
+		</tbody>
 
-</table>
+	</table>
 
 </div>
 

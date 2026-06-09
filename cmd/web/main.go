@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"latihan1/cmd/web/bootstrap"
 	"latihan1/cmd/web/config"
+	"latihan1/cmd/web/helpers"
 	"latihan1/cmd/web/routes"
 	"log"
 	"net/http"
@@ -18,6 +19,11 @@ func main() {
 	errEnv := godotenv.Load()
 	if errEnv != nil {
 		log.Println("Peringatan: File .env tidak ditemukan, menggunakan env system")
+	}
+	// LOAD TERJEMAHAN YAML DI SINI
+	errLang := helpers.LoadTranslations()
+	if errLang != nil {
+		log.Fatalf("Gagal memuat file terjemahan bahasa: %v", errLang)
 	}
 	// Init Database
 	db := config.InitDB()

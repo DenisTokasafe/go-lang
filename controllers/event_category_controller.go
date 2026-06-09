@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"latihan1/cmd/web/helpers"
 	"latihan1/models" // Sesuaikan dengan nama module di go.mod Anda
 	"math"
 	"net/http"
@@ -77,7 +78,14 @@ func (ecc *EventCategoryController) Index(w http.ResponseWriter, r *http.Request
 	ecc.DB.Where("category_group = ? AND parent_id IS NULL", queryGroup).Find(&parents)
 
 	// 11. Siapkan Data untuk Template
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":            lang,
+		"Tr":              helpers.Translations[lang],
 		"EventCategories": eventCategories,
 		"Parents":         parents, // Untuk dropdown filter parent di UI
 		"CurrentPage":     page,

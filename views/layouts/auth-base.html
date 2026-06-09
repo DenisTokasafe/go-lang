@@ -1,39 +1,39 @@
 {{ define "base" }}
 <!doctype html>
 <html lang="en" data-theme="light">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{ .Title }} | SENTRY Interlock</title>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>{{ .Title }} | SENTRY Interlock</title>
 
-    <link rel="stylesheet" href="/public/dist/style.css" />
-    <script defer src="/public/dist/main.js"></script>
+		<link rel="stylesheet" href="/public/dist/style.css" />
+		<script type="module" src="/dist/main.js"></script>
 
     <script
       defer
       src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
-    ></script>
-  </head>
-  <body
-    class="min-h-screen flex flex-col items-center justify-center bg-base-300 font-sans"
-  >
-    <div id="flash-container" class="fixed top-5 right-5 z-[100]">
-      {{ if .Flash }}
-      <div class="alert alert-{{ .FlashType }} shadow-lg border-l-4">
-        <span>{{ .Flash }}</span>
-      </div>
-      {{ end }}
-    </div>
+		></script>
+	</head>
+	<body
+		class="min-h-screen flex flex-col items-center justify-center bg-base-300 font-sans"
+	>
+		<div id="flash-container" class="fixed top-5 right-5 z-[100]">
+			{{ if .Flash }}
+				<div class="alert alert-{{ .FlashType }} shadow-lg border-l-4">
+					<span>{{ .Flash }}</span>
+				</div>
+			{{ end }}
+		</div>
 
-    <main class="w-full flex justify-center items-center">
-      {{ template "content" . }}
-    </main>
+		<main class="w-full flex justify-center items-center">
+			{{ template "content" . }}
+		</main>
 
-    <footer
-      class="fixed bottom-4 w-full text-center text-[10px] opacity-40 uppercase tracking-widest"
-    >
-      &copy; 2026 SENTRY Interlock - Mining HSE Management System
-    </footer>
-  </body>
+		<footer
+			class="fixed bottom-4 w-full text-center text-[10px] opacity-40 uppercase tracking-widest"
+		>
+			&copy; 2026 SENTRY Interlock - Mining HSE Management System
+		</footer>
+	</body>
 </html>
 {{ end }}

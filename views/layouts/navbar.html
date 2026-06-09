@@ -2,74 +2,167 @@
 <nav class="navbar w-full bg-base-300 min-h-fit py-1 px-2 flex justify-between items-center shadow-md">
 	<div class="flex items-center gap-2">
 		<label for="my-drawer-4" class="btn btn-square btn-ghost btn-sm swap swap-rotate">
-			{{ lucide "panel-left-close" (dict "class" "size-4 swap-off") }} {{ lucide
-	"panel-left-open" (dict "class" "size-4 swap-on")
-}}
+			{{ lucide "panel-left-close" (dict "class" "size-4 swap-off") }} 
+			{{ lucide "panel-left-open" (dict "class" "size-4 swap-on") }}
 		</label>
-
 	</div>
-	<div class="flex-none gap-2">
+
+	<div class="flex py-1 gap-2 items-center">
+
+
+		<div x-data="{ open: false, isSwitching: false }" @click.outside="open = false" class="relative">
+			<button 
+				@click="open = !open" 
+				class="btn btn-ghost btn-sm flex items-center gap-1.5 transition-all duration-300 hover:bg-base-200"
+				:class="open ? 'bg-base-200' : ''"
+			>
+				<span x-show="!isSwitching" x-transition.opacity>
+					{{ lucide "globe" (dict "class" "size-4") }}
+				</span>
+
+				<span x-show="isSwitching" style="display: none;">
+					<svg class="animate-spin size-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+				</span>
+
+				<span class="text-xs font-bold uppercase tracking-wider">
+					{{ if eq .Lang "en" }} EN {{ else }} ID {{ end }}
+				</span>
+
+				<svg class="size-3 opacity-50 transition-transform duration-300" :class="open ? 'rotate-180' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+					<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+				</svg>
+			</button>
+
+			<ul 
+				x-show="open" 
+				x-transition:enter="transition ease-out duration-200"
+				x-transition:enter-start="opacity-0 scale-95 -translate-y-2"
+				x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+				x-transition:leave="transition ease-in duration-150"
+				x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+				x-transition:leave-end="opacity-0 scale-95 -translate-y-2"
+				class="absolute right-0 top-full mt-2 z-[50] menu bg-base-100 rounded-box w-40 p-2 shadow-2xl border border-base-200"
+				style="display: none;"
+				x-cloak
+			>
+				<li>
+					<a 
+						href="/set-lang?lang=id" 
+						@click="isSwitching = true; open = false"
+						class="flex items-center justify-between py-2.5 transition-all active:scale-95 {{ if ne .Lang "en" }}bg-primary/10 text-primary font-semibold{{ else }}hover:bg-base-200 text-base-content{{ end }} text-xs rounded-lg"
+					>
+						<div class="flex items-center gap-2">
+							<span class="text-base leading-none">🇮🇩</span> 
+							<span>Indonesia</span>
+						</div>
+						{{ if ne .Lang "en" }}
+							{{ lucide "check" (dict "class" "size-4 text-primary") }}
+						{{ end }}
+					</a>
+				</li>
+
+				<li>
+					<a 
+						href="/set-lang?lang=en" 
+						@click="isSwitching = true; open = false"
+						class="flex items-center justify-between py-2.5 mt-1 transition-all active:scale-95 {{ if eq .Lang "en" }}bg-primary/10 text-primary font-semibold{{ else }}hover:bg-base-200 text-base-content{{ end }} text-xs rounded-lg"
+					>
+						<div class="flex items-center gap-2">
+							<span class="text-base leading-none">🇬🇧</span> 
+							<span>English</span>
+						</div>
+						{{ if eq .Lang "en" }}
+							{{ lucide "check" (dict "class" "size-4 text-primary") }}
+						{{ end }}
+					</a>
+				</li>
+			</ul>
+		</div>
+
 		<div class="dropdown dropdown-end">
 			<div tabindex="0" role="button" class="btn btn-ghost btn-sm flex items-center gap-2 font-medium normal-case">
-				<div class="flex flex-col items-end leading-none  sm:flex">
+				<div class="flex flex-col items-end leading-none sm:flex">
 					<span class="text-[10px] opacity-50 uppercase tracking-tighter">
-						{{ if .AuthUser.Role.Name }} {{ .AuthUser.Role.Name }} 
+						{{ if .AuthUser.Role.Name }} 
+							{{ .AuthUser.Role.Name }} 
 						{{ else }}
-							Guest 
+							{{ if .Tr }}{{ index .Tr "Guest" }}{{ else }}Guest{{ end }}
 						{{ end }}
 					</span>
 
 					<span class="text-xs font-bold text-primary">
-						{{ if .AuthUser.Name }}{{ .AuthUser.Name }}{{ else }}Guest{{ end }}
+						{{ if .AuthUser.Name }}
+							{{ .AuthUser.Name }}
+						{{ else }}
+							{{ if .Tr }}{{ index .Tr "Guest" }}{{ else }}Guest{{ end }}
+						{{ end }}
 					</span>
 				</div>
 
 				<div class="avatar placeholder">
 					<div class="bg-primary text-primary-content rounded-md size-7 flex items-center justify-center">
 						<span class="text-xs uppercase font-bold">
-							{{ if .AuthUser.Username }} {{ slice .AuthUser.Username 0 1 }} 
-							{{ else }} G 
+							{{ if .AuthUser.Username }} 
+								{{ slice .AuthUser.Username 0 1 }} 
+							{{ else }} 
+								{{ if .Tr }}{{ slice (index .Tr "Guest") 0 1 }}{{ else }}G{{ end }} 
 							{{ end }}
 						</span>
 					</div>
 				</div>
 			</div>
-			<ul tabindex="0"
-				class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow-xl border border-base-300 mt-2">
+
+			<ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow-xl border border-base-300 mt-2">
 				<li>
 					<a href="/profile" class="flex items-center gap-2 py-2 text-xs">
-						{{ lucide "settings" (dict "class" "size-4") }} Pengaturan Akun
+						{{ lucide "settings" (dict "class" "size-4") }} 
+						{{ if .Tr }}{{ index .Tr "AccountSettings" }}{{ else }}Account Settings{{ end }}
 					</a>
 				</li>
 				<div class="divider my-0 opacity-50"></div>
 				<li>
 					<a href="/logout" class="flex items-center gap-2 py-2 text-xs text-error hover:bg-error/10">
-						{{ lucide "log-out" (dict "class" "size-4") }} Keluar Sistem
+						{{ lucide "log-out" (dict "class" "size-4") }} 
+						{{ if .Tr }}{{ index .Tr "Logout" }}{{ else }}Logout{{ end }}
 					</a>
 				</li>
 			</ul>
 		</div>
 	</div>
 </nav>
+
 <script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const drawerCheckbox=document.getElementById("my-drawer-4");
-    const swapLabel=document.querySelector('label[for="my-drawer-4"]');
+    // Optimasi Drawer Switch untuk mencegah [Violation] Forced Reflow
+    document.addEventListener("DOMContentLoaded", () => {
+        const drawerCheckbox = document.getElementById("my-drawer-4");
+        const swapLabel = document.querySelector('label[for="my-drawer-4"]');
 
-    if (drawerCheckbox&&swapLabel) {
-      drawerCheckbox.addEventListener("change", () => {
-        if (drawerCheckbox.checked) {
-          swapLabel.classList.add("swap-active");
-        } else {
-          swapLabel.classList.remove("swap-active");
+        if (drawerCheckbox && swapLabel) {
+            const updateSwapClass = () => {
+                requestAnimationFrame(() => {
+                    if (drawerCheckbox.checked) {
+                        swapLabel.classList.add("swap-active");
+                    } else {
+                        swapLabel.classList.remove("swap-active");
+                    }
+                });
+            };
+
+            drawerCheckbox.addEventListener("change", updateSwapClass);
+
+            // Inisialisasi awal tanpa memanggil window.innerWidth secara langsung 
+            // jika tidak mutlak diperlukan pada saat render pertama
+            requestAnimationFrame(() => {
+                if (drawerCheckbox.checked || window.innerWidth >= 1024) {
+                    swapLabel.classList.add("swap-active");
+                }
+            });
         }
-      });
-
-      // Menyesuaikan state awal berdasarkan kondisi checkbox saat ini
-      if (drawerCheckbox.checked||window.innerWidth>=1024) {
-        swapLabel.classList.add("swap-active");
-      }
-    }
-  });
+    });
 </script>
+
+
 {{ end }}

@@ -67,6 +67,8 @@
 	dateFormat: {{ if eq .Type "date" }}'Y-m-d'{{ else }}'Y-m-d H:i'{{ end }},
 	time_24hr: true,
 	disableMobile: true,
+	static: true,
+	minuteIncrement: 1,
 	altInputClass: 'input input-bordered input-xs w-full focus:outline-none focus:border-info focus:ring-info'
 	});
 
@@ -137,4 +139,10 @@
 		<p class="text-error text-[9px] font-semibold leading-none" x-text="errorMsg"></p>
 	</div>
 </fieldset>
+<style>
+    .flatpickr-wrapper {
+        display: block !important;
+        width: 100% !important;
+    }
+</style>
 {{ end }}

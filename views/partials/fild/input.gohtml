@@ -18,7 +18,7 @@
 	<div class="w-full">
 
 		<input
-			type="text"
+			type="{{ if .Type }}{{ .Type }}{{ else }}text{{ end }}"
 			name="{{ .Name }}"
 			id="{{ .Id }}"
 			placeholder="{{ .Placeholder }}"
@@ -53,7 +53,7 @@
 		{{ .Attr | htmlattr }}
 		/>
 
-		<div class="h-4">
+		<div class="">
 			<template x-if="isInvalid">
 				<p class="text-error text-[9px] font-semibold leading-none mt-1">
 					{{ .Label }} ini wajib diisi.

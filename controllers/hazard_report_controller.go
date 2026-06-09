@@ -3,15 +3,16 @@ package controllers
 import (
 	// Sesuaikan dengan nama module di go.mod Anda
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
+	"latihan1/cmd/web/helpers"
 	"latihan1/middlewares"
 	"latihan1/models"
 	"latihan1/services"
 	"latihan1/utils"
 	"log"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +27,14 @@ type HazardController struct {
 }
 
 func (hc *HazardController) Index(w http.ResponseWriter, r *http.Request) {
+	// ==========================================
+	// AMBIL CURRENT USER DARI CONTEXT (TAMBAHAN)
+	// ==========================================
+	userRaw, ok := r.Context().Value(middlewares.AuthUserKey).(models.User)
+	if !ok {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
 
 	search := strings.TrimSpace(
 		r.URL.Query().Get("search"),
@@ -47,10 +56,11 @@ func (hc *HazardController) Index(w http.ResponseWriter, r *http.Request) {
 		page = 1
 	}
 
-	// =========================
-	// GET DATA FROM SERVICE
-	// =========================
+	// ==========================================
+	// GET DATA FROM SERVICE (USER RAW DISISIPKAN)
+	// ==========================================
 	result, err := hc.Service.GetHazards(
+		userRaw, // <-- Parameter pertama sesuai update Service
 		search,
 		startDate,
 		endDate,
@@ -62,7 +72,6 @@ func (hc *HazardController) Index(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-
 		log.Println(
 			"GET HAZARDS ERROR:",
 			err,
@@ -80,10 +89,17 @@ func (hc *HazardController) Index(w http.ResponseWriter, r *http.Request) {
 	// =========================
 	// VIEW DATA
 	// =========================
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":  lang,
+		"Tr":    helpers.Translations[lang],
 		"Title": "Hazard Reports",
 
-		"Hazards": result.Hazards,
+		"Hazards": result.Hazards, // <-- Sekarang otomatis berisi []HazardDisplay
 
 		"Search":         search,
 		"FilterCategory": filterCategory,
@@ -111,6 +127,7 @@ func (hc *HazardController) Index(w http.ResponseWriter, r *http.Request) {
 		data,
 	)
 }
+
 func (hc *HazardController) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Ambil stringnya dulu
@@ -180,7 +197,14 @@ func (hc *HazardController) Create(w http.ResponseWriter, r *http.Request) {
 	// 2. Ambil SEMUA Sub-Kategori (Anak dari kategori HZD)
 	// Kita ambil semua dulu, nanti Alpine.js yang memfilter berdasarkan parent_id
 
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":            lang,
+		"Tr":              helpers.Translations[lang],
 		"Title":           "Tambah Laporan Hazard",
 		"Matrices":        matrices,
 		"Consequences":    consequences, // Untuk header kolom grid
@@ -196,6 +220,7 @@ func (hc *HazardController) Create(w http.ResponseWriter, r *http.Request) {
 		"TotalRows":       totalRows,
 		"TotalPages":      totalPages,                            // Untuk pilihan Unsafe Act/Personal Factor
 		"CurrentTime":     time.Now().Format("2006-01-02T15:04"), // Default input datetime-local
+
 	}
 
 	hc.Render(w, r, "/hazard_report/create.gohtml", data)
@@ -215,453 +240,99 @@ func (hc *HazardController) Store(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/hazard/edit/"+strconv.Itoa(int(hazard.ID)), http.StatusSeeOther)
 }
 func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
-
 	id := r.PathValue("id")
 
-	var hazard models.Hazard
-
-	// =========================
-	// GET HAZARD
-	// =========================
-	err := hc.DB.
-		Preload("EventCategory").
-		Preload("RiskMatrix").
-		Preload("ScatOption").
-		Preload("Location").
-		Preload("ReportBy").
-		Preload("Department").
-		Preload("Contractor").
-		Preload("PIC").
-		Preload("Documentations.Documentation").
-		Preload("Audits").
-		Preload("Audits.User").
-		Preload("CorrectiveActions").
-		Preload("CorrectiveActions.DepartmentTerkait").
-		Preload("CorrectiveActions.ContractorTerkait").
-		Preload("CorrectiveActions.PICTerkait").
-		First(&hazard, id).Error
-
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-
-	// =========================
-	// DTO + JSON HELPER (ADD HERE)
-	// =========================
-
-	type FileDTO struct {
-		ID      uint   `json:"id"`
-		Name    string `json:"name"`
-		URL     string `json:"url"`
-		IsImage bool   `json:"is_image"`
-	}
-
-	type CorrectiveActionDTO struct {
-		ID             uint   `json:"id"`
-		FollowupAction string `json:"followup_action"`
-		Type           string `json:"type"`
-
-		DepartmentTerkaitID *uint         `json:"department_terkait_id"`
-		ContractorTerkaitID *uint         `json:"contractor_terkait_id"`
-		PicTerkaitID        *uint         `json:"pic_terkait_id"`
-		Pics                []models.User `json:"pics"`
-		DueDate             string        `json:"due_date"`
-		CompletedOn         string        `json:"completed_on"`
-	}
-
-	toFileDTO := func(docs []models.Documentation) []FileDTO {
-		var result []FileDTO
-
-		for _, doc := range docs {
-
-			if doc.FileURL == "" {
-				continue
-			}
-
-			ext := strings.ToLower(filepath.Ext(doc.FileURL))
-
-			isImage := ext == ".jpg" ||
-				ext == ".jpeg" ||
-				ext == ".png" ||
-				ext == ".webp" ||
-				ext == ".gif"
-
-			result = append(result, FileDTO{
-				ID:      doc.ID,
-				Name:    filepath.Base(doc.FileURL),
-				URL:     doc.FileURL,
-				IsImage: isImage,
-			})
-		}
-
-		return result
-	}
-
-	toJSON := func(v interface{}) template.JS {
-		b, _ := json.Marshal(v)
-		return template.JS(b)
-	}
-
-	// =========================
-	// MASTER DATA
-	// =========================
-	var eventCategories []models.EventCategory
-	var locations []models.Location
-	var riskMatrices []models.RiskMatrix
-	var departments []models.Department
-	var contractors []models.Contractor
-	var users []models.User
-	var scatOptions []models.ScatOption
-	var consequences []models.RiskConsequence
-	var likelihoods []models.RiskLikelihood
-	var assessments []models.RiskAssessmentCode
-	var matrices []models.RiskMatrix
-
-	hc.DB.
-		Where("parent_id IS NULL AND category_group = ? AND code LIKE ?", "lead", "%HZD%").
-		Order("name asc").
-		Find(&eventCategories)
-
-	hc.DB.
-		Order("risk_consequence_id asc").
-		Find(&riskMatrices)
-	if hazard.LocationID != 0 {
-		// Konversi uint ke string
-		locIDStr := strconv.FormatUint(uint64(hazard.LocationID), 10)
-
-		hc.DB.Where("id = ? OR id NOT IN (?)", hazard.LocationID, hazard.LocationID).
-			Order("CASE WHEN id = " + locIDStr + " THEN 0 ELSE 1 END, name asc").
-			Limit(50).
-			Find(&locations)
-	} else {
-		hc.DB.Order("name asc").Limit(50).Find(&locations)
-	}
-	// ==========================================
-	// 2. DEPARTMENTS (Menggunakan Pointer *uint)
-	// ==========================================
-	if hazard.DepartmentID != nil && *hazard.DepartmentID != 0 {
-		// Ambil nilai asli dari pointer menggunakan *
-		deptIDStr := strconv.FormatUint(uint64(*hazard.DepartmentID), 10)
-
-		hc.DB.Where("id = ? OR id NOT IN (?)", *hazard.DepartmentID, *hazard.DepartmentID).
-			Order("CASE WHEN id = " + deptIDStr + " THEN 0 ELSE 1 END, name asc").
-			Limit(50).
-			Find(&departments)
-	} else {
-		hc.DB.Order("name asc").Limit(50).Find(&departments)
-	}
-
-	// ==========================================
-	// 3. CONTRACTORS (Menggunakan Pointer *uint)
-	// ==========================================
-	if hazard.ContractorID != nil && *hazard.ContractorID != 0 {
-		// Ambil nilai asli dari pointer menggunakan *
-		contIDStr := strconv.FormatUint(uint64(*hazard.ContractorID), 10)
-
-		hc.DB.Where("id = ? OR id NOT IN (?)", *hazard.ContractorID, *hazard.ContractorID).
-			Order("CASE WHEN id = " + contIDStr + " THEN 0 ELSE 1 END, name asc").
-			Limit(50).
-			Find(&contractors)
-	} else {
-		hc.DB.Order("name asc").Limit(50).Find(&contractors)
-	}
-
-	// ==========================================
-	// 4. USERS / ReportBy (Menggunakan Pointer *uint)
-	// ==========================================
-	if hazard.ReportByID != nil && *hazard.ReportByID != 0 {
-		// Ambil nilai asli dari pointer menggunakan *
-		userIDStr := strconv.FormatUint(uint64(*hazard.ReportByID), 10)
-
-		hc.DB.Where("id = ? OR id NOT IN (?)", *hazard.ReportByID, *hazard.ReportByID).
-			Order("CASE WHEN id = " + userIDStr + " THEN 0 ELSE 1 END, name asc").
-			Limit(50).
-			Find(&users)
-	} else {
-		hc.DB.Order("name asc").Limit(50).Find(&users)
-	}
-
-	hc.DB.
-		Where("type IN ?", []string{
-			"unsafe_act",
-			"personal_factor",
-		}).
-		Order("FIELD(type, 'unsafe_act', 'personal_factor'), code asc").
-		Find(&scatOptions)
-
-	hc.DB.
-		Order("severity_level DESC").
-		Find(&consequences)
-
-	hc.DB.
-		Order("sequence ASC").
-		Find(&likelihoods)
-
-	hc.DB.Find(&assessments)
-
-	hc.DB.
-		Preload("RiskConsequence").
-		Preload("RiskLikelihood").
-		Preload("RiskAssessment").
-		Joins("JOIN risk_consequences ON risk_consequences.id = risk_matrices.risk_consequence_id").
-		Joins("JOIN risk_likelihoods ON risk_likelihoods.id = risk_matrices.risk_likelihood_id").
-		Joins("JOIN risk_assessment_codes ON risk_assessment_codes.id = risk_matrices.risk_assessment_id").
-		Order("risk_consequences.severity_level DESC, risk_likelihoods.sequence ASC").
-		Find(&matrices)
-
-	// =========================
-	// LOAD EVENT TYPES
-	// =========================
-	var allTypes []models.EventCategory
-
-	if hazard.EventCategory.ParentID != nil {
-
-		hc.DB.
-			Where("parent_id = ?", *hazard.EventCategory.ParentID).
-			Order("name asc").
-			Find(&allTypes)
-
-	}
-
-	// =========================
-	// LOAD PICS
-	// =========================
-	var allPics []models.User
-
-	// =========================
-	// LOAD DOCUMENTATIONS
-	// =========================
-	var descDocs []models.Documentation
-	var correctiveDocs []models.Documentation
-
-	for _, item := range hazard.Documentations {
-
-		switch item.DocType {
-
-		case "desc":
-			descDocs = append(descDocs, item.Documentation)
-
-		case "corrective":
-			correctiveDocs = append(correctiveDocs, item.Documentation)
-		}
-	}
-
-	// =========================
-	// DETERMINE WORK TYPE
-	// =========================
-	workType := "department"
-
-	if hazard.ContractorID != nil {
-		workType = "contractor"
-	}
-	if workType == "department" && hazard.DepartmentID != nil {
-
-		hc.DB.
-			Where(
-				"department_id = ? AND is_pic = ?",
-				*hazard.DepartmentID,
-				true,
-			).
-			Order("name asc").Limit(50).
-			Find(&allPics)
-
-	}
-
-	if workType == "contractor" && hazard.ContractorID != nil {
-
-		hc.DB.
-			Where(
-				"contractor_id = ? AND is_pic = ?",
-				*hazard.ContractorID,
-				true,
-			).
-			Order("name asc").Limit(50).
-			Find(&allPics)
-
-	}
-
-	// =========================
-	// CORRECTIVE ACTION DATA (support multiple)
-	// =========================
-	var correctiveAction models.CorrectiveActionHazard
-
-	statusArea := "aman"
-
-	var correctiveActionsDTO []CorrectiveActionDTO
-
-	if len(hazard.CorrectiveActions) > 0 {
-
-		statusArea = "sementara"
-
-		// keep compatibility: first corrective action
-		correctiveAction = hazard.CorrectiveActions[0]
-
-		// build DTOs for all corrective actions
-		for _, ca := range hazard.CorrectiveActions {
-
-			caType := "department"
-
-			var pics []models.User
-
-			if ca.ContractorTerkaitID != nil {
-
-				caType = "contractor"
-
-				hc.DB.
-					Where(
-						"contractor_id = ? AND is_pic = ?",
-						*ca.ContractorTerkaitID,
-						true,
-					).
-					Order("name asc").Limit(50).
-					Find(&pics)
-
-			}
-
-			if ca.DepartmentTerkaitID != nil {
-
-				hc.DB.
-					Where(
-						"department_id = ? AND is_pic = ?",
-						*ca.DepartmentTerkaitID,
-						true,
-					).
-					Order("name asc").Limit(50).
-					Find(&pics)
-
-			}
-
-			due := ""
-			completed := ""
-
-			if ca.DueDate != nil {
-				due = ca.DueDate.Format("2006-01-02")
-			}
-
-			if ca.CompletedOn != nil {
-				completed = ca.CompletedOn.Format("2006-01-02")
-			}
-
-			correctiveActionsDTO = append(
-				correctiveActionsDTO,
-				CorrectiveActionDTO{
-					ID:             ca.ID,
-					FollowupAction: ca.FollowupAction,
-					Type:           caType,
-
-					DepartmentTerkaitID: ca.DepartmentTerkaitID,
-					ContractorTerkaitID: ca.ContractorTerkaitID,
-					PicTerkaitID:        ca.PicTerkaitID,
-
-					DueDate:     due,
-					CompletedOn: completed,
-
-					Pics: pics,
-				},
-			)
-		}
-
-	}
-
-	// =========================
-	// CURRENT USER
-	// =========================
-	userRaw, ok := r.Context().
-		Value(middlewares.AuthUserKey).(models.User)
-
-	if !ok {
-		http.Error(
-			w,
-			"Unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
+	// 1. Ambil Current User dari Context
+	userRaw, ok := r.Context().Value(middlewares.AuthUserKey).(models.User)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// reload lengkap relasi user
-	var currentUser models.User
+	// 2. Panggil Service untuk mengambil semua Data
+	editData, err := hc.Service.GetHazardEditData(id, userRaw.ID)
+	if err != nil {
+		// 1. KONDISI: Data memang tidak ada di Database
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			http.NotFound(w, r)
+			return
+		}
 
-	hc.DB.
-		Preload("ModeratedCategories").
-		First(&currentUser, userRaw.ID)
+		// 2. KONDISI: Data ada, tapi User TIDAK MEMILIKI AKSES (IDOR Prevention)
+		// *Catatan: Sesuaikan 'services.ErrUnauthorizedHazard' dengan nama sentinel error di tempat Anda
+		if errors.Is(err, services.ErrUnauthorizedHazard) {
+			w.WriteHeader(http.StatusForbidden) // Sinyal 403 ke browser
 
-	// =========================
-	// CHECK PERMISSION REOPEN
-	// =========================
-	canReopen := false
-
-	// PIC hazard
-	if currentUser.ID == hazard.PicID {
-		canReopen = true
-	}
-
-	// Moderator kategori hazard
-	for _, cat := range currentUser.ModeratedCategories {
-
-		// parent category moderator
-		if hazard.EventCategory.ParentID != nil {
-
-			if cat.ID == *hazard.EventCategory.ParentID {
-				canReopen = true
-				break
+			lang := "id"
+			if cookie, err := r.Cookie("lang"); err == nil {
+				lang = cookie.Value
 			}
+
+			// Pastikan key "Tr" dan "Lang" dikirim ke RenderTemplate
+			data := map[string]interface{}{
+				"Lang": lang,
+				"Tr":   helpers.Translations[lang],
+			}
+
+			helpers.RenderTemplate(hc.DB, w, r, "errors/403.gohtml", data)
+			return
 		}
 
-		// direct category moderator
-		if cat.ID == hazard.EventCategoryID {
-			canReopen = true
-			break
-		}
+		// 3. KONDISI: Error sistem lainnya (DB down, query salah, dll)
+		log.Println("EDIT HAZARD ERROR:", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
 	}
 
-	// =========================
-	// VIEW DATA
-	// =========================
+	// Helper JSON khusus view template
+	toJSON := func(v interface{}) template.JS {
+		b, _ := json.Marshal(v)
+		return template.JS(b)
+	}
+
+	// 3. Siapkan View Data
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":                 lang,
+		"Tr":                   helpers.Translations[lang],
 		"Title":                "Edit Hazard",
-		"CanReopen":            canReopen,
-		"Hazard":               hazard,
-		"CorrectiveAction":     correctiveAction,
-		"CorrectiveActions":    toJSON(correctiveActionsDTO),
-		"CorrectiveActionsRaw": hazard.CorrectiveActions,
-		"Matrices":             matrices,
-		"Consequences":         consequences,
-		"Likelihoods":          likelihoods,
-		"Assessments":          assessments,
-		"Audits":               hazard.Audits,
-		"EventCategories":      eventCategories,
-		"Locations":            locations,
-		"RiskMatrices":         riskMatrices,
-		"Departments":          departments,
-		"Contractors":          contractors,
-		"Users":                users,
-		"ScatOptions":          scatOptions,
+		"CanReopen":            editData.CanReopen,
+		"IsModerator":          editData.IsModerator,
+		"Hazard":               editData.Hazard,
+		"CorrectiveAction":     editData.CorrectiveAction,
+		"CorrectiveActions":    toJSON(editData.CorrectiveActionsDTO),
+		"CorrectiveActionsRaw": editData.Hazard.CorrectiveActions,
+		"Matrices":             editData.Matrices,
+		"Consequences":         editData.Consequences,
+		"Likelihoods":          editData.Likelihoods,
+		"Assessments":          editData.Assessments,
+		"Audits":               editData.Hazard.Audits,
+		"EventCategories":      editData.EventCategories,
+		"Locations":            editData.Locations,
+		"RiskMatrices":         editData.RiskMatrices,
+		"Departments":          editData.Departments,
+		"Contractors":          editData.Contractors,
+		"Users":                editData.Users,
+		"ScatOptions":          editData.ScatOptions,
 
 		// dynamic select
-		"AllTypes": allTypes,
-		"AllPics":  allPics,
-		// =========================
-		// FIXED: JSON SAFE FOR ALPINE
-		// =========================
-		"DescDocs":       toJSON(toFileDTO(descDocs)),
-		"CorrectiveDocs": toJSON(toFileDTO(correctiveDocs)),
+		"AllTypes": editData.AllTypes,
+		"AllPics":  editData.AllPics,
 
-		"WorkType":   workType,
-		"StatusArea": statusArea,
+		// JSON SAFE FOR ALPINE
+		"DescDocs":       toJSON(editData.DescDocs),
+		"CorrectiveDocs": toJSON(editData.CorrectiveDocs),
+
+		"WorkType":   editData.WorkType,
+		"StatusArea": editData.StatusArea,
 	}
 
-	hc.Render(
-		w,
-		r,
-		"/hazard_report/edit.gohtml",
-		data,
-	)
+	// 4. Render
+	hc.Render(w, r, "/hazard_report/edit.gohtml", data)
 }
 func (hc *HazardController) Update(w http.ResponseWriter, r *http.Request) {
 
@@ -794,6 +465,30 @@ func (hc *HazardController) UpdateStatus(w http.ResponseWriter, r *http.Request)
 		"/hazard/edit/"+id,
 		http.StatusSeeOther,
 	)
+}
+func (hc *HazardController) Delete(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	userRaw, ok := r.Context().Value(middlewares.AuthUserKey).(models.User)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	err := hc.Service.DeleteHazard(id, userRaw)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		// HAPUS hc.setFlash dari sini
+		return
+	}
+
+	// Set Flash message sebelum mengirim response JSON sukses
+	hc.setFlash(w, "Laporan Hazard Dihapus!", "success")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "success"})
 }
 func (hc *HazardController) SyncField(w http.ResponseWriter, r *http.Request) {
 
@@ -948,6 +643,7 @@ func (hc *HazardController) setFlash(w http.ResponseWriter, msg string, msgType 
 		Path:  "/",
 	})
 }
+
 func GetMatrixFunc() template.FuncMap {
 	return template.FuncMap{
 
@@ -987,4 +683,8 @@ func (hc *HazardController) Search(w http.ResponseWriter, r *http.Request) {
 func (hc *HazardController) SearchLocation(w http.ResponseWriter, r *http.Request) {
 	// models.Location{} memberi tahu GORM untuk mencari di tabel locations
 	utils.GlobalSearch(hc.DB, w, r, models.Location{}, "name")
+}
+func (hc *HazardController) SearchContractor(w http.ResponseWriter, r *http.Request) {
+	// models.Location{} memberi tahu GORM untuk mencari di tabel locations
+	utils.GlobalSearch(hc.DB, w, r, models.Contractor{}, "name")
 }

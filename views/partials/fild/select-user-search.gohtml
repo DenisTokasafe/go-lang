@@ -1,5 +1,5 @@
 {{ define "select-user-search" }}
-<fieldset class="w-full fieldset relative"
+<div class="w-full text-left"
 	x-data="{
 	open: false,
 	isInvalid: false,
@@ -10,9 +10,8 @@
 	multiple: {{ if .Multiple }}true{{ else }}false{{ end }},
 	selected: {{ if .Multiple }}[]{{ else }}'{{ .Value }}'{{ end }},
 	selectedLabelFallback: '{{ .SelectedLabel }}',
-	isLoading: false, // ✅ Indikator loading
+	isLoading: false,
 
-	// Initial options dari Go template (data awal)
 	options: [
 {{- range $i, $opt := .Options -}}
 {{- if $i }},{{ end -}}{ id: '{{ $opt.ID }}', label: '{{ js $opt.Name }}' }
@@ -62,7 +61,6 @@
 	this.close();
 	},
 
-	// ✅ FUNGSI FETCH KE BACKEND GOLANG
 	async fetchUsers(query) {
 	if (!query.trim()) return;
 	this.isLoading = true;
@@ -70,15 +68,11 @@
 	const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
 	if (res.ok) {
 	const data = await res.json();
-
-	// Format data dari backend disesuaikan ke { id, label }
-	// Gunakan String(item.id) agar konsisten dengan logic isSelected Anda
 	const newOptions = data.map(item => ({
 	id: String(item.id),
 	label: item.label
 	}));
 
-	// ✅ Pertahankan data yang sedang terpilih agar tidak hilang dari list/label
 	const currentSelected = this.options.find(o => String(o.id) === String(this.selected));
 	if (currentSelected && !newOptions.some(o => String(o.id) === String(currentSelected.id))) {
 	newOptions.push(currentSelected);
@@ -113,9 +107,9 @@
 	this.validate(); 
 	this.$dispatch('change', value);
 	this.$dispatch('input', value);
+	this.$dispatch('field-updated', { field: 'user_id', value: value });
 	});
 
-	// ✅ WATCH TIMER UNTUK DEBOUNCE SEARCH (Tunggu 300ms setelah mengetik)
 	let searchTimeout;
 	this.$watch('q', value => {
 	clearTimeout(searchTimeout);
@@ -123,11 +117,10 @@
 
 	searchTimeout = setTimeout(() => {
 	this.fetchUsers(value);
-	}, 300); // 300ms debounce
+	}, 300);
 	});
 	},
 
-	// ✅ Diubah agar langsung me-return options hasil fetch backend
 	filtered() {
 	return this.options;
 	},
@@ -175,7 +168,11 @@
 	this.open = !this.open;
 	if (this.open) {
 	this.highlightedIndex = this.filtered().length ? 0 : -1;
-	this.$nextTick(() => this.$refs.searchInput?.focus());
+	// ✅ Dimodifikasi agar memanggil reposition() tepat saat tombol diklik
+	this.$nextTick(() => {
+	this.reposition();
+	this.$refs.searchInput?.focus();
+	});
 	}
 	},
 
@@ -183,66 +180,102 @@
 	this.open = false;
 	this.q = '';
 	this.highlightedIndex = -1;
+	},
+
+	// ====================================================================
+	// REPOSITION WITH AUTO-FLIP (Optimized with Fixed Context for Tables)
+	// ====================================================================
+	reposition() {
+	const button = this.$refs.triggerButton;
+	const popover = this.$refs.dropdownPopover;
+	if (!button || !popover) return;
+
+	const rect = button.getBoundingClientRect();
+	const popoverHeight = 220; 
+	const spaceBelow = window.innerHeight - rect.bottom;
+	const margin = 10;
+
+	if (spaceBelow < popoverHeight + margin && rect.top > popoverHeight + margin) {
+	// Dropdown Terbuka ke ATAS
+	popover.style.top = `${rect.top - popoverHeight - 4}px`;
+	} else {
+	// Dropdown Terbuka ke BAWAH (Normal)
+	popover.style.top = `${rect.bottom + 4}px`;
+	}
+
+	popover.style.left = `${rect.left}px`;
+	popover.style.width = `${rect.width}px`;
 	}
 	}"
+	x-modelable="selected" 
 {{ .Attr }}
 	@validate-me="validate()"
-	@keydown.escape.window="close()">
+	@keydown.escape.window="close()"
+	@resize.window="open && reposition()"
+	@scroll.window="open && reposition()">
 
-	{{ if .Label }} <label class="label"> <span class="text-xs font-bold text-base-content opacity-60">{{ .Label }}{{ if .Required }}<span class="text-error font-bold ml-0.5">*</span>{{ end }}</span></label>{{ end }}
+	{{ if .Label }} 
+		<label class="label p-0 mb-1"> 
+			<span class="text-xs font-bold text-base-content opacity-60">{{ .Label }}{{ if .Required }}<span class="text-error font-bold ml-0.5">*</span>{{ end }}</span>
+		</label>
+	{{ end }}
 
 	<input type="text" class="absolute opacity-0 pointer-events-none" tabindex="-1" :value="multiple ? (selected.length ? 'valid' : '') : selected">
 
 	{{ if not .Multiple }}
-		<input type="hidden" name="report_by_id" :value="selected && !isManual(selected) ? selected : ''">
-		<input type="hidden" name="reporter_manual" :value="selected && isManual(selected) ? selected.replace('manual:', '') : ''">
+		{{ if .Name }}
+			<input type="hidden" name="{{ .Name }}" :value="selected && !isManual(selected) ? selected : ''">
+		{{ else }}
+			<input type="hidden" name="report_by_id" :value="selected && !isManual(selected) ? selected : ''">
+			<input type="hidden" name="reporter_manual" :value="selected && isManual(selected) ? selected.replace('manual:', '') : ''">
+		{{ end }}
 	{{ end }}
 
-	<button type="button" class="btn btn-block btn-xs border bg-base-100 btn-ghost flex items-center justify-between w-full"
+	<button type="button" x-ref="triggerButton" class="btn btn-block btn-xs border bg-base-100 flex items-center justify-between w-full text-left font-normal"
 		{{ if .DisabledBinding }} :disabled="{{ .DisabledBinding }}" {{ end }}
-		:class="[ isInvalid ? 'border border-error text-error' : 'border border-base-300 focus:border-info', {{ if .DisabledBinding }} ({{ .DisabledBinding }}) ? 'opacity-50 cursor-not-allowed bg-base-200' : '' {{ else }} '' {{ end }} ]"
+		:class="[ isInvalid ? 'border-error text-error' : 'border-base-300 focus:border-info', {{ if .DisabledBinding }} ({{ .DisabledBinding }}) ? 'opacity-50 cursor-not-allowed bg-base-200' : '' {{ else }} '' {{ end }} ]"
 		@click="!$el.disabled && toggle()"> 
-		<span class="truncate" x-text="selectedLabel()"></span>
-		<span class="text-xs opacity-60">▾</span>
+		<span class="truncate text-xs" x-text="selectedLabel()"></span>
+		<span class="text-xs opacity-60 ml-1">▾</span>
 	</button>
 
-	<div x-show="isInvalid && errorMsg" x-cloak>
-		<p class="text-error text-[9px] font-semibold" x-text="errorMsg"></p>
+	<div x-show="isInvalid && errorMsg" x-cloak class="mt-0.5">
+		<p class="text-error text-[10px] font-semibold" x-text="errorMsg"></p>
 	</div>
 
-	<div x-show="open" x-transition @click.outside="close()" class="absolute left-0 right-0 top-full z-[100] rounded-md border bg-base-100 shadow-xl overflow-hidden">
-		<div class="p-2 border-b">
+	<div x-show="open" x-ref="dropdownPopover" x-transition @click.outside="close()" class="fixed z-[100] rounded-md border border-base-300 bg-base-100 shadow-xl overflow-hidden min-w-[220px]">
+		<div class="p-1.5 border-b border-base-200 bg-base-50">
 			<input x-ref="searchInput" x-model="q"
 				{{ if .DisabledBinding }} :disabled="{{ .DisabledBinding }}" {{ end }}
 				@keydown.enter.prevent="highlightedIndex >= 0 ? choose(filtered()[highlightedIndex]) : addManual()"
 				@keydown.arrow-down.prevent="highlightedIndex = (highlightedIndex + 1) % filtered().length"
 				@keydown.arrow-up.prevent="highlightedIndex = (highlightedIndex <= 0) ? filtered().length - 1 : highlightedIndex - 1"
-				type="text" placeholder="Cari atau ketik nama baru..." class="w-full rounded-md border px-2 py-1 text-sm" />
+				type="text" placeholder="Cari nama karyawan..." class="w-full rounded border border-base-300 px-2 py-1 text-xs focus:outline-none focus:border-info bg-base-100" />
 		</div>
 
-		<ul class="max-h-52 overflow-auto py-1">
-			<li x-show="isLoading" class="p-2 text-xs text-center text-base-content opacity-50">
+		<ul class="max-h-48 overflow-auto py-0.5 text-xs">
+			<li x-show="isLoading" class="p-2 text-center text-base-content opacity-50">
 				Memuat data...
 			</li>
 
 			<template x-for="(opt, i) in filtered()" :key="opt.id">
 				<li x-show="!isLoading">
-					<button type="button" class="w-full px-3 py-1.5 text-left text-sm hover:bg-base-200 flex justify-between"
-						:class="{ 'bg-primary/10 text-primary font-medium': isSelected(opt.id), 'bg-base-200': highlightedIndex === i }"
+					<button type="button" class="w-full px-3 py-2 text-left hover:bg-base-200 flex justify-between items-center transition-colors"
+						:class="{ 'bg-primary/10 text-primary font-semibold': isSelected(opt.id), 'bg-base-200': highlightedIndex === i }"
 						@mouseenter="highlightedIndex = i" @click="choose(opt)">
 						<span x-text="opt.label"></span>
-						<span x-show="isSelected(opt.id)" class="text-xs">✓</span>
+						<span x-show="isSelected(opt.id)" class="text-primary font-bold">✓</span>
 					</button>
 				</li>
 			</template>
 
-			<li x-show="!isLoading && q.trim().length > 0 && filtered().length === 0" class="p-2">
-				<button type="button" @click="addManual()" class="btn btn-primary btn-xs btn-block flex gap-2">
-					<span class="text-[10px]">+ TAMBAH:</span>
-					<span class="font-bold truncate max-w-[150px]" x-text="q"></span>
+			<li x-show="!isLoading && q.trim().length > 0 && filtered().length === 0" class="p-1.5">
+				<button type="button" @click="addManual()" class="btn btn-primary btn-xs btn-block flex gap-1 justify-center items-center">
+					<span class="text-[9px] opacity-80">+ BUAT BARU:</span>
+					<span class="font-bold truncate max-w-[120px]" x-text="q"></span>
 				</button>
 			</li>
 		</ul>
 	</div>
-</fieldset>
+</div>
 {{ end }}

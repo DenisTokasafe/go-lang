@@ -1,24 +1,32 @@
 package models
 
 import (
+	"time"
+
 	"gorm.io/gorm"
 )
 
 type User struct {
 	gorm.Model
-	Name     string `gorm:"type:varchar(255);not null" json:"name"`
-	Username string `gorm:"type:varchar(100);unique" json:"username"`
-	Email    string `gorm:"type:varchar(255);unique" json:"email"`
-	Password string `gorm:"type:varchar(255);not null" json:"-"`
+	Name       string `gorm:"type:varchar(255);not null" json:"name"`
+	Username   string `gorm:"type:varchar(100);unique" json:"username"`
+	Email      string `gorm:"type:varchar(255);unique" json:"email"`
+	Password   string `gorm:"type:varchar(255);not null" json:"-"`
+	EmployeeID string `gorm:"type:varchar(255);not null" json:"employee_id"`
+
+	// --- TAMBAHAN BARU ---
+	DateOfBirth *time.Time `gorm:"type:date" json:"date_of_birth"`
+	Gender      string     `gorm:"type:char(1)" json:"gender"` // 'L' atau 'P'
+
 	// Relasi ke Role
 	RoleID uint `gorm:"not null" json:"role_id"`
 	Role   Role `gorm:"foreignKey:RoleID" json:"role"`
 	IsPIC  bool `gorm:"default:false" json:"is_pic"`
+
 	// HUBUNGAN KERJA (Explicit Nullable Fields)
-	// Jika User adalah karyawan Contractor, ContractorID terisi, DepartmentID null
 	ContractorID *uint      `json:"contractor_id"`
 	Contractor   Contractor `gorm:"foreignKey:ContractorID" json:"contractor"`
-	// Jika User adalah karyawan Internal/Bisnis Unit, DepartmentID terisi, ContractorID null
+
 	DepartmentID        *uint           `json:"department_id"`
 	Department          Department      `gorm:"foreignKey:DepartmentID" json:"department"`
 	ModeratedCategories []EventCategory `gorm:"many2many:user_event_categories;" json:"moderated_categories"`

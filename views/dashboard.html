@@ -31,6 +31,7 @@ function hazardDashboardComponent() {
     let myPieEnvChart = null;
     let categoryBarOhsChart = null;
     let categoryBarEnvChart = null;
+    let myStatusBarChart = null;
 
     return {
         kpi: { submit: 0, in_progress: 0, pending: 0, closed: 0 },
@@ -40,6 +41,7 @@ function hazardDashboardComponent() {
         scatPieEnvData: [],
         categoryBarOhsChart: [],
         categoryBarEnvChart: [],
+        statusBarData: [],
         dateRange: '', 
         recentHazards: [], 
 
@@ -89,6 +91,10 @@ function hazardDashboardComponent() {
                     categoryBarEnvChart = echarts.init(this.$refs.categoryBarEnvChart);
                     this.rendercategoryBarEnvChart();
                 }
+                if (this.$refs.statusBarChart) {
+                    myStatusBarChart = echarts.init(this.$refs.statusBarChart);
+                    this.renderStatusBarChart();
+                }
             }
 
             window.addEventListener('resize', () => {
@@ -97,6 +103,7 @@ function hazardDashboardComponent() {
                 myPieEnvChart && myPieEnvChart.resize();
                 categoryBarOhsChart && categoryBarOhsChart.resize();
                 categoryBarEnvChart && categoryBarEnvChart.resize();
+                myStatusBarChart && myStatusBarChart.resize();
             });
 
             this.$watch('dateRange', async (newValue) => {
@@ -106,31 +113,45 @@ function hazardDashboardComponent() {
                 this.renderPieEnvChart();
                 this.rendercategoryBarOhsChart();
                 this.rendercategoryBarEnvChart();
+                this.renderStatusBarChart();
             });
         },
 
-        async fetchDashboardData(period = '') {
-            try {
-                const url = `/api/dashboard/hazard-summary?hazard_period=${encodeURIComponent(period)}`;
-                const response = await fetch(url);
-                
-                if (!response.ok) throw new Error('Network response was not ok');
-                const data = await response.json();
-                
-                // Distribusi data dari API
-                this.recentHazards = data.recent_hazards || [];
-                this.topLocations = data.top_locations || [];
-                this.scatPieOHSData = data.scat_pie_data || [];
-                this.scatPieEnvData = data.env_scat_pie_data || [];
-                this.categoryBarOhsChart = data.category_bar_data || [];
-                this.categoryBarEnvChart = data.env_category_bar_data || [];
-                this.kpi = data.kpi || { submit: 0, in_progress: 0, pending: 0, closed: 0 };
-                this.trendData = data.monthly_trend || [];
-            } catch (error) {
-                if (window.showToast) window.showToast('Gagal memuat data dashboard', 'error');
-            }
-        },
+       async fetchDashboardData(period = '') {
+    try {
+        const url = `/api/dashboard/hazard-summary?hazard_period=${encodeURIComponent(period)}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) throw new Error('Network response was not ok');
+        
+        // 🔥 UPDATE DI SINI: Terima hasil bungkusannya
+        const result = await response.json();
+        
+        // 🔥 Simpan terjemahan ke variabel 'tr' (pastikan sudah dideklarasikan di Alpine)
+        this.tr = result.Tr || {};
 
+        // 🔥 Gunakan data dari properti 'Summary'
+        const data = result.Summary || result; 
+
+        // Distribusi data tetap sama
+        this.recentHazards = data.recent_hazards || [];
+        this.topLocations = data.top_locations || [];
+        this.scatPieOHSData = data.scat_pie_data || [];
+        this.scatPieEnvData = data.env_scat_pie_data || [];
+        this.categoryBarOhsChart = data.category_bar_data || [];
+        this.categoryBarEnvChart = data.env_category_bar_data || [];
+        this.statusBarData = data.status_result || [];
+        this.kpi = data.kpi || { submit: 0, in_progress: 0, pending: 0, closed: 0 };
+        this.trendData = data.monthly_trend || [];
+        
+    } catch (error) {
+        // 🔥 Anda bisa menggunakan this.tr.ErrorMsg jika ingin pesan error juga diterjemahkan
+        const errorMsg = this.tr.ErrorMsg || 'Gagal memuat data dashboard';
+        if (window.showToast) window.showToast(errorMsg, 'error');
+    }
+},
+
+  
         renderLocations() {
             const totalItems = this.topLocations.length;
 
@@ -494,7 +515,99 @@ function hazardDashboardComponent() {
 
             categoryBarEnvChart.setOption(option);
         },
+        renderStatusBarChart() {
+            if (!myStatusBarChart) return;
+            if (!this.statusBarData || this.statusBarData.length === 0) {
+                myStatusBarChart.clear();
+                return;
+            }
 
+            // Mengambil Nama Departemen atau Kontraktor untuk Sumbu X
+            // Sesuai contoh gambar 6934ad.png di mana label berada di bawah (sumbu X)
+            const categories = this.statusBarData.map(item => {
+                // Jika nama terlalu panjang, kita bisa menggabungkannya dengan line break
+                return item.department_name !== 'No Department' ? item.department_name : item.contractor_name;
+            });
+            
+            const openSeries = this.statusBarData.map(item => item.open_count);
+            const closedSeries = this.statusBarData.map(item => item.closed_count);
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' }
+                },
+                legend: {
+                    data: ['Open / In Progress', 'Closed'],
+                    bottom: '0%'
+                },
+                grid: {
+                    top: '10%',
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%', // Ruang lebih untuk label X yang miring
+                    containLabel: true
+                },
+                // Sumbu X sekarang menjadi Kategori (Nama Dept/Contractor)
+                xAxis: {
+                    type: 'category',
+                    data: categories,
+                    axisTick: { show: false },
+                    axisLabel: {
+                        interval: 0,
+                        rotate: 30, // Memutar teks agar tidak tumpang tindih jika nama panjang
+                        fontSize: 10
+                    }
+                },
+                // Sumbu Y sekarang menjadi Nilai (Jumlah)
+                yAxis: {
+                    type: 'value',
+                    name: 'Jumlah',
+                    splitLine: {
+                        show: true,
+                        lineStyle: { type: 'dashed' }
+                    }
+                },
+                series: [
+                    {
+                        name: 'Open / In Progress',
+                        type: 'bar',
+                        stack: 'total', // Mengaktifkan fitur STACKED secara vertikal
+                        barWidth: '40%', // Ketebalan bar sesuai contoh image_6934ad.png
+                        label: {
+                            show: true,
+                            position: 'inside',
+                            formatter: function(params) { return params.value > 0 ? params.value : ''; },
+                            color: '#fff'
+                        },
+                        itemStyle: { 
+                            color: '#f43f5e', // Warna merah rose (Open)
+                            borderRadius: [0, 0, 0, 0] 
+                        },
+                        data: openSeries
+                    },
+                    {
+                        name: 'Closed',
+                        type: 'bar',
+                        stack: 'total',
+                        barWidth: '40%',
+                        label: {
+                            show: true,
+                            position: 'inside',
+                            formatter: function(params) { return params.value > 0 ? params.value : ''; },
+                            color: '#fff'
+                        },
+                        itemStyle: { 
+                            color: '#10b981', // Warna hijau emerald (Closed)
+                            borderRadius: [4, 4, 0, 0] // Membuat ujung atas bar membulat
+                        },
+                        data: closedSeries
+                    }
+                ]
+            };
+
+            myStatusBarChart.setOption(option, true);
+        },
         async refreshData() {
             await this.fetchDashboardData(this.dateRange);
             this.renderChart();
@@ -502,6 +615,7 @@ function hazardDashboardComponent() {
             this.renderPieEnvChart();
             this.rendercategoryBarOhsChart();
             this.rendercategoryBarEnvChart();
+            this.renderStatusBarChart();
             if (window.showToast) window.showToast('Data berhasil diperbarui');
         }
     }
@@ -625,6 +739,22 @@ function hazardDashboardComponent() {
 		<div class="p-4 space-y-4 overflow-y-auto max-h-72 text-xs">
 			<p x-show="topLocations.length === 0" class="text-base-content/50 text-center py-4">Belum ada data lokasi.</p>
 			<div class="space-y-4" x-html="renderLocations()"></div>
+		</div>
+	</div>
+</div>
+
+<div class="grid grid-cols-1 my-6">
+	<div class="card bg-base-100 shadow-sm rounded-xl border border-base-300">
+		<div class="p-4 border-b border-base-200 flex justify-between items-center">
+			<h2 class="font-bold text-sm text-base-content/80 flex items-center gap-2">
+				<span class="w-2 h-4 bg-neutral rounded-full"></span>
+				Rasio Status Hazard (Open vs Closed) per Departemen & Kontraktor
+			</h2>
+			<span class="text-xs text-base-content/40">Stacked Chart</span>
+		</div>
+		<div class="p-4">
+			<p x-show="statusBarData.length === 0" class="text-base-content/50 text-center py-12 text-xs">Belum ada data status departemen.</p>
+			<div x-show="statusBarData.length > 0" x-ref="statusBarChart" class="w-full h-72"></div>
 		</div>
 	</div>
 </div>

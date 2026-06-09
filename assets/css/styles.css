@@ -159,3 +159,22 @@
 .sidebar-menu-item:hover .sidebar-icon {
   @apply scale-110;
 }
+[x-cloak] {
+  display: none !important;
+}
+
+/* Mengatur agar widget Google menyatu dengan menu navbar */
+#google_translate_element select {
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  font-size: 12px;
+}
+.goog-te-gadget-simple {
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+.goog-te-gadget-simple .goog-te-menu-value span {
+  color: #4b5563 !important;
+}

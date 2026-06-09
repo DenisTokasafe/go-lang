@@ -1,331 +1,368 @@
 {{ define "content" }}
 <div class="px-4 w-full" x-data="{ 
-    isEdit: false, 
-    showUpload: false,
-    
-    // Form Fields
-    id: '', 
-    name: '', // Pastikan field name ada di sini
-    username: '',
-    email: '',
-    password: '',
-    role_id: '',
-    work_type: 'none',
-    is_pic: false, // Default false
-    contractor_id: '',
-    department_id: '',
-    moderator_category_ids: [],
-    init() {
-        this.checkFlash();
-    },
+	isEdit: false, 
+	showUpload: false,
 
-    checkFlash() {
-        const getCookie = (name) => {
-            let value = `; ${document.cookie}`;
-            let parts = value.split(`; ${name}=`);
-            if (parts.length === 2) return parts.pop().split(';').shift();
-        }
-        const msg = getCookie('flash_msg');
-        const type = getCookie('flash_type');
-        if (msg) {
-            const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
-            if (window.showToast) { window.showToast(decodedMsg, type || 'success'); }
-            document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
-            document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
-        }
-    },
+	// Form Fields
+	id: '', 
+	name: '', 
+	username: '',
+	gender: '',
+	employee_id: '',
+	email: '',
+	password: '',
+	date_of_birth: '', // FIX: Inisialisasi variabel tanggal lahir
+	role_id: '',
+	work_type: 'none',
+	is_pic: false, 
+	contractor_id: '',
+	department_id: '',
+	moderator_category_ids: [],
 
-    getAction() {
-        return this.isEdit ? '/people/update' : '/people/store';
-    },
+	init() {
+	this.checkFlash();
+	},
 
-    openCreate() {
-        this.isEdit = false;
-        this.id = '';
-        this.name = '';
-        this.username = '';
-        this.email = '';
-        this.password = '';
-        this.role_id = '';
-        this.work_type = 'none';
-        this.is_pic = false; // Reset ke false saat tambah user baru
-        this.contractor_id = '';
-        this.department_id = '';
-        this.moderator_category_ids = [];
-        user_modal.showModal();
-    },
+	checkFlash() {
+	const getCookie = (name) => {
+	let value = `; ${document.cookie}`;
+	let parts = value.split(`; ${name}=`);
+	if (parts.length === 2) return parts.pop().split(';').shift();
+	}
+	const msg = getCookie('flash_msg');
+	const type = getCookie('flash_type');
+	if (msg) {
+	const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+	if (window.showToast) { window.showToast(decodedMsg, type || 'success'); }
+	document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+	document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+	}
+	},
 
-    openEdit(user) {
-        this.isEdit = true;
-        this.id = user.ID;              
-        this.name = user.name;
-        this.username = user.username;
-        this.email = user.email;   
-        this.password = ''; 
-        this.role_id = user.role_id; 
-        
-        // Ambil data IsPIC dari database (pastikan JSON dari Go menyertakan field ini)
-        this.is_pic = user.is_pic; 
-        this.moderator_category_ids = user.moderated_categories ? user.moderated_categories.map(c => String(c.ID)) : [];
-        
-        if (user.contractor_id) {
-            this.work_type = 'contractor';
-            this.contractor_id = user.contractor_id;
-            this.department_id = '';
-        } else if (user.department_id) {
-            this.work_type = 'department';
-            this.department_id = user.department_id;
-            this.contractor_id = '';
-        } else {
-            this.work_type = 'none';
-            this.contractor_id = '';
-            this.department_id = '';
-        }
-        
-        user_modal.showModal();
-    }
-}">
+	getAction() {
+	return this.isEdit ? '/people/update' : '/people/store';
+	},
 
-    <h1 class="text-sm font-bold mb-2 text-base-content uppercase tracking-wider text-primary">Manajemen User SENTRY
-    </h1>
+	openCreate() {
+	this.isEdit = false;
+	this.id = '';
+	this.name = '';
+	this.username = '';
+	this.gender = '';
+	this.employee_id = '';
+	this.email = '';
+	this.password = '';
+	this.date_of_birth = ''; // FIX: Reset saat tambah data baru
+	this.role_id = '';
+	this.work_type = 'none';
+	this.is_pic = false; 
+	this.contractor_id = '';
+	this.department_id = '';
+	this.moderator_category_ids = [];
+	user_modal.showModal();
+	},
 
-    <div class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-4">
-        <div class="flex gap-2 w-full sm:w-auto">
-            <button class="btn btn-accent btn-xs" @click="openCreate()">
-                {{ lucide "plus" (dict "class" "size-4") }} Tambah User
-            </button>
-            <button class="btn btn-warning btn-xs text-warning-content" @click="showUpload = true">
-                {{ lucide "file-up" (dict "class" "size-4") }} Import Excel
-            </button>
-        </div>
+	openEdit(user) {
+	this.isEdit = true;
+	this.id = user.ID;              
+	this.name = user.name;
+	this.username = user.username;
+	this.email = user.email;   
+	this.gender = user.gender;   
+	this.employee_id = user.employee_id;   
+	this.password = ''; 
+	this.role_id = user.role_id; 
 
-        <div class="w-full sm:w-auto" x-data="{ 
-            searchQuery: '{{ .Search }}',
-            doSearch() {
-                if(this.searchQuery === '{{ .Search }}') return;
-                window.location.href = '/people?page=1&search=' + encodeURIComponent(this.searchQuery);
-            }
-        }">
-            {{ template "input-floating" (dict "Label" "Cari User (Nama/Email/Unit)" "Name" "search" "Placeholder" "Ketik untuk mencari..." "Attr" "x-model='searchQuery' @input.debounce.750ms='doSearch()' autofocus" ) }}
-        </div>
-    </div>
+	// FIX: Konversi format tanggal lahir dari Go (RFC3339) ke format input HTML (YYYY-MM-DD)
+	this.date_of_birth = user.date_of_birth ? user.date_of_birth.split('T')[0] : '';
 
-    <dialog id="user_modal" class="modal">
-        <div class="modal-box p-0 border border-base-300 shadow-2xl  ">
-            <form :action="getAction()" method="POST">
-                <div class="card bg-base-100 card-xs h-96 ">
-                    <div class="card-body gap-4">
-                        <h2 class="card-title text-base-content font-semibold"
-                            x-text="isEdit ? 'Edit Data User' : 'Tambah User Baru'">
-                        </h2>
+	this.is_pic = user.is_pic; 
+	this.moderator_category_ids = user.moderated_categories ? user.moderated_categories.map(c => String(c.ID)) : [];
 
-                        <input type="hidden" name="id" x-model="id">
+	if (user.contractor_id) {
+	this.work_type = 'contractor';
+	this.contractor_id = user.contractor_id;
+	this.department_id = '';
+	} else if (user.department_id) {
+	this.work_type = 'department';
+	this.department_id = user.department_id;
+	this.contractor_id = '';
+	} else {
+	this.work_type = 'none';
+	this.contractor_id = '';
+	this.department_id = '';
+	}
 
-                        {{ template "input-floating" (dict "Label" "Name" "Name" "name" "Placeholder" "Masukkan name" "Required" true "Attr" "x-model='name'") }}
-                        {{ template "input-floating" (dict "Label" "Username" "Name" "username" "Placeholder" "Masukkan username" "Required" true "Attr" "x-model='username'") }}
-                        {{ template "input-floating" (dict "Label" "Email Address" "Name" "email" "Type" "email" "Placeholder" "contoh@email.com" "Required" true "Attr" "x-model='email'") }}
-                        {{ template "input-floating" (dict "Label" "Password" "Name" "password" "Type" "password" "Required" false "Attr" (printf ":placeholder=\"isEdit ? 'Kosongkan jika tidak ganti' : 'Minimal 6 karakter'\" x-model='password'")) }}
+	user_modal.showModal();
+	}
+	}">
 
-                        <div class="grid grid-cols-2 gap-2">
-                            <fieldset class="fieldset">
-                                <label class="label py-1"><span
-                                        class="label-text text-[10px] font-bold uppercase opacity-60">Role
-                                        Access</span></label>
-                                <select name="role_id" x-model="role_id"
-                                    class="select select-borderd select-xs w-full focus:outline-hidden focus:outline-none focus:shadow-outline focus:border-info appearance-none leading-normal focus:ring-info"
-                                    required>
-                                    <option value="" disabled>Pilih Role</option>
-                                    {{ range .Roles }}
-                                    <option value="{{ .ID }}">{{ .Name }}</option>
-                                    {{ end }}
-                                </select>
-                            </fieldset>
-                            <fieldset class="fieldset">
-                                <label class="label py-1"><span
-                                        class="label-text text-[10px] font-bold uppercase opacity-60">Kategori
-                                        Unit</span></label>
-                                <select name="work_type" x-model="work_type"
-                                    class="select select-borderd select-xs w-full focus:outline-hidden focus:outline-none focus:shadow-outline focus:border-info appearance-none leading-normal focus:ring-info">
-                                    <option value="none">None / Guest</option>
-                                    <option value="contractor">Contractor</option>
-                                    <option value="department">Internal Dept</option>
-                                </select>
-                            </fieldset>
-                        </div>
+	<h1 class="text-sm font-bold mb-2 text-base-content uppercase tracking-wider text-primary">Manajemen User SENTRY</h1>
 
-                        <div class="relative" x-show="work_type === 'contractor'" x-transition>
-                            <template x-if="!isEdit">
-                                {{ template "select-search" (dict "Label" "Perusahaan Kontraktor" "Name" "contractor_id" "Placeholder" "Cari kontraktor..." "DefaultText" "-- Pilih Contractor --" "Options" .Contractors "Attr" "x-model='contractor_id'" "Required" false ) }}
-                            </template>
-                            <template x-if="isEdit">
-                                <select name="contractor_id" x-model="contractor_id"
-                                    class="select select-bordered select-xs w-full">
-                                    <option value="">-- Pilih Contractor --</option>
-                                    {{ range .Contractors }}
-                                    <option value="{{ .ID }}">{{ .Name }}</option>
-                                    {{ end }}
-                                </select>
-                            </template>
-                        </div>
+	<div class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 mb-4">
+		<div class="flex gap-2 w-full sm:w-auto">
+			<button class="btn btn-accent btn-xs" @click="openCreate()">
+				{{ lucide "plus" (dict "class" "size-4") }} Tambah User
+			</button>
+			<button class="btn btn-warning btn-xs text-warning-content" @click="showUpload = true">
+				{{ lucide "file-up" (dict "class" "size-4") }} Import Excel
+			</button>
+		</div>
 
-                        <div class="relative" x-show="work_type === 'department'" x-transition>
-                            <template x-if="!isEdit">
-                                {{ template "select-search" (dict "Label" "Departemen Internal" "Name" "department_id" "Placeholder" "Cari department..." "DefaultText" "-- Pilih Department --" "Options" .Departments "Attr" "x-model='department_id'" "Required" false ) }}
-                            </template>
-                            <template x-if="isEdit">
-                                <select name="department_id" x-model="department_id"
-                                    class="select select-bordered select-xs w-full">
-                                    <option value="">-- Pilih Department --</option>
-                                    {{ range .Departments }}
-                                    <option value="{{ .ID }}">{{ .Name }}</option>
-                                    {{ end }}
-                                </select>
-                            </template>
-                        </div>
-                        <div class="form-control" x-show="work_type !== 'none'" x-transition>
-                            <label class="label cursor-pointer flex justify-start gap-3 py-2">
-                                <input type="checkbox" name="is_pic" x-model="is_pic"
-                                    class="checkbox checkbox-primary checkbox-xs" :value="true">
-                                <span class="label-text font-medium">Jadikan sebagai PIC resmi</span>
-                            </label>
-                            <div class="text-[10px] opacity-50 px-8">
-                                *User ini akan muncul di dropdown pilihan PIC pada form Manhours.
-                            </div>
-                        </div>
-                        <div class="form-control border rounded-lg p-3 bg-base-200/30">
+		<div class="w-full sm:w-auto" x-data="{ 
+			searchQuery: '{{ .Search }}',
+			doSearch() {
+			if(this.searchQuery === '{{ .Search }}') return;
+			window.location.href = '/people?page=1&search=' + encodeURIComponent(this.searchQuery);
+			}
+			}">
+			{{ template "input" (dict "Label" "Cari User (Nama/Email/Unit)" "Name" "search" "Placeholder" "Ketik untuk mencari..." "Attr" "x-model='searchQuery' @input.debounce.750ms='doSearch()' autofocus") }}
+		</div>
+	</div>
 
-                            <label class="label py-1">
-                                <span class="label-text text-[10px] font-bold uppercase opacity-60">
-                                    Moderator Hazard Category
-                                </span>
-                            </label>
+	<dialog id="user_modal" class="modal">
+		<div class="modal-box p-0 border border-base-300 shadow-2xl w-11/12 max-w-2xl">
+			<form :action="getAction()" method="POST">
+				<div class="card bg-base-100 card-xs max-h-[80vh] flex flex-col">
+					<div class="card-body  overflow-y-auto">
+						<h2 class="card-title text-base-content font-semibold" x-text="isEdit ? 'Edit Data User' : 'Tambah User Baru'"></h2>
 
+						<input type="hidden" name="id" x-model="id">
 
+						{{ template "input" (dict "Label" "Name" "Name" "name" "Placeholder" "Masukkan name" "Required" true "Attr" "x-model='name'") }}
 
-                            <select name="moderator_category_ids[]" multiple x-model="moderator_category_ids"
-                                class="select select-bordered select-xs w-full h-32">
+						<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+							{{ template "input" (dict "Label" "Username" "Name" "username" "Placeholder" "Masukkan username" "Required" true "Attr" "x-model='username'") }}
+							{{ template "input" (dict "Label" "Email Address" "Name" "email" "Type" "email" "Placeholder" "contoh@email.com" "Required" true "Attr" "x-model='email'") }}
+						</div>
 
-                                {{ range .EventCategories }}
+						{{ template "input" (dict "Label" "Password" "Name" "password" "Type" "password" "Required" false "Attr" (printf ":placeholder=\"isEdit ? 'Kosongkan jika tidak ganti' : 'Minimal 6 karakter'\" x-model='password'")) }}
+						{{ template "input" (dict "Label" "Employee ID / NIK" "Name" "employee_id" "Placeholder" "Masukkan nomor induk karyawan" "Required" true "Attr" "x-model='employee_id'") }}
 
-                                {{ if not .ParentID }}
+						<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+							{{ template "select_input" (dict
+								"Label" "Jenis Kelamin"
+								"Name" "gender"
+								"Model" "gender"
+								"Placeholder" "Pilih JK"
+								"Required" true
+								"Slot" "<option value='L'>Laki-laki (L)</option><option value='P'>Perempuan (P)</option>"
+								)
+							}}
 
-                                <option value="{{ .ID }}">
-                                    {{ .Name }}
-                                </option>
+							{{ template "input-flatpickr" dict
+								"Label" "Tanggal Lahir"
+								"Name" "date_of_birth"
+								"Id" "date_of_birth"
+								"Value" ""
+								"Type" "date"
+								"Placeholder" "Tanggal Lahir..."
+								"Required" false
+								"RequiredBinding" ""
+								"Attr" "x-model='date_of_birth'"
+							}}
+						</div>
 
-                                {{ end }}
+						<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+							<fieldset class="fieldset">
+								<label class="label py-1">
+									<span class="label-text text-[10px] font-bold uppercase opacity-60">Role Access</span>
+								</label>
+								<select name="role_id" x-model="role_id" class="select select-bordered select-xs w-full focus:outline-hidden focus:outline-none focus:shadow-outline focus:border-info appearance-none leading-normal focus:ring-info" required>
+									<option value="" disabled selected>Pilih Role</option>
+									{{ range .Roles }}
+										<option value="{{ .ID }}">{{ .Name }}</option>
+									{{ end }}
+								</select>
+							</fieldset>
 
-                                {{ end }}
+							<fieldset class="fieldset">
+								<label class="label py-1">
+									<span class="label-text text-[10px] font-bold uppercase opacity-60">Kategori Unit</span>
+								</label>
+								<select name="work_type" x-model="work_type" class="select select-bordered select-xs w-full focus:outline-hidden focus:outline-none focus:shadow-outline focus:border-info appearance-none leading-normal focus:ring-info">
+									<option value="none">None / Guest</option>
+									<option value="contractor">Contractor</option>
+									<option value="department">Internal Dept</option>
+								</select>
+							</fieldset>
+						</div>
 
-                            </select>
+						<div class="relative" x-show="work_type === 'contractor'" x-transition>
+							<template x-if="!isEdit">
+								{{ template "select-search" (dict "Label" "Perusahaan Kontraktor" "Name" "contractor_id" "Placeholder" "Cari kontraktor..." "DefaultText" "-- Pilih Contractor --" "Options" .Contractors "Attr" "x-model='contractor_id'" "Required" false) }}
+							</template>
+							<template x-if="isEdit">
+								<select name="contractor_id" x-model="contractor_id" class="select select-bordered select-xs w-full">
+									<option value="">-- Pilih Contractor --</option>
+									{{ range .Contractors }}
+										<option value="{{ .ID }}">{{ .Name }}</option>
+									{{ end }}
+								</select>
+							</template>
+						</div>
 
-                            <div class="text-[10px] opacity-50 mt-2">
-                                *User akan menerima notifikasi hazard berdasarkan kategori ini.
-                            </div>
+						<div class="relative" x-show="work_type === 'department'" x-transition>
+							<template x-if="!isEdit">
+								{{ template "select-search" (dict "Label" "Departemen Internal" "Name" "department_id" "Placeholder" "Cari department..." "DefaultText" "-- Pilih Department --" "Options" .Departments "Attr" "x-model='department_id'" "Required" false) }}
+							</template>
+							<template x-if="isEdit">
+								<select name="department_id" x-model="department_id" class="select select-bordered select-xs w-full">
+									<option value="">-- Pilih Department --</option>
+									{{ range .Departments }}
+										<option value="{{ .ID }}">{{ .Name }}</option>
+									{{ end }}
+								</select>
+							</template>
+						</div>
 
-                        </div>
-                    </div>
+						<div class="form-control" x-show="work_type !== 'none'" x-transition>
+							<label class="label cursor-pointer flex justify-start gap-3 py-2">
+								<input type="checkbox" name="is_pic" x-model="is_pic" class="checkbox checkbox-primary checkbox-xs" :value="true">
+								<span class="label-text font-medium">Jadikan sebagai PIC resmi</span>
+							</label>
+							<div class="text-[10px] opacity-50 px-8">
+								*User ini akan muncul di dropdown pilihan PIC pada form Manhours.
+							</div>
+						</div>
 
-                    <div class="modal-action p-4 bg-base-200/50 gap-2">
-                        <button type="button" class="btn btn-ghost btn-xs" @click="user_modal.close()">Batal</button>
-                        <button type="submit" class="btn btn-primary btn-xs px-6">
-                            {{ lucide "save" (dict "class" "size-4") }} Simpan User
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </dialog>
+						<div class="form-control border rounded-lg p-3 bg-base-200/30">
+							<label class="label py-1">
+								<span class="label-text text-[10px] font-bold uppercase opacity-60">Moderator Hazard Category</span>
+							</label>
+							<select name="moderator_category_ids[]" multiple x-model="moderator_category_ids" class="select select-bordered select-xs w-full h-32">
+								{{ range .EventCategories }}
+									{{ if not .ParentID }}
+										<option value="{{ .ID }}">{{ .Name }}</option>
+									{{ end }}
+								{{ end }}
+							</select>
+							<div class="text-[10px] opacity-50 mt-2">
+								*User akan menerima notifikasi hazard berdasarkan kategori ini.
+							</div>
+						</div>
+					</div>
 
-    <dialog id="upload_modal" class="modal" :class="{ 'modal-open': showUpload }" x-cloak>
-        <div class="modal-box p-0 border border-base-300 shadow-2xl">
-            <form action="/people/upload" method="POST" enctype="multipart/form-data" x-data="{ importing: false }"
-                @submit="importing = true">
-                <div class="card bg-base-100 card-xs shadow-sm">
-                    <div class="card-body">
-                        <h2 class="card-title text-base-content font-semibold mb-3">Import Massal User</h2>
-                        <div class="bg-info/10 p-3 rounded-lg mb-4 border border-info/20 text-[10px]">
-                            <p class="text-info flex gap-2">
-                                {{ lucide "info" (dict "class" "size-4 shrink-0") }}
-                                <span>Urutan Kolom: <b>A:</b> Name, <b>B:</b> Username, <b>C:</b> Email, <b>D:</b> Role,
-                                    <b>E:</b> Contractor/Dept Name. <b>F:</b> Password Hash (bcrypt).</span>
-                            </p>
-                        </div>
-                        <input type="file" name="excel_file"
-                            class="file-input file-input-bordered file-input-xs file-input-accent w-full" required />
-                    </div>
-                    <div class="modal-action p-4 bg-base-200/50 gap-2">
-                        <button type="button" class="btn btn-ghost btn-xs" @click="showUpload = false"
-                            :disabled="importing">Batal</button>
-                        <button type="submit" class="btn btn-accent btn-xs" :class="importing ? 'loading' : ''"
-                            :disabled="importing">Mulai Import</button>
-                    </div>
-                </div>
-            </form>
-        </div>
-        <form method="dialog" class="modal-backdrop bg-black/40" @click="showUpload = false"><button>close</button>
-        </form>
-    </dialog>
+					<div class="modal-action p-4 bg-base-200/50 gap-2 shrink-0">
+						<button type="button" class="btn btn-ghost btn-xs" @click="user_modal.close()">Batal</button>
+						<button type="submit" class="btn btn-primary btn-xs px-6">
+							{{ lucide "save" (dict "class" "size-4") }} Simpan User
+						</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	</dialog>
 
-    {{ template "card_scroll" . }}
+	<dialog id="upload_modal" class="modal" :class="{ 'modal-open': showUpload }" x-cloak>
+		<div class="modal-box p-0 border border-base-300 shadow-2xl">
+			<form action="/people/upload" method="POST" enctype="multipart/form-data" x-data="{ importing: false }" @submit="importing = true">
+				<div class="card bg-base-100 card-xs shadow-sm">
+					<div class="card-body">
+						<h2 class="card-title text-base-content font-semibold mb-3">Import Massal User</h2>
+						<div class="bg-info/10 p-3 rounded-lg mb-4 border border-info/20 text-[10px]">
+							<p class="text-info flex gap-2">
+								{{ lucide "info" (dict "class" "size-4 shrink-0") }}
+								<span>Urutan Kolom: <b>A:</b> Name, <b>B:</b> Username, <b>C:</b> Email, <b>D:</b> Role, <b>E:</b> Contractor/Dept Name. <b>F:</b> Password Hash (bcrypt).</span>
+							</p>
+						</div>
+						<input type="file" name="excel_file" class="file-input file-input-bordered file-input-xs file-input-accent w-full" required />
+					</div>
+					<div class="modal-action p-4 bg-base-200/50 gap-2">
+						<button type="button" class="btn btn-ghost btn-xs" @click="showUpload = false" :disabled="importing">Batal</button>
+						<button type="submit" class="btn btn-accent btn-xs" :class="importing ? 'loading' : ''" :disabled="importing">Mulai Import</button>
+					</div>
+				</div>
+			</form>
+		</div>
+		<form method="dialog" class="modal-backdrop bg-black/40" @click="showUpload = false"><button>close</button></form>
+	</dialog>
+
+	{{ template "card_scroll" . }}
 </div>
 {{ end }}
 
 {{ define "slot" }}
 {{ template "pagination" . }}
 <div class="overflow-x-auto bg-base-100 shadow-lg rounded-lg my-4 border border-base-300">
-    <table class="table table-zebra table-xs">
-        <thead class="bg-base-300/50">
-            <tr>
-                <th class="w-10">No</th>
-                <th>User & Email</th>
-                <th>Role</th>
-                <th>Unit Kerja</th>
-                <th class="text-center w-24">Aksi</th>
-            </tr>
-        </thead>
-        <tbody>
-            {{ $currentPage := .CurrentPage }}
-            {{ $pageSize := 20 }}
-            {{ range $index, $u := .Users }}
-            <tr class="hover">
-                <td class="opacity-50">#{{ add (mul (sub $currentPage 1) $pageSize) (add $index 1) }}</td>
-                <td>
-                    <div class="flex flex-col">
-                        <span class="font-bold text-primary">{{ .Name }}</span>
-                        <span class="text-[10px] opacity-60 italic">{{ .Email }}</span>
-                    </div>
-                </td>
-                <td>
-                    <div class="badge badge-outline badge-xs uppercase font-bold">{{ .Role.Name }}</div>
-                </td>
-                <td>
-                    <span class="text-xs font-medium">
-                        {{ .GetWorkUnitName }}
-                    </span>
-                </td>
-                <td class="flex justify-center gap-1">
-                    <button type="button" class="btn btn-square btn-warning btn-xs" data-user='{{ . | json }}'
-                        @click="openEdit(JSON.parse($el.getAttribute('data-user')))">
-                        {{ lucide "pencil" (dict "class" "size-3") }}
-                    </button>
+	<table class="table table-zebra table-xs">
+		<thead class="bg-base-300/50">
+			<tr>
+				<th class="w-10">No</th>
+				<th>User & Email</th>
+				<th>ID Karyawan</th>
+				<th>Profil (JK/TTL)</th>
+				<th>Role</th>
+				<th>Unit Kerja</th>
+				<th class="text-center w-24">Aksi</th>
+			</tr>
+		</thead> <tbody>
+			{{ $currentPage := .CurrentPage }}
+			{{ $pageSize := 20 }}
+			{{ range $index, $u := .Users }}
+				<tr class="hover">
+					<td class="opacity-50">#{{ add (mul (sub $currentPage 1) $pageSize) (add $index 1) }}</td>
 
-                    <form action="/people/delete" method="POST"
-                        @submit.prevent="if(confirm('Hapus user {{ .Name }}?')) $el.submit()">
-                        <input type="hidden" name="id" value="{{ .ID }}">
-                        <button type="submit" class="btn btn-square btn-error btn-xs">
-                            {{ lucide "trash-2" (dict "class" "size-3") }}
-                        </button>
-                    </form>
-                </td>
-            </tr>
-            {{ else }}
-            <tr>
-                <td colspan="5" class="text-center py-10 opacity-50 italic">Data user tidak ditemukan.</td>
-            </tr>
-            {{ end }}
-        </tbody>
-    </table>
+					<td>
+						<div class="flex flex-col">
+							<span class="font-bold text-primary">{{ .Name }}</span>
+							<span class="text-[10px] opacity-60 italic">{{ .Email }}</span>
+						</div>
+					</td>
+
+					<td>
+						<span class="font-mono text-xs font-semibold bg-base-200 px-2 py-0.5 rounded text-base-content/80">
+							{{ if .EmployeeID }}{{ .EmployeeID }}{{ else }}-{{ end }}
+						</span>
+					</td>
+
+					<td>
+						<div class="flex flex-col gap-0.5 text-xs">
+							<div class="flex items-center gap-1">
+								<span class="opacity-60 text-[11px]">JK:</span>
+								<span class="font-bold text-base-content/80">
+									{{ if eq .Gender "L" }}L{{ else if eq .Gender "P" }}P{{ else }}-{{ end }}
+								</span>
+							</div>
+							<div class="text-[11px] opacity-60">
+								{{ if .DateOfBirth }}{{ .DateOfBirth.Format "02-01-2006" }}{{ else }}-{{ end }}
+							</div>
+						</div>
+					</td>
+
+					<td>
+						<div class="badge badge-outline badge-xs uppercase font-bold">{{ .Role.Name }}</div>
+					</td>
+
+					<td>
+						<span class="text-xs font-medium">
+							{{ .GetWorkUnitName }}
+						</span>
+					</td>
+
+					<td class="flex justify-center gap-1">
+						<button type="button" class="btn btn-square btn-warning btn-xs" data-user='{{ . | json }}'
+							@click="openEdit(JSON.parse($el.getAttribute('data-user')))">
+							{{ lucide "pencil" (dict "class" "size-3") }}
+						</button>
+
+						<form action="/people/delete" method="POST"
+							data-name="{{ .Name }}"
+							@submit.prevent="if(confirm('Hapus user ' + $el.dataset.name + '?')) $el.submit()">
+							<input type="hidden" name="id" value="{{ .ID }}">
+							<button type="submit" class="btn btn-square btn-error btn-xs">
+								{{ lucide "trash-2" (dict "class" "size-3") }}
+							</button>
+						</form>
+					</td>
+				</tr>
+			{{ else }}
+				<tr>
+					<td colspan="7" class="text-center py-10 opacity-50 italic">Data user tidak ditemukan.</td>
+				</tr>
+			{{ end }}
+		</tbody>
+	</table>
 </div>
 {{ template "pagination" . }}
 {{ end }}

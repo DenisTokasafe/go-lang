@@ -60,6 +60,77 @@
 
 				</li>
 
+				<!-- INCIDENT -->
+				<li class="py-1">
+
+					<details {{ if hasPrefix .CurrentPath "/incident" }}open{{ end }}
+						class="group">
+
+						<summary
+							class="sidebar-menu-item
+							is-drawer-close:tooltip
+							is-drawer-close:tooltip-right
+							truncate rounded-xl text-xs
+						{{ if hasPrefix .CurrentPath "/incident" }}sidebar-menu-active{{ end }}"
+							data-tip="Hazard Report">
+
+							<div class="flex items-center gap-2 overflow-hidden">
+
+								{{ lucide "shield-alert" (dict "class" "sidebar-icon size-4 shrink-0") }}
+
+								<span class="truncate is-drawer-close:hidden">
+									Incident Report
+								</span>
+
+							</div>
+
+
+
+						</summary>
+
+						<ul class="is-drawer-close:hidden mt-1 space-y-1">
+
+							{{/* <li>
+
+								<a href="/hazard"
+									class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/hazard" }}
+									bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+
+									List Report
+
+								</a>
+
+							</li> */}}
+
+							<li>
+
+								<a href="/incident/create"
+									class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/incident/create" }}
+									bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+
+									Create Report
+
+								</a>
+
+							</li>
+							{{ if hasPrefix .CurrentPath "/hazard/edit" }}
+								<li>
+
+									<a href="{{ .CurrentPath }}"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs
+									{{ if hasPrefix .CurrentPath "/hazard/edit" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}}">
+
+										Detail Report
+
+									</a>
+
+								</li>
+							{{ end }}
+						</ul>
+
+					</details>
+
+				</li>
 				<!-- HAZARD -->
 				<li class="py-1">
 
@@ -93,10 +164,8 @@
 							<li>
 
 								<a href="/hazard"
-									class="sidebar-submenu-item my-1 truncate rounded-lg text-xs
-{{ if eq .CurrentPath "/hazard" }}
-									bg-accent/20 text-accent border-l-4 border-accent font-medium
-{{ end }}">
+									class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/hazard" }}
+									bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
 
 									List Report
 
@@ -107,10 +176,8 @@
 							<li>
 
 								<a href="/hazard/create"
-									class="sidebar-submenu-item my-1 truncate rounded-lg text-xs
-{{ if eq .CurrentPath "/hazard/create" }}
-									bg-accent/20 text-accent border-l-4 border-accent font-medium
-{{ end }}">
+									class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/hazard/create" }}
+									bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
 
 									Create Report
 

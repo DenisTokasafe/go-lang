@@ -30,6 +30,7 @@ type Controllers struct {
 	EventCategoryController   *controllers.EventCategoryController
 	UserController            *controllers.UserController
 	HazardController          *controllers.HazardController
+	IncidentController        *controllers.IncidentController
 	DashboardController       *controllers.DashboardController
 }
 
@@ -202,6 +203,16 @@ func InitControllers(db *gorm.DB) *Controllers {
 				DB: db,
 			},
 			Render: render,
+		},
+
+		// =========================
+		// INCIDENT
+		// =========================
+		IncidentController: &controllers.IncidentController{
+			DB: db,
+			// Gunakan function constructor NewIncidentService agar interface-nya terikat dengan benar
+			ServiceIncident: services.NewIncidentService(db),
+			Render:          render,
 		},
 
 		// =========================

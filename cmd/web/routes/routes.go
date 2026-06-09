@@ -3,6 +3,7 @@ package routes
 import (
 	"latihan1/cmd/web/bootstrap"
 	"latihan1/cmd/web/helpers"
+	"latihan1/controllers"
 	"latihan1/middlewares"
 	"net/http"
 
@@ -11,6 +12,7 @@ import (
 
 func RegisterRoutes(db *gorm.DB, c *bootstrap.Controllers) {
 
+	http.HandleFunc("/set-lang", controllers.SetLanguage)
 	// =========================
 	// MIDDLEWARE HELPER
 	// =========================
@@ -33,7 +35,8 @@ func RegisterRoutes(db *gorm.DB, c *bootstrap.Controllers) {
 
 	distFs := http.FileServer(http.Dir("public/dist"))
 	http.Handle("/dist/", http.StripPrefix("/dist/", distFs))
-
+	imagesFs := http.FileServer(http.Dir("public/images"))
+	http.Handle("/images/", http.StripPrefix("/images/", imagesFs))
 	uploadsFs := http.FileServer(http.Dir("uploads"))
 	http.Handle("/uploads/", http.StripPrefix("/uploads/", uploadsFs))
 
@@ -46,11 +49,20 @@ func RegisterRoutes(db *gorm.DB, c *bootstrap.Controllers) {
 	http.HandleFunc("/register/process", c.AuthController.Register)
 	http.HandleFunc("/logout", c.AuthController.Logout)
 
-	// =========================
-	// DASHBOARD
-	// =========================
 	http.HandleFunc("/", withAuth(func(w http.ResponseWriter, r *http.Request) {
-		helpers.RenderTemplate(db, w, r, "/dashboard.html", nil)
+		// 1. Deteksi bahasa dari cookie
+		lang := "id"
+		if cookie, err := r.Cookie("lang"); err == nil {
+			lang = cookie.Value
+		}
+
+		// 2. Buat map data dan masukkan Tr ke dalamnya
+		data := map[string]interface{}{
+			"Tr": helpers.Translations[lang],
+		}
+
+		// 3. Kirim data tersebut (ganti nil dengan data)
+		helpers.RenderTemplate(db, w, r, "/dashboard.html", data)
 	}))
 
 	// Panggil DashboardController, bukan HazardController lagi
@@ -224,10 +236,29 @@ func RegisterRoutes(db *gorm.DB, c *bootstrap.Controllers) {
 	http.HandleFunc("/hazards/sync", withAuth(c.HazardController.SyncField))
 	http.HandleFunc("/hazard", withAuth(c.HazardController.Index))
 	http.HandleFunc("/hazard/create", withAuth(c.HazardController.Create))
-	http.HandleFunc("/hazard/store", withAuth(c.HazardController.Store))
+	http.HandleFunc("POST /hazard/store", withAuth(c.HazardController.Store))
 	http.HandleFunc("GET /hazard/edit/{id}", withAuth(c.HazardController.Edit))
 	http.HandleFunc("POST /hazard/update/{id}", withAuth(c.HazardController.Update))
 	http.HandleFunc("POST /hazard/update-status/{id}", withAuth(c.HazardController.UpdateStatus))
 	http.HandleFunc("GET /api/users/search", withAuth(c.HazardController.Search))
 	http.HandleFunc("GET /api/locations/search", withAuth(c.HazardController.SearchLocation))
+	http.HandleFunc("GET /api/contracts/search", withAuth(c.HazardController.SearchContractor))
+	http.HandleFunc("POST /hazard/delete/{id}", withAuth(c.HazardController.Delete))
+
+	// =========================
+	// INCIDENT REPORT
+	// =========================
+	http.HandleFunc("POST /incident/sync", withAuth(c.IncidentController.SyncField))
+	http.HandleFunc("/incident/create", withAuth(c.IncidentController.Create))
+	// 1. Endpoint untuk mencari Karyawan / User Internal & Kontraktor
+	http.HandleFunc("GET /incident/users/search", withAuth(c.IncidentController.Search))
+	// 2. Endpoint untuk mencari Area / Lokasi Tambang
+	http.HandleFunc("GET /incident/locations/search", withAuth(c.IncidentController.SearchLocation))
+	// 3. Endpoint untuk mencari Nama Perusahaan Kontraktor
+	http.HandleFunc("GET /incident/contractors/search", withAuth(c.IncidentController.SearchContractor))
+	// http.HandleFunc("POST /incident/store", withAuth(c.IncidentController.Store))
+	// http.HandleFunc("GET /incident/edit/{id}", withAuth(c.IncidentController.Edit))
+	// http.HandleFunc("POST /incident/update/{id}", withAuth(c.IncidentController.Update))
+	// http.HandleFunc("POST /incident/update-status/{id}", withAuth(c.IncidentController.UpdateStatus))
+	// http.HandleFunc("POST /incident/delete/{id}", withAuth(c.IncidentController.Delete))
 }

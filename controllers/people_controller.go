@@ -4,11 +4,13 @@ import (
 	// Sesuaikan dengan nama module di go.mod Anda
 
 	"fmt"
+	"latihan1/cmd/web/helpers"
 	"latihan1/models"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xuri/excelize/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -159,7 +161,14 @@ func (uc *UserController) Index(w http.ResponseWriter, r *http.Request) {
 	// =========================
 	// SEND DATA TO TEMPLATE
 	// =========================
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":            lang,
+		"Tr":              helpers.Translations[lang],
 		"Users":           users,
 		"Roles":           allRoles,
 		"Contractors":     allContractors,
@@ -187,188 +196,236 @@ func (uc *UserController) Index(w http.ResponseWriter, r *http.Request) {
 	)
 }
 func (uc *UserController) Store(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		name := r.FormValue("name")
-		username := r.FormValue("username")
-		email := r.FormValue("email")
-		password := r.FormValue("password")
-		roleID, _ := strconv.Atoi(r.FormValue("role_id"))
-		// Konversi nilai checkbox is_pic (string to bool)
-		// Checkbox biasanya mengirim "true" dari Alpine.js atau "on" jika standar HTML
-		isPIC := r.FormValue("is_pic") == "true" || r.FormValue("is_pic") == "on"
-		// Logika Hubungan Kerja
-		workType := r.FormValue("work_type") // "contractor", "department", atau "none"
-		contractorIDStr := r.FormValue("contractor_id")
-		departmentIDStr := r.FormValue("department_id")
-		moderatorCategoryIDs := r.Form["moderator_category_ids[]"]
+	if r.Method != http.MethodPost {
+		http.Redirect(w, r, "/people", http.StatusSeeOther)
+		return
+	}
 
-		if username != "" && email != "" && password != "" {
-			// 1. Hash Password (Keamanan Standar)
-			hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-			if err != nil {
-				uc.setFlash(w, "Gagal mengenkripsi password", "error")
-				http.Redirect(w, r, "/people", http.StatusSeeOther)
-				return
+	name := r.FormValue("name")
+	username := r.FormValue("username")
+	email := r.FormValue("email")
+	gender := r.FormValue("gender")
+	employeeID := r.FormValue("employee_id")
+	dateOfBirth := r.FormValue("date_of_birth")
+	password := r.FormValue("password")
+	roleID, _ := strconv.Atoi(r.FormValue("role_id"))
+
+	// Konversi nilai checkbox is_pic
+	isPIC := r.FormValue("is_pic") == "true" || r.FormValue("is_pic") == "on"
+
+	// Logika Hubungan Kerja
+	workType := r.FormValue("work_type")
+	contractorIDStr := r.FormValue("contractor_id")
+	departmentIDStr := r.FormValue("department_id")
+	moderatorCategoryIDs := r.Form["moderator_category_ids[]"]
+
+	// 1. Validasi Input Wajib (Early Return agar tidak bersarang/nested)
+	if name == "" || username == "" || email == "" || password == "" {
+		uc.setFlash(w, "Nama, Username, Email, dan Password wajib diisi", "error")
+		http.Redirect(w, r, "/people", http.StatusSeeOther)
+		return
+	}
+
+	// 2. Hash Password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		uc.setFlash(w, "Gagal mengenkripsi password", "error")
+		http.Redirect(w, r, "/people", http.StatusSeeOther)
+		return
+	}
+
+	// 3. Handle Tanggal Lahir (Mendukung NULL jika kosong)
+	var dob *time.Time // <--- GANTI INI (secara default bernilai nil/NULL)
+
+	if dateOfBirth != "" {
+		parsedDate, err := time.Parse("2006-01-02", dateOfBirth)
+		if err != nil {
+			uc.setFlash(w, "Format tanggal lahir tidak valid", "error")
+			http.Redirect(w, r, "/people", http.StatusSeeOther)
+			return
+		}
+		dob = &parsedDate // Ambil pointer dari parsedDate
+	}
+
+	// 4. Ambil Kategori Moderator (OPTIMASI: Menghindari N+1 Query di dalam Loop)
+	var categories []models.EventCategory
+	if len(moderatorCategoryIDs) > 0 {
+		var catIDs []uint
+		for _, idStr := range moderatorCategoryIDs {
+			if idUint, err := strconv.ParseUint(idStr, 10, 64); err == nil {
+				catIDs = append(catIDs, uint(idUint))
 			}
+		}
 
-			// 2. Inisialisasi Model User
-			newUser := models.User{
-				Name:     name,
-				Username: username,
-				IsPIC:    isPIC,
-				Email:    email,
-				Password: string(hashedPassword),
-				RoleID:   uint(roleID),
-			}
-
-			// 3. Set Unit Kerja Berdasarkan Pilihan (Pointer Logic)
-			if workType == "contractor" && contractorIDStr != "" {
-				id, _ := strconv.Atoi(contractorIDStr)
-				cID := uint(id)
-				newUser.ContractorID = &cID
-				newUser.DepartmentID = nil
-			} else if workType == "department" && departmentIDStr != "" {
-				id, _ := strconv.Atoi(departmentIDStr)
-				dID := uint(id)
-				newUser.DepartmentID = &dID
-				newUser.ContractorID = nil
-			}
-
-			// 4. Simpan ke Database
-			if err := uc.DB.Create(&newUser).Error; err != nil {
-				uc.setFlash(w, "Gagal menambahkan user: "+err.Error(), "error")
-				http.Redirect(w, r, "/people", http.StatusSeeOther)
-				return
-			}
-			// =========================
-			// SET MODERATOR CATEGORIES
-			// =========================
-			if len(moderatorCategoryIDs) > 0 {
-
-				var categories []models.EventCategory
-
-				for _, catID := range moderatorCategoryIDs {
-
-					idUint, err := strconv.ParseUint(catID, 10, 64)
-					if err != nil {
-						continue
-					}
-
-					var category models.EventCategory
-
-					err = uc.DB.
-						Where("id = ? AND parent_id IS NULL", uint(idUint)).
-						First(&category).Error
-
-					if err == nil {
-						categories = append(categories, category)
-					}
-				}
-
-				if len(categories) > 0 {
-					uc.DB.Model(&newUser).Association("ModeratedCategories").Replace(categories)
-				}
-			}
-			uc.setFlash(w, "User berhasil ditambahkan", "success")
-		} else {
-			uc.setFlash(w, "Semua field harus diisi", "error")
+		if len(catIDs) > 0 {
+			// Cukup jalankan 1 query dengan operator IN untuk mengambil semua kategori
+			uc.DB.Where("id IN ? AND parent_id IS NULL", catIDs).Find(&categories)
 		}
 	}
 
+	// 5. Inisialisasi Model User
+	newUser := models.User{
+		Name:                name,
+		Username:            username,
+		IsPIC:               isPIC,
+		Email:               email,
+		Gender:              gender,
+		EmployeeID:          employeeID,
+		DateOfBirth:         dob,
+		Password:            string(hashedPassword),
+		RoleID:              uint(roleID),
+		ModeratedCategories: categories, // Langsung pasang ke struct agar GORM menyimpannya secara otomatis
+	}
+
+	// 6. Set Unit Kerja Berdasarkan Pilihan (Pointer Logic)
+	if workType == "contractor" && contractorIDStr != "" {
+		if id, err := strconv.Atoi(contractorIDStr); err == nil {
+			cID := uint(id)
+			newUser.ContractorID = &cID
+			newUser.DepartmentID = nil
+		}
+	} else if workType == "department" && departmentIDStr != "" {
+		if id, err := strconv.Atoi(departmentIDStr); err == nil {
+			dID := uint(id)
+			newUser.DepartmentID = &dID
+			newUser.ContractorID = nil
+		}
+	}
+
+	// 7. Simpan ke Database (User beserta relasi Many-to-Many akan tersimpan sekaligus)
+	if err := uc.DB.Create(&newUser).Error; err != nil {
+		uc.setFlash(w, "Gagal menambahkan user: "+err.Error(), "error")
+		http.Redirect(w, r, "/people", http.StatusSeeOther)
+		return
+	}
+
+	uc.setFlash(w, "User berhasil ditambahkan", "success")
 	http.Redirect(w, r, "/people", http.StatusSeeOther)
 }
 func (uc *UserController) Update(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		id := r.FormValue("id")
-		name := r.FormValue("name")
-		username := r.FormValue("username")
-		email := r.FormValue("email")
-		roleID, _ := strconv.Atoi(r.FormValue("role_id"))
-		isPIC := r.FormValue("is_pic") == "true" || r.FormValue("is_pic") == "on"
-		// Logika Hubungan Kerja
-		workType := r.FormValue("work_type") // "contractor", "department", atau "none"
-		contractorIDStr := r.FormValue("contractor_id")
-		departmentIDStr := r.FormValue("department_id")
-		moderatorCategoryIDs := r.Form["moderator_category_ids[]"]
+	if r.Method != http.MethodPost {
+		http.Redirect(w, r, "/people", http.StatusSeeOther)
+		return
+	}
 
-		if id != "" && username != "" && email != "" {
-			var user models.User
-			if err := uc.DB.First(&user, id).Error; err != nil {
-				uc.setFlash(w, "User tidak ditemukan", "error")
-				http.Redirect(w, r, "/people", http.StatusSeeOther)
-				return
+	id := r.FormValue("id")
+	name := r.FormValue("name")
+	username := r.FormValue("username")
+	email := r.FormValue("email")
+	gender := r.FormValue("gender")
+	employeeID := r.FormValue("employee_id")
+	dateOfBirth := r.FormValue("date_of_birth")
+	roleID, _ := strconv.Atoi(r.FormValue("role_id"))
+	isPIC := r.FormValue("is_pic") == "true" || r.FormValue("is_pic") == "on"
+
+	// Logika Hubungan Kerja
+	workType := r.FormValue("work_type")
+	contractorIDStr := r.FormValue("contractor_id")
+	departmentIDStr := r.FormValue("department_id")
+	moderatorCategoryIDs := r.Form["moderator_category_ids[]"]
+
+	// 1. Validasi Input Wajib (Early Return)
+	if id == "" || username == "" || email == "" {
+		uc.setFlash(w, "ID, Username, dan Email wajib diisi", "error")
+		http.Redirect(w, r, "/people", http.StatusSeeOther)
+		return
+	}
+
+	// 2. Ambil Data User Lama dari Database
+	var user models.User
+	if err := uc.DB.First(&user, id).Error; err != nil {
+		uc.setFlash(w, "User tidak ditemukan", "error")
+		http.Redirect(w, r, "/people", http.StatusSeeOther)
+		return
+	}
+
+	// 3. Handle Tanggal Lahir (Disamakan menggunakan sql.NullTime seperti fungsi Store)
+	var dob *time.Time // <--- GANTI INI (secara default bernilai nil/NULL)
+
+	if dateOfBirth != "" {
+		parsedDate, err := time.Parse("2006-01-02", dateOfBirth)
+		if err != nil {
+			uc.setFlash(w, "Format tanggal lahir tidak valid", "error")
+			http.Redirect(w, r, "/people", http.StatusSeeOther)
+			return
+		}
+		dob = &parsedDate // Ambil pointer dari parsedDate
+	}
+
+	// 4. Update Data Dasar pada Struct
+	user.Name = name
+	user.Username = username
+	user.Email = email
+	user.Gender = gender
+	user.EmployeeID = employeeID
+	user.DateOfBirth = dob // FIXED: Menggunakan sql.NullTime yang aman
+	user.RoleID = uint(roleID)
+	user.IsPIC = isPIC
+
+	// 5. Update Password (Hanya jika diisi dari form)
+	password := r.FormValue("password")
+	if password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			uc.setFlash(w, "Gagal mengenkripsi password baru", "error")
+			http.Redirect(w, r, "/people", http.StatusSeeOther)
+			return
+		}
+		user.Password = string(hashedPassword)
+	}
+
+	// 6. Logika Reset & Set Unit Kerja (Pointer Handling agar bisa NULL di DB)
+	if workType == "contractor" && contractorIDStr != "" {
+		if idVal, err := strconv.Atoi(contractorIDStr); err == nil {
+			cID := uint(idVal)
+			user.ContractorID = &cID
+			user.DepartmentID = nil
+		}
+	} else if workType == "department" && departmentIDStr != "" {
+		if idVal, err := strconv.Atoi(departmentIDStr); err == nil {
+			dID := uint(idVal)
+			user.DepartmentID = &dID
+			user.ContractorID = nil
+		}
+	} else {
+		user.ContractorID = nil
+		user.DepartmentID = nil
+	}
+
+	// 7. Eksekusi Update Data User Utama ke Database
+	err := uc.DB.Model(&user).
+		Select("Name", "Username", "Email", "Password", "EmployeeID", "DateOfBirth", "Gender", "RoleID", "ContractorID", "DepartmentID", "IsPIC").
+		Updates(user).Error
+
+	if err != nil {
+		uc.setFlash(w, "Gagal mengupdate data user: "+err.Error(), "error")
+		http.Redirect(w, r, "/people", http.StatusSeeOther)
+		return // FIXED: Jika update utama gagal, jangan lanjut ke update relasi
+	}
+
+	// 8. UPDATE MODERATOR CATEGORY (OPTIMASI: Menggunakan 1 Query IN)
+	var categories []models.EventCategory
+	if len(moderatorCategoryIDs) > 0 {
+		var catIDs []uint
+		for _, idStr := range moderatorCategoryIDs {
+			if idUint, err := strconv.ParseUint(idStr, 10, 64); err == nil {
+				catIDs = append(catIDs, uint(idUint))
 			}
+		}
 
-			// 1. Update data dasar
-			user.Name = name
-			user.Username = username
-			user.Email = email
-			user.RoleID = uint(roleID)
-			user.IsPIC = isPIC
-			// 2. Update Password (hanya jika diisi/diubah)
-			password := r.FormValue("password")
-			if password != "" {
-				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-				if err != nil {
-					uc.setFlash(w, "Gagal mengenkripsi password baru", "error")
-					http.Redirect(w, r, "/people", http.StatusSeeOther)
-					return
-				}
-				user.Password = string(hashedPassword)
-			}
-
-			// 3. Logika Reset & Set Unit Kerja (Pointer Handling)
-			if workType == "contractor" && contractorIDStr != "" {
-				idVal, _ := strconv.Atoi(contractorIDStr)
-				cID := uint(idVal)
-				user.ContractorID = &cID
-				user.DepartmentID = nil // Paksa NULL di database
-			} else if workType == "department" && departmentIDStr != "" {
-				idVal, _ := strconv.Atoi(departmentIDStr)
-				dID := uint(idVal)
-				user.DepartmentID = &dID
-				user.ContractorID = nil // Paksa NULL di database
-			} else {
-				user.ContractorID = nil
-				user.DepartmentID = nil
-			}
-
-			// 4. Eksekusi Update dengan Select untuk mendukung NULL values
-			// Kita list kolom yang wajib ikut diupdate meskipun nilainya nil/0
-			err := uc.DB.Model(&user).Select("Name", "Username", "Email", "Password", "RoleID", "ContractorID", "DepartmentID", "IsPIC").Updates(user).Error
-			// =========================
-			// UPDATE MODERATOR CATEGORY
-			// =========================
-			var categories []models.EventCategory
-
-			for _, catID := range moderatorCategoryIDs {
-
-				idUint, err := strconv.ParseUint(catID, 10, 64)
-				if err != nil {
-					continue
-				}
-
-				var category models.EventCategory
-
-				err = uc.DB.
-					Where("id = ? AND parent_id IS NULL", uint(idUint)).
-					First(&category).Error
-
-				if err == nil {
-					categories = append(categories, category)
-				}
-			}
-
-			// replace moderator relation
-			uc.DB.Model(&user).Association("ModeratedCategories").Replace(categories)
-			if err != nil {
-				uc.setFlash(w, "Gagal mengupdate user: "+err.Error(), "error")
-			} else {
-				uc.setFlash(w, "Data user berhasil diupdate", "success")
-			}
+		if len(catIDs) > 0 {
+			uc.DB.Where("id IN ? AND parent_id IS NULL", catIDs).Find(&categories)
 		}
 	}
 
+	// Replace hubungan Many-to-Many di tabel pivot
+	if err := uc.DB.Model(&user).Association("ModeratedCategories").Replace(categories); err != nil {
+		uc.setFlash(w, "Data user terupdate, namun gagal memperbarui kategori moderator: "+err.Error(), "error")
+		http.Redirect(w, r, "/people", http.StatusSeeOther)
+		return
+	}
+
+	uc.setFlash(w, "Data user berhasil diupdate", "success")
 	http.Redirect(w, r, "/people", http.StatusSeeOther)
 }
 func (uc *UserController) Delete(w http.ResponseWriter, r *http.Request) {
@@ -464,9 +521,27 @@ func (uc *UserController) UploadExcel(w http.ResponseWriter, r *http.Request) {
 		if len(row) > 4 {
 			unitNameExcel = strings.TrimSpace(row[4])
 		}
+
 		passwordExcel := ""
 		if len(row) > 5 {
 			passwordExcel = strings.TrimSpace(row[5])
+		}
+
+		employeeIDExcel := ""
+		if len(row) > 6 {
+			employeeIDExcel = strings.TrimSpace(row[6])
+		}
+
+		// --- TAMBAHAN BARU: Ekstraksi Tanggal Lahir & Jenis Kelamin ---
+		dateOfBirthExcel := ""
+		if len(row) > 7 {
+			dateOfBirthExcel = strings.TrimSpace(row[7])
+		}
+
+		genderExcel := ""
+		if len(row) > 8 {
+			// Ditrim dan paksa ke UPPERCASE supaya input 'l' atau 'p' kecil tetap seragam jadi 'L' / 'P'
+			genderExcel = strings.ToUpper(strings.TrimSpace(row[8]))
 		}
 
 		// --- SOLUSI DUPLICATE ENTRY: Generate Unique Fallback ---
@@ -523,34 +598,38 @@ func (uc *UserController) UploadExcel(w http.ResponseWriter, r *http.Request) {
 
 		// Jika create user baru
 		if user.ID == 0 {
-
 			// Pakai password dari excel jika ada
 			if passwordExcel != "" {
-
 				user.Password = passwordExcel
-
 			} else {
-
 				// fallback default bcrypt
 				user.Password = string(defaultPass)
-
 			}
-
 		} else {
-
 			// Jika update user existing
 			// hanya update password bila kolom F diisi
 			if passwordExcel != "" {
-
 				user.Password = passwordExcel
-
 			}
-
 		}
 
 		user.RoleID = roleID
 		user.ContractorID = contractorID
 		user.DepartmentID = departmentID
+		user.EmployeeID = employeeIDExcel
+
+		// --- TAMBAHAN BARU: Parsing Tanggal Lahir & Map ke Model ---
+		var parsedDOB *time.Time
+		if dateOfBirthExcel != "" {
+			// Format layout default: "YYYY-MM-DD" (Contoh: 1997-04-28)
+			// Jika format di Excel Anda adalah "DD-MM-YYYY", ubah layout menjadi "02-01-2006"
+			t, err := time.Parse("2006-01-02", dateOfBirthExcel)
+			if err == nil {
+				parsedDOB = &t
+			}
+		}
+		user.DateOfBirth = parsedDOB
+		user.Gender = genderExcel
 
 		// Eksekusi Save
 		if err := tx.Save(&user).Error; err != nil {

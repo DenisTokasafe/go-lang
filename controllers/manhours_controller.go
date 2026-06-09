@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"latihan1/cmd/web/helpers"
 	"latihan1/models"
 	"math"
 	"net/http"
@@ -136,7 +137,14 @@ func (mc *ManhoursController) Index(w http.ResponseWriter, r *http.Request) {
 	custodiansJSON, _ := json.Marshal(allCustodians)
 	totalPages := int(math.Ceil(float64(totalRows) / float64(pageSize)))
 
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":             lang,
+		"Tr":               helpers.Translations[lang],
 		"Manhours":         manhours,
 		"BusinessUnits":    allBusinessUnits,
 		"DepartmentGroups": allDepartmentGroups,

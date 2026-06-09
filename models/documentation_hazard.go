@@ -14,7 +14,8 @@ type Documentation struct {
 	FileSize int64  `json:"file_size"`
 
 	// RELASI KE PIVOT
-	HazardLinks []HazardDocumentation `gorm:"foreignKey:DocumentationID" json:"hazard_links"`
+	HazardLinks   []HazardDocumentation   `gorm:"foreignKey:DocumentationID" json:"hazard_links"`
+	IncidentLinks []IncidentDocumentation `gorm:"foreignKey:DocumentationID" json:"incident_links"`
 
 	// OPTIONAL: siapa upload
 	UploadedByID *uint `json:"uploaded_by_id"`

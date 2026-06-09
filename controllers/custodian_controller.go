@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"errors"
+	"latihan1/cmd/web/helpers"
 	"latihan1/models"
 	"math"
 	"net/http"
@@ -66,7 +67,14 @@ func (cc *CustodianController) Index(w http.ResponseWriter, r *http.Request) {
 
 	totalPages := int(math.Ceil(float64(totalRows) / float64(pageSize)))
 
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":        lang,
+		"Tr":          helpers.Translations[lang],
 		"Custodians":  custodians,
 		"Departments": allDepartments,
 		"Contractors": allContractors,

@@ -3,6 +3,7 @@ package controllers
 import (
 	"errors"
 	"fmt"
+	"latihan1/cmd/web/helpers"
 	"latihan1/models"
 	"math"
 	"net/http"
@@ -68,7 +69,14 @@ func (dgc *DepartmentGroupController) Index(w http.ResponseWriter, r *http.Reque
 
 	totalPages := int(math.Ceil(float64(totalRows) / float64(pageSize)))
 
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":             lang,
+		"Tr":               helpers.Translations[lang],
 		"DepartmentGroups": departmentGroups,
 		"Departments":      allDepartments,
 		"Groups":           allGroups,

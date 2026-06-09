@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"latihan1/cmd/web/helpers"
 	"latihan1/models" // Sesuaikan dengan nama module di go.mod Anda
 	"math"
 	"net/http"
@@ -42,7 +43,14 @@ func (rlc *RiskLikelihoodController) Index(w http.ResponseWriter, r *http.Reques
 
 	totalPages := int(math.Ceil(float64(totalRows) / float64(pageSize)))
 
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":        lang,
+		"Tr":          helpers.Translations[lang],
 		"Likelihoods": likelihoods,
 		"CurrentPage": page,
 		"TotalPages":  totalPages,

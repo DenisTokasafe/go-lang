@@ -1,3 +1,4 @@
+{{ define "title" }}Detail Hazard - SENTRY{{ end }}
 {{ define "content" }}
 
 <div class="px-4 w-full" x-data="{
@@ -5,7 +6,7 @@
 	// =========================
 	// BASIC STATE
 	// =========================
-
+	is_verified: 'false',
 	type_error: false,
 	status_area: '{{ .StatusArea }}', // default value
 	status_laporan: '{{ printf "%s" .Hazard.Status }}',
@@ -96,6 +97,7 @@
 	document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
 	}
 	},
+
 
 	// =========================
 	// INIT
@@ -536,7 +538,37 @@
 	}, 50)
 	},
 
+	// =========================
+	// DELETE ACTION
+	// =========================
+	deleteHazard(id) {
+	if (!confirm('Apakah Anda yakin ingin menghapus hazard ini? Aksi ini tidak dapat dibatalkan.')) {
+	return;
+	}
 
+	fetch('/hazard/delete/' + id, {
+	method: 'POST',
+	headers: {
+	'Content-Type': 'application/json',
+	// Jika aplikasi Anda menggunakan CSRF, pastikan menambahkan header ini:
+	'X-CSRF-Token': '{{ .CSRFToken }}'
+	}
+	})
+	.then(async response => {
+	if (response.ok) {
+	window.location.href = '/hazard'; 
+	} else {
+	// Tangkap pesan error dari JSON yang dikirim Controller
+	const data = await response.json().catch(() => ({}));
+	const errorMessage = data.error || 'Terjadi kesalahan sistem atau CSRF token tidak valid.';
+	alert('Gagal: ' + errorMessage);
+	}
+	})
+	.catch(error => {
+	console.error('Error:', error);
+	alert('Terjadi kesalahan koneksi.');
+	});
+	},
 
 	// =========================
 	// BACKEND SYNC
@@ -643,7 +675,7 @@
 
 	<div class="flex md:flex-row flex-col justify-between px-4">
 		<h1 class="text-sm font-bold mb-2 text-base-content uppercase tracking-wider">
-			Edit Laporan Hazard
+			Detail Laporan Hazard
 		</h1>
 		<!-- You can open the modal using ID.showModal() method -->
 		<div class="gap-2 flex items-center mb-2">
@@ -863,9 +895,12 @@
 
 {{ define "slot" }}
 
-<form x-ref="form" action="/hazard/update/{{ .Hazard.ID }}" method="POST" enctype="multipart/form-data"
-	@submit.prevent="handleSubmit">
 
+
+<form x-ref="form" action="/hazard/update/{{ .Hazard.ID }}" method="POST" enctype="multipart/form-data" novalidate
+	@submit.prevent="handleSubmit">
+	<input type="hidden" name="is_verified" :value="is_verified">
+	<input type="hidden" name="is_reopening" value="false">
 	<input type="hidden" name="_method" value="PUT">
 
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-2 ">
@@ -873,7 +908,7 @@
 		<div class="relative " @change="syncData('event_category_id', $event.detail)">
 
 			{{ template "select-search" (dict
-				"Label" "Tipe Bahaya"
+				"Label" (index .Tr "ReportType")
 				"Name" "event_category_id"
 				"ModelName" "event_category_id"
 				"Value" .Hazard.EventCategory.ParentID
@@ -888,7 +923,7 @@
 		</div>
 
 		{{ template "select-dynamic" (dict
-			"Label" "Jenis bahaya"
+			"Label" (index .Tr "HazardType")
 			"Name" "event_type_id"
 			"Model" "event_type_id"
 			"Value" .Hazard.EventCategoryID
@@ -901,7 +936,7 @@
 		}}
 
 		{{ template "select_input" (dict
-			"Label" "Kategori Bahaya"
+			"Label" (index .Tr "HazardCategory")
 			"Name" "scat_option_id"
 			"ShowType" true
 			"Model" "scat_option_id"
@@ -914,14 +949,14 @@
 
 		<div class="relative my-select-field" @change="location_id = $event.detail">
 
-			{{ template "select-search" (dict "Label" "Lokasi" "Name" "location_id" "ModelName" "location_id" "SearchURL" "/api/locations/search" "Value" .Hazard.LocationID "Options" .Locations "Required" true "DefaultText" "-- Pilih Lokasi --" "Placeholder" "Cari lokasi..." "DisabledBinding" "isClosed") }}
+			{{ template "select-search" (dict "Label" (index .Tr "Location") "Name" "location_id" "ModelName" "location_id" "SearchURL" "/api/locations/search" "Value" .Hazard.LocationID "Options" .Locations "Required" true "DefaultText" "-- Pilih Lokasi --" "Placeholder" "Cari lokasi..." "DisabledBinding" "isClosed") }}
 
 		</div>
 
 		<div x-show="location_id" x-transition>
 
 			{{ template "input" (dict
-				"Label" "Lokasi spesifik"
+				"Label" (index .Tr "LocationSpecific")
 				"Name" "location_specific"
 				"Placeholder" "Isi Lokasi spesifik..."
 				"Required" true
@@ -935,11 +970,11 @@
 		<div class="relative ">
 
 			{{ template "select-user-search" (dict
-				"Label" "Nama Pelapor"
+				"Label" (index .Tr "ReporterName")
 				"Options" .Users
 				"Value" .Hazard.ReportBy.ID
 				"SelectedLabel" .Hazard.ReportBy.Name
-				"DefaultText" "-- Pilih atau Ketik Nama --"
+				"DefaultText" (index .Tr "SelectReporterName")
 				"Attr" "x-model='report_by_id'"
 				"Required" true
 				"DisabledBinding" "isClosed"
@@ -950,12 +985,12 @@
 
 
 		{{ template "input-flatpickr" (dict
-			"Label" "Tanggal & Waktu Kejadian"
+			"Label" (index .Tr "DateTimeObservation")
 			"Name" "event_date"
 			"Id" "event_date"
 			"Value" (.Hazard.TanggalWaktu.Format "2006-01-02 15:04")
 			"Type" "date-time"
-			"Placeholder" "Pilih tanggal..."
+			"Placeholder" (index .Tr "InputDateObservation")
 			"Required" true
 			"RequiredBinding" ""
 			"DisabledBinding" "isClosed"
@@ -967,7 +1002,7 @@
 	<fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border px-2">
 
 		<legend class="fieldset-legend">
-			Penanggung Jawab
+			{{ index .Tr "ResponsibleParty" }}
 		</legend>
 
 		<div class="flex flex-col md:flex-row items-center gap-2 ">
@@ -990,7 +1025,7 @@
 					? 'opacity-50 cursor-not-allowed'
 					: 'peer-checked/draft:text-sky-500'"
 					class="text-sm font-semibold text-base-content opacity-60 mb-1">
-					Department
+					{{ index .Tr "Department" }}
 				</label>
 
 				<input
@@ -1009,7 +1044,7 @@
 					? 'opacity-50 cursor-not-allowed'
 					: 'peer-checked/published:text-sky-500'"
 					class="text-sm font-semibold mb-1 text-base-content opacity-60">
-					Contractor
+					{{ index .Tr "Contractor" }}
 				</label>
 
 				<div class="hidden peer-checked/draft:block  relative"
@@ -1022,33 +1057,76 @@
 				<div class="hidden peer-checked/published:block  relative"
 					@change="syncData('contractor_id', $event.detail)">
 
-					{{ template "select-search" (dict "Label" "" "Name" "contractor_id" "ModelName" "contractor_id" "Value" .Hazard.ContractorID "Options" .Contractors "DefaultText" "-- Pilih Contractor --" "Attr" "x-model='contractor_id'" "RequiredBinding" "work_type === 'contractor'" "DisabledBinding" "isClosed") }}
+					{{ template "select-search" (dict "Label" ""
+						"Name" "contractor_id" "ModelName"
+						"contractor_id" "Value" .Hazard.ContractorID
+						"SearchURL" "/api/contracts/search"
+						"Options" .Contractors
+						"DefaultText" "-- Pilih Contractor --"
+						"Attr" "x-model='contractor_id'"
+						"RequiredBinding" "work_type === 'contractor'"
+						"DisabledBinding" "isClosed"
+						)
+					}}
 
 				</div>
 
 			</fieldset>
 
-			{{ template "select-dynamic" (dict "Label" "Person In Charge (PIC)" "Name" "pic_id" "Model" "pic_id" "Value" .Hazard.PicID "OptionsArray" "all_pics" "ShowCondition" "work_type" "DefaultText" "-- Pilih PIC --" "Required" true "DisabledBinding" "isClosed") }}
+			{{ template "select-dynamic" (dict "Label" (index .Tr "PIC") "Name" "pic_id" "Model" "pic_id" "Value" .Hazard.PicID "OptionsArray" "all_pics" "ShowCondition" "work_type" "DefaultText" (index .Tr "SelectPIC") "Required" true "DisabledBinding" "isClosed") }}
 		</div>
 
 	</fieldset>
 
+	{{ $descId := "hazardDescription" }}
+	{{ $descLabel := "Deskripsi Bahaya" }}
+	{{ $descName := "description" }}
+	{{ $descValue := .Hazard.Deskripsi }}
+
+	{{ if eq .Lang "en" }}
+		{{ $descId = "hazardDescriptionEn" }}
+		{{ $descLabel = "Hazard Description" }}
+		{{ $descName = "description_en" }}
+		{{ $descValue = .Hazard.DeskripsiEn }}
+	{{ end }}
+
 	{{ template "ckeditor" (dict
-		"ID" "hazardDescription"
-		"Label" "Deskripsi Bahaya"
-		"Name" "description"
-		"AlpineVar" "hazardDescription"
-		"Value" .Hazard.Deskripsi
+		"ID" $descId
+		"Label" $descLabel
+		"Name" $descName
+		"AlpineVar" $descId
+		"Value" $descValue
 		"Required" true
 		"DisabledBinding" "isClosed"
 		)
 	}}
 
-	{{ template "input-file" (dict "Label" "Upload Dokumentasi Deskripsi" "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "ExistingFiles" .DescDocs "DisabledBinding" "isClosed") }}
-	{{ template "ckeditor" (dict "ID" "hazardCorrective_action" "Label" "Tindakan Perbaikan Langsung" "Name" "corrective_action" "AlpineVar" "hazardCorrective_action" "Value" .Hazard.CorrectiveAction "Required" true "DisabledBinding" "isClosed") }}
+	{{ template "input-file" (dict "Label" (index .Tr "UploadDocument") "DragDropUpload" (index .Tr "DragDropUpload") "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "ExistingFiles" .DescDocs "DisabledBinding" "isClosed") }}
+	{{ $actionId := "hazardCorrective_action" }}
+	{{ $actionLabel := "Tindakan Perbaikan Langsung" }}
+	{{ $actionName := "corrective_action" }}
+	{{ $actionValue := .Hazard.CorrectiveAction }}
+
+	{{ if eq .Lang "en" }}
+		{{ $actionId = "hazardCorrective_actionEn" }}
+		{{ $actionLabel = "Immediate Corrective Action" }}
+		{{ $actionName = "corrective_action_en" }}
+		{{ $actionValue = .Hazard.CorrectiveActionEn }}
+	{{ end }}
+
+	{{ template "ckeditor" (dict
+		"ID" $actionId
+		"Label" $actionLabel
+		"Name" $actionName
+		"AlpineVar" $actionId
+		"Value" $actionValue
+		"Required" true
+		"DisabledBinding" "isClosed"
+		)
+	}}
 
 
-	{{ template "input-file" (dict "Label" "Upload Dokumentasi Corrective" "Name" "dokumentasi_corrective" "Id" "dokumentasi_corrective" "Required" true "ExistingFiles" .CorrectiveDocs "DisabledBinding" "isClosed") }}
+	{{ template "input-file" (dict "Label" (index .Tr "UploadDocument") "DragDropUpload" (index .Tr "DragDropUpload") "Name" "dokumentasi_corrective" "Id" "dokumentasi_corrective" "Required" true "ExistingFiles" .CorrectiveDocs "DisabledBinding" "isClosed") }}
 
 	<div class="flex flex-col md:flex-row gap-2 ">
 
@@ -1260,7 +1338,7 @@
 			<span class="bg-primary/10 p-1 rounded-lg">
 				{{ lucide "activity" (dict "class" "size-4 text-primary") }}
 			</span>
-			Status Area Saat Ini?
+			{{ index .Tr "CurrentAreaStatus" }}
 		</h2>
 
 		<!-- WRAPPER VALIDATION -->
@@ -1304,12 +1382,12 @@
 								? 'text-success'
 								: ''">
 
-								Sudah Aman Total
+								{{ index .Tr "FullySecured" }}
 
 							</p>
 
 							<p class="text-[10px] opacity-60 italic">
-								Masalah selesai di tempat
+								{{ index .Tr "ResolvedOnSite" }}
 							</p>
 
 						</div>
@@ -1356,12 +1434,12 @@
 								? 'text-warning'
 								: ''">
 
-								Aman Sementara
+								{{ index .Tr "TemporarilySecured" }}
 
 							</p>
 
 							<p class="text-[10px] opacity-60 italic">
-								Perlu perbaikan lebih lanjut
+								{{ index .Tr "FurtherActionRequired" }}
 							</p>
 
 						</div>
@@ -1387,7 +1465,7 @@
 
 			<!-- ERROR MESSAGE -->
 			<p x-show="status_area_error" x-transition class="text-error text-xs font-semibold">
-				Silakan pilih status area terlebih dahulu
+				{{ index .Tr "SelectAreaStatusFirst" }}
 			</p>
 		</div>
 
@@ -1399,12 +1477,12 @@
 			<div class="flex justify-between items-center">
 
 				<h3 class="font-bold text-sm">
-					Corrective Action Lanjutan
+					{{ index .Tr "CorrectiveActionFollowUp" }}
 				</h3>
 
 				<button type="button" class="btn btn-primary btn-sm" @click="addCorrectiveAction()">
 
-					Tambah Action
+					{{ index .Tr "AddAction" }}
 
 				</button>
 
@@ -1424,7 +1502,7 @@
 
 						<button type="button" class="btn btn-error btn-xs" @click="removeCorrectiveAction(index)">
 
-							Hapus
+							{{ index .Tr "Delete" }}
 
 						</button>
 
@@ -1432,14 +1510,14 @@
 
 					<!-- FOLLOWUP -->
 					<div>
-						{{ template "ckeditor-loop" (dict "Label" "Tindakan Lanjut" "Name" "followup_action[]" "ID" "`followup_${index}`" "AlpineVar" "action.followup_action" "RequiredBinding" "status_area === 'sementara'") }}
+						{{ template "ckeditor-loop" (dict "Label" (index .Tr "Delete") "Name" "followup_action[]" "ID" "`followup_${index}`" "AlpineVar" "action.followup_action" "RequiredBinding" "status_area === 'sementara'") }}
 					</div>
 
 					<!-- TYPE -->
 					<fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border px-2">
 
 						<legend class="fieldset-legend">
-							Target Terkait
+							{{ index .Tr "TargetDeptContractor" }}
 						</legend>
 
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1455,7 +1533,7 @@
 											" :name="`corrective_action_type_${index}`" class="radio radio-xs" />
 
 										<span class="label-text">
-											Department
+											{{ index .Tr "Department" }}
 										</span>
 
 									</label>
@@ -1469,7 +1547,7 @@
 											" :name="`corrective_action_type_${index}`" class="radio radio-xs" />
 
 										<span class="label-text">
-											Contractor
+											{{ index .Tr "Contractor" }}
 										</span>
 
 									</label>
@@ -1484,7 +1562,7 @@
 									)
 									">
 
-									{{ template "select-search-loop" (dict "Name" "department_terkait_id[]" "Placeholder" "Cari & Pilih Department..." "DefaultText" "-- Pilih Department --" "AlpineVar" "action.department_terkait_id" "Options" $.Departments "RequiredBinding" "status_area === 'sementara' && action.type=== 'department'" "Attr" "@change=\"syncData('department_terkait_id', action.department_terkait_id, index)\"") }}
+									{{ template "select-search-loop" (dict "Name" "department_terkait_id[]" "Placeholder" (index .Tr "SearchDept") "DefaultText" (index .Tr "SelectDepartment") "AlpineVar" "action.department_terkait_id" "Options" $.Departments "RequiredBinding" "status_area === 'sementara' && action.type=== 'department'" "Attr" "@change=\"syncData('department_terkait_id', action.department_terkait_id, index)\"") }}
 
 								</div>
 
@@ -1497,7 +1575,7 @@
 									)
 									">
 
-									{{ template "select-search-loop" (dict "Name" "contractor_terkait_id[]" "Placeholder" "Cari & Pilih Contractor..." "DefaultText" "-- Pilih Contractor --" "AlpineVar" "action.contractor_terkait_id" "Options" $.Contractors "RequiredBinding" "status_area === 'sementara' && action.type=== 'contractor'" "Attr" "@change=\"syncData('contractor_terkait_id', action.contractor_terkait_id, index)\"") }}
+									{{ template "select-search-loop" (dict "Name" "contractor_terkait_id[]" "Placeholder" (index .Tr "SearchContractor") "DefaultText" (index .Tr "SelectContractor") "AlpineVar" "action.contractor_terkait_id" "Options" $.Contractors "RequiredBinding" "status_area === 'sementara' && action.type=== 'contractor'" "Attr" "@change=\"syncData('contractor_terkait_id', action.contractor_terkait_id, index)\"") }}
 
 								</div>
 							</div>
@@ -1505,7 +1583,7 @@
 							<div>
 								<label class="label mb-0.5">
 									<span class="text-xs font-bold text-base-content opacity-60">
-										PIC
+										{{ index .Tr "PIC" }}
 										<span class="text-error font-bold ml-0.5">*</span>
 									</span>
 
@@ -1519,7 +1597,7 @@
 									">
 
 									<option value="">
-										-- Pilih PIC --
+										{{ index .Tr "SelectPIC" }}
 									</option>
 
 									<template x-for="pic in action.pics" :key="pic.ID">
@@ -1536,7 +1614,7 @@
 								</select>
 								<template x-if="action.errors?.pic">
 									<p class="text-error text-[10px] mt-1 font-semibold">
-										PIC wajib dipilih
+										{{ index .Tr "PicRequired" }}
 									</p>
 								</template>
 							</div>
@@ -1554,7 +1632,7 @@
 									:name="`due_date[]`" x-model="action.due_date">
 								<template x-if="action.errors?.due_date">
 									<p class="text-error text-[10px] mt-1 font-semibold">
-										Due date wajib diisi
+										{{ index .Tr "DueDateRequired" }}
 									</p>
 								</template>
 
@@ -1582,15 +1660,84 @@
 		</div>
 	</div>
 
-	<div class="justify-self-end w-full max-w-md">
+	{{ $hasComment := ne .Hazard.ModeratorComment "" }}
+	{{ $isModerator := .IsModerator }} 
 
-		<button type="submit" class="btn btn-warning btn-sm px-6 mt-4 btn-block">
+	{{ $disabledExpr := "true" }} 
+	{{ if $isModerator }}
+		{{ $disabledExpr = "isClosed" }} 
+	{{ end }}
 
+	{{ if or $hasComment $isModerator }}
+		<div class="mt-4 p-4 bg-base-200/50 rounded-xl border border-base-300">
+			<label class="label mb-1 px-0">
+				<span class="text-sm font-bold flex items-center gap-2">
+					<span class="bg-warning/10 p-1 rounded-lg">
+						{{ lucide "message-square" (dict "class" "size-4 text-warning") }}
+					</span>
+					{{ index .Tr "AuditorNotes" }}
+				</span>
+			</label>
+
+			{{ $modId := "hazardModerator_comment" }}
+			{{ $modLabel := "Komentar Moderator" }}
+			{{ $modName := "moderator_comment" }}
+			{{ $modValue := .Hazard.ModeratorComment }}
+
+			{{ if eq .Lang "en" }}
+				{{ $modId = "hazardModerator_commentEn" }}
+				{{ $modLabel = "Moderator Comment" }}
+				{{ $modName = "moderator_comment_en" }}
+				{{ $modValue = .Hazard.ModeratorCommentEn }}
+			{{ end }}
+
+			{{ template "ckeditor" (dict
+				"ID" $modId
+				"Label" $modLabel
+				"Name" $modName
+				"AlpineVar" $modId
+				"Value" $modValue
+				"Required" false
+				"DisabledBinding" "isClosed"
+				)
+			}}
+
+			{{ if $isModerator }}
+				<p class="text-[10px] opacity-60 mt-1.5 italic flex items-start gap-1">
+					{{ lucide "info" (dict "class" "size-3 mt-0.5 shrink-0") }}
+					{{ index .Tr "OptionalInfo" }}
+				</p>
+			{{ else }}
+				<p class="text-[10px] mt-1.5 text-warning font-semibold italic flex items-start gap-1">
+					{{ lucide "alert-circle" (dict "class" "size-3 mt-0.5 shrink-0") }}
+					{{ index .Tr "CompleteInstruction" }}
+				</p>
+			{{ end }}
+		</div>
+	{{ end }}
+	<div class="justify-self-end w-full max-w-md flex flex-col md:flex-row gap-2 mt-4">
+
+		<!-- Tombol 1: Simpan/Update Data Biasa (Mengubah status ke In Progress / Pending otomatis di Go) -->
+		<button type="button" @click="is_verified = 'false';  handleSubmit()" class="btn btn-warning btn-sm px-6 flex-1" :disabled="isClosed">
 			{{ lucide "save" (dict "class" "size-4") }}
-
-			Update Hazard
-
+			{{ index .Tr "UpdateHazard" }}
 		</button>
+
+		<!-- Tombol 2: Hanya Muncul Jika Status Saat Ini 'pending' (Menunggu Verifikasi Auditor) -->
+		{{ if eq .Hazard.Status "pending" }}
+			<button type="button" @click="is_verified = 'true'; handleSubmit()" class="btn btn-success btn-sm px-6 flex-1 text-white" :disabled="isClosed">
+				{{ lucide "check-circle" (dict "class" "size-4") }}
+				{{ index .Tr "VerifyClose" }}
+			</button>
+		{{ end }}
+		{{ if .IsModerator }}
+
+			<button type="button" class="btn btn-error btn-sm px-6" @click="deleteHazard('{{ .Hazard.ID }}')" :disabled="isClosed">
+				{{ lucide "trash-2" (dict "class" "size-4") }}
+				{{ index .Tr "Delete" }}
+			</button>
+
+		{{ end }}
 
 	</div>
 

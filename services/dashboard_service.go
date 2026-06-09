@@ -51,6 +51,15 @@ type RecentHazard struct {
 	Status       string `json:"status"`
 }
 
+type HazardChartDTO struct {
+	DepartmentID   *uint  `json:"department_id"`
+	DepartmentName string `json:"department_name"`
+	ContractorID   *uint  `json:"contractor_id"`
+	ContractorName string `json:"contractor_name"`
+	OpenCount      int64  `json:"open_count"`
+	ClosedCount    int64  `json:"closed_count"`
+}
+
 type HazardSummaryResult struct {
 	KPI                KPIData           `json:"kpi"`
 	MonthlyTrend       []MonthlyTrend    `json:"monthly_trend"`
@@ -60,6 +69,7 @@ type HazardSummaryResult struct {
 	EnvScatPieData     []ScatPieData     `json:"env_scat_pie_data"`
 	CategoryBarData    []CategoryBarData `json:"category_bar_data"`
 	EnvCategoryBarData []CategoryBarData `json:"env_category_bar_data"`
+	StatusResult       []HazardChartDTO  `json:"status_result"`
 }
 
 func (s *DashboardService) GetHazardSummary(rawRange string) (*HazardSummaryResult, error) {
@@ -99,6 +109,7 @@ func (s *DashboardService) GetHazardSummary(rawRange string) (*HazardSummaryResu
 	result.RecentHazards = []RecentHazard{}
 	result.ScatPieData = []ScatPieData{}
 	result.CategoryBarData = []CategoryBarData{}
+	result.StatusResult = []HazardChartDTO{}
 
 	// =================================================================
 	// 2. EKSEKUSI QUERY DENGAN FUNGSI DATE() MYSQL
@@ -236,6 +247,26 @@ func (s *DashboardService) GetHazardSummary(rawRange string) (*HazardSummaryResu
 		Group("DATE_FORMAT(hazards.tanggal_waktu, '%Y-%m'), child_cat.name").
 		Order("DATE_FORMAT(hazards.tanggal_waktu, '%Y-%m') ASC").
 		Scan(&result.EnvCategoryBarData).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.DB.Model(&models.Hazard{}).
+		Select(`
+        hazards.department_id, 
+        COALESCE(departments.name, 'No Department') as department_name,
+        hazards.contractor_id, 
+        COALESCE(contractors.name, 'Internal / No Contractor') as contractor_name,
+        SUM(CASE WHEN hazards.status = 'closed' THEN 1 ELSE 0 END) as closed_count,
+        SUM(CASE WHEN hazards.status != 'closed' THEN 1 ELSE 0 END) as open_count
+    `).
+		Joins("LEFT JOIN departments ON departments.id = hazards.department_id").
+		Joins("LEFT JOIN contractors ON contractors.id = hazards.contractor_id").
+		Where("DATE(hazards.tanggal_waktu) BETWEEN ? AND ?", startStr, endStr). // <-- FILTER TANGGAL DI SINI
+		Group("hazards.department_id, departments.name, hazards.contractor_id, contractors.name").
+		Order("departments.name ASC, contractors.name ASC").
+		Scan(&result.StatusResult).Error
 
 	if err != nil {
 		return nil, err

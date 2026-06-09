@@ -62,13 +62,14 @@ func RenderTemplate(
 	}
 
 	finalData["CurrentPath"] = r.URL.Path
-	finalData["Title"] = "SENTRY Interlock"
 
 	// =========================
 	// LAYOUT
 	// =========================
 	layoutBase := "views/layouts/base.html"
-
+	if strings.HasPrefix(tmpl, "auth/") || strings.HasPrefix(tmpl, "errors/") {
+		layoutBase = "views/layouts/auth-base.html"
+	}
 	if strings.HasPrefix(tmpl, "auth/") {
 		layoutBase = "views/layouts/auth-base.html"
 	}

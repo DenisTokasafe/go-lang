@@ -3,6 +3,7 @@ package controllers
 import (
 	"encoding/csv"
 	"io"
+	"latihan1/cmd/web/helpers"
 	"latihan1/models" // Sesuaikan dengan nama module di go.mod Anda
 	"math"
 	"net/http"
@@ -54,7 +55,14 @@ func (cc *ContractorController) Index(w http.ResponseWriter, r *http.Request) {
 	totalPages := int(math.Ceil(float64(totalRows) / float64(pageSize)))
 
 	// 8. Kirim data ke template (Sertakan 'Search' agar link pagination bisa sinkron)
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":        lang,
+		"Tr":          helpers.Translations[lang],
 		"Contractors": contractors,
 		"CurrentPage": page,
 		"TotalPages":  totalPages,

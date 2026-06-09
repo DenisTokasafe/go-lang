@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"latihan1/cmd/web/helpers"
 	"latihan1/models" // Sesuaikan dengan nama module di go.mod Anda
 	"math"
 	"net/http"
@@ -62,8 +63,14 @@ func (bpc *BodyPartController) Index(w http.ResponseWriter, r *http.Request) {
 	// 8. Hitung Total Halaman
 	totalPages := int(math.Ceil(float64(totalRows) / float64(pageSize)))
 
-	// 9. Siapkan Data untuk Template
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
 	data := map[string]interface{}{
+		"Lang":           lang,
+		"Tr":             helpers.Translations[lang],
 		"BodyParts":      bodyParts,
 		"CurrentPage":    page,
 		"TotalPages":     totalPages,

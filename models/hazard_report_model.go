@@ -18,7 +18,7 @@ const (
 
 type Hazard struct {
 	gorm.Model
-
+	RefNumber string `gorm:"uniqueIndex;size:20"`
 	// Relasi Kategori & Risiko
 	EventCategoryID uint          `json:"event_category_id"`
 	EventCategory   EventCategory `gorm:"foreignKey:EventCategoryID"`
@@ -27,8 +27,9 @@ type Hazard struct {
 	RiskMatrix   RiskMatrix `gorm:"foreignKey:RiskMatrixID;references:ID"`
 
 	// Status Hazard
-	Status HazardStatus `gorm:"type:enum('submit','in_progress','pending','closed','cancelled');default:'submit'" json:"status"`
-
+	Status             HazardStatus `gorm:"type:enum('submit','in_progress','pending','closed','cancelled');default:'submit'" json:"status"`
+	ModeratorComment   string       `json:"moderator_comment" gorm:"type:text"`
+	ModeratorCommentEn string       `json:"moderator_comment_en" gorm:"type:text"`
 	// Relasi Scat Option
 	ScatOptionID uint       `gorm:"column:scat_option_id;after:event_category_id"`
 	ScatOption   ScatOption `gorm:"foreignKey:ScatOptionID;references:ID"`
@@ -41,10 +42,10 @@ type Hazard struct {
 	// Waktu & Deskripsi
 	TanggalWaktu time.Time `gorm:"not null" json:"tanggal_waktu"`
 	Deskripsi    string    `gorm:"type:text;not null" json:"deskripsi"`
-
+	DeskripsiEn  string    `gorm:"type:text" json:"deskripsi_en"`
 	// Tindakan Perbaikan
-	CorrectiveAction string `gorm:"type:text" json:"corrective_action"`
-
+	CorrectiveAction   string `gorm:"type:text" json:"corrective_action"`
+	CorrectiveActionEn string `gorm:"type:text" json:"corrective_action_en"`
 	// Pelapor (Dinamis)
 	ReportByID *uint `json:"report_by_id"`
 	ReportBy   *User `gorm:"foreignKey:ReportByID"`

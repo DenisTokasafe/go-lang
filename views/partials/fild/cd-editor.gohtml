@@ -107,6 +107,7 @@
 				class="hidden"
 			{{ .Attr }}
 				{{ if .Required }} required {{ end }}
+				{{ if .Placeholder }} placeholder="{{ .Placeholder }}" {{ end }}
 				{{ if .RequiredBinding }} x-bind:required="{{ .RequiredBinding }}" {{ end }}
 				@invalid.prevent="isInvalid = true"
 				@input="isInvalid = false"

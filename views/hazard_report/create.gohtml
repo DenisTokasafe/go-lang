@@ -1,3 +1,4 @@
+{{ define "title" }}Buat Hazard - SENTRY{{ end }}
 {{ define "content" }}
 
 <div class="px-4 w-full" x-data="{
@@ -338,7 +339,7 @@
 	}
 	}
 	}">
-	<h1 class=" text-sm font-bold mb-2 text-base-content uppercase tracking-wider">Buat Laporan Hazard</h1>
+	<h1 class=" text-sm font-bold mb-2 text-base-content uppercase tracking-wider">{{ index .Tr "NewReport" }}</h1>
 	{{ template "card_scroll" . }}
 </div>
 {{ end }}
@@ -346,17 +347,17 @@
 <form x-ref="form" action="/hazard/store" method="POST" enctype="multipart/form-data" @submit.prevent="handleSubmit">
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-2 ">
 		<div class="relative " @change="syncData('event_category_id', $event.detail)">
-			{{ template "select-search" (dict "Label" "Tipe Bahaya" "Name" "event_category_id" "Options" .EventCategories "Required" true "DefaultText" "-- Pilih Tipe Bahaya --") }}
+			{{ template "select-search" (dict "Label" (index .Tr "ReportType") "Name" "event_category_id" "Options" .EventCategories "Required" true "DefaultText" (index .Tr "SelectReportType")) }}
 		</div>
-		{{ template "select-dynamic" (dict "Label" "Jenis bahaya" "Name" "event_type_id" "Model" "event_type_id" "OptionsArray" "all_types" "ShowCondition" "event_category_id" "DefaultText" "-- Pilih Type --" "Required" true) }}
-		{{ template "select_input" (dict "Label" "Kategori Bahaya" "Name" "scat_option_id" "ShowType" true "Model" "scat_option_id" "Placeholder" "Pilih Kategory Bahaya" "Options" .ScatOptions "Required" true) }}
+		{{ template "select-dynamic" (dict "Label" (index .Tr "HazardType") "Name" "event_type_id" "Model" "event_type_id" "OptionsArray" "all_types" "ShowCondition" "event_category_id" "DefaultText" (index .Tr "SelectHazardType") "Required" true) }}
+		{{ template "select_input" (dict "Label" (index .Tr "HazardCategory") "Name" "scat_option_id" "ShowType" true "Model" "scat_option_id" "Placeholder" (index .Tr "SelectHazardCategory") "Options" .ScatOptions "Required" true) }}
 		<div class="relative my-select-field" @change="location_id = $event.detail">
 			{{ template "select-search" (dict
-				"Label" "Lokasi"
+				"Label" (index .Tr "Location")
 				"Name" "location_id"
 				"Options" .Locations
 				"Required" true
-				"DefaultText" "-- Pilih Lokasi --"
+				"DefaultText" (index .Tr "SelectLocation")
 				"Attr" "x-model='location_id'"
 				"SearchURL" "/api/locations/search"
 				"Placeholder" "Cari nama lokasi..."
@@ -364,56 +365,56 @@
 			}}
 		</div>
 		<div x-show="location_id" x-transition>
-			{{ template "input" (dict "Label" "Lokasi spesifik" "Name" "location_specific" "Placeholder" "Isi Lokasi spesifik..." "Required" true "Attr" "x-model='location_specific'") }}
+			{{ template "input" (dict "Label" (index .Tr "LocationSpecific") "Name" "location_specific" "Placeholder" (index .Tr "InputLocationSpecific") "Required" true "Attr" "x-model='location_specific'") }}
 		</div>
 		<div class="relative ">
-			{{ template "select-user-search" (dict "Label" "Nama Pelapor" "Options" .Users "Value" .AuthUser.ID "SelectedLabel" .AuthUser.Name "DefaultValue" .AuthUser.ID "DefaultText" "-- Pilih atau Ketik Nama --" "Attr" "x-model='reporter_id'" "Required" true) }}
+			{{ template "select-user-search" (dict "Label" (index .Tr "ReporterName") "Options" .Users "Value" .AuthUser.ID "SelectedLabel" .AuthUser.Name "DefaultValue" .AuthUser.ID "DefaultText" (index .Tr "SelectReporterName") "Attr" "x-model='reporter_id'" "Required" true) }}
 		</div>
 
 		{{ template "input-flatpickr" dict
-			"Label" "Tanggal & Waktu Kejadian"
+			"Label" (index .Tr "DateTimeObservation")
 			"Name" "event_date"
 			"Id" "event_date"
 			"Value" .DataData.DateString
 			"Type" "date-time"
-			"Placeholder" "Pilih tanggal..."
+			"Placeholder" (index .Tr "InputDateObservation")
 			"Required" true
 			"RequiredBinding" ""
 			"Attr" "x-model=event_date"
 		}}
 	</div>
 	<fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border px-2">
-		<legend class="fieldset-legend">Penanggung Jawab</legend>
+		<legend class="fieldset-legend">{{ index .Tr "ResponsibleParty" }}</legend>
 		<div class="flex flex-col md:flex-row items-center gap-2 ">
 			<fieldset class="w-full">
 				<input id="draft" class="peer/draft" type="radio" value="department" name="work_type"
 					x-model="work_type" checked />
 				<label for="draft"
-					class="peer-checked/draft:text-sky-500 text-sm font-semibold text-base-content opacity-60 mb-1 ">Department</label>
+					class="peer-checked/draft:text-sky-500 text-sm font-semibold text-base-content opacity-60 mb-1 ">{{ index .Tr "Department" }}</label>
 
 				<input id="published" class="peer/published" type="radio" name="work_type" value="contractor"
 					x-model="work_type" />
 				<label for="published"
-					class="peer-checked/published:text-sky-500 text-sm font-semibold mb-1 text-base-content opacity-60">Contractor</label>
+					class="peer-checked/published:text-sky-500 text-sm font-semibold mb-1 text-base-content opacity-60">{{ index .Tr "Contractor" }}</label>
 
 				<div class="hidden peer-checked/draft:block relative"
 					@change="syncData('department_id', $event.detail)">
-					{{ template "select-search" (dict "Label" "" "Name" "department_id" "ModelName" "department_id" "Options" .Departments "DefaultText" "-- Pilih Department --" "Attr" "x-model='department_id' aria-label='Pilih Department'" "RequiredBinding" "work_type === 'department'") }}
+					{{ template "select-search" (dict "Label" "" "Name" "department_id" "ModelName" "department_id" "Options" .Departments "DefaultText" (index .Tr "SelectDepartment") "Attr" "x-model='department_id' aria-label='Pilih Department'" "RequiredBinding" "work_type === 'department'") }}
 				</div>
 
 				<div class="hidden peer-checked/published:block relative"
 					@change="syncData('contractor_id', $event.detail)">
-					{{ template "select-search" (dict "Label" "" "Name" "contractor_id" "ModelName" "contractor_id" "Options" .Contractors "DefaultText" "-- Pilih Contractor --" "Attr" "x-model='contractor_id' aria-label='Pilih Kontraktor'" "RequiredBinding" "work_type === 'contractor'") }}
+					{{ template "select-search" (dict "Label" "" "Name" "contractor_id" "ModelName" "contractor_id" "Options" .Contractors "DefaultText" (index .Tr "SelectContractor") "Attr" "x-model='contractor_id' aria-label='Pilih Kontraktor'" "RequiredBinding" "work_type === 'contractor'") }}
 				</div>
 			</fieldset>
-			{{ template "select-dynamic" (dict "Label" "Person In Charge (PIC)" "Name" "pic_id" "Model" "pic_id" "OptionsArray" "all_pics" "ShowCondition" "work_type" "DefaultText" "-- Pilih PIC --" "Required" true) }}
+			{{ template "select-dynamic" (dict "Label" (index .Tr "PIC") "Name" "pic_id" "Model" "pic_id" "OptionsArray" "all_pics" "ShowCondition" "work_type" "DefaultText" (index .Tr "SelectPIC") "Required" true) }}
 		</div>
 	</fieldset>
-	{{ template "ckeditor" dict "ID" "hazardDescription" "Label" "Deskripsi Bahaya" "Name" "description" "Model" "hazardDescription" "Value" "" "Required" true }}
-	{{ template "input-file" (dict "Label" "Upload Dokumen (PNG/PDF, Max 2MB)" "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "Attr" "") }}
+	{{ template "ckeditor" dict "ID" "hazardDescription" "Label" (index .Tr "HazardDescription") "Name" "description" "Model" "hazardDescription" "Value" "" "Required" true }}
+	{{ template "input-file" (dict "Label" (index .Tr "UploadDocument") "DragDropUpload" (index .Tr "DragDropUpload") "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "Attr" "") }}
 
-	{{ template "ckeditor" dict "ID" "hazardCorrective_action" "Label" "Tindakan Perbaikan Langsung" "Name" "corrective_action" "Model" "hazardCorrective_action" "Value" "" "Required" true }}
-	{{ template "input-file" (dict "Label" "Upload Dokumen (PNG/PDF, Max 2MB)" "Name" "dokumentasi_corrective" "Id" "dokumentasi_corrective" "Required" true "Attr" "") }}
+	{{ template "ckeditor" dict "ID" "hazardCorrective_action" "Label" (index .Tr "ImmediateAction") "Name" "corrective_action" "Model" "hazardCorrective_action" "Value" "" "Required" true }}
+	{{ template "input-file" (dict "Label" (index .Tr "UploadDocument") "DragDropUpload" (index .Tr "DragDropUpload") "Name" "dokumentasi_corrective" "Id" "dokumentasi_corrective" "Required" true "Attr" "") }}
 
 
 
@@ -525,7 +526,7 @@
 			<span class="bg-primary/10 p-1 rounded-lg">
 				{{ lucide "activity" (dict "class" "size-4 text-primary") }}
 			</span>
-			Status Area Saat Ini?
+			{{ index .Tr "CurrentAreaStatus" }}
 		</h2>
 
 		<!-- WRAPPER VALIDATION -->
@@ -550,11 +551,11 @@
 						<div>
 							<p class="font-bold text-sm"
 								:class="status_area === 'aman' ? 'text-success' : ''">
-								Sudah Aman Total
+								{{ index .Tr "FullySecured" }}
 							</p>
 
 							<p class="text-[10px] opacity-60 italic">
-								Masalah selesai di tempat
+								{{ index .Tr "ResolvedOnSite" }}
 							</p>
 						</div>
 					</div>
@@ -582,11 +583,11 @@
 						<div>
 							<p class="font-bold text-sm"
 								:class="status_area === 'sementara' ? 'text-warning' : ''">
-								Aman Sementara
+								{{ index .Tr "TemporarilySecured" }}
 							</p>
 
 							<p class="text-[10px] opacity-60 italic">
-								Perlu perbaikan lebih lanjut
+								{{ index .Tr "FurtherActionRequired" }}
 							</p>
 						</div>
 					</div>
@@ -608,7 +609,7 @@
 				x-transition
 				class="text-error text-xs font-semibold"
 			>
-				Silakan pilih status area terlebih dahulu
+				{{ index .Tr "SelectAreaStatusFirst" }}
 			</p>
 		</div>
 
@@ -623,7 +624,7 @@
 
 			<fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border px-2">
 				<legend class="fieldset-legend">
-					Target Departemen/Kontraktor Terkait:
+					{{ index .Tr "TargetDeptContractor" }}
 				</legend>
 
 				<div class="flex flex-col md:flex-row items-center gap-2 ">
@@ -643,7 +644,7 @@
 						<label
 							for="draft"
 							class="peer-checked/draft:text-sky-500 text-sm font-semibold text-base-content opacity-60 mb-1 ">
-							Department
+							{{ index .Tr "Department" }}
 						</label>
 
 						<input
@@ -658,7 +659,7 @@
 						<label
 							for="published"
 							class="peer-checked/published:text-sky-500 text-sm font-semibold mb-1 text-base-content opacity-60">
-							Contractor
+							{{ index .Tr "Contractor" }}
 						</label>
 
 						<div
@@ -677,7 +678,7 @@
 
 					</fieldset>
 
-					{{ template "select-dynamic" (dict "Label" "Person In Charge (PIC)" "Name" "pic_terkait_id" "Model" "pic_terkait_id" "OptionsArray" "all_pics_terkait" "ShowCondition" "status_area === 'sementara'" "DefaultText" "-- Pilih PIC --" "RequiredBinding" "status_area === 'sementara'") }}
+					{{ template "select-dynamic" (dict "Label" (index .Tr "PIC") "Name" "pic_terkait_id" "Model" "pic_terkait_id" "OptionsArray" "all_pics_terkait" "ShowCondition" "status_area === 'sementara'" "DefaultText" "-- Pilih PIC --" "RequiredBinding" "status_area === 'sementara'") }}
 
 					{{ template "input-date" (dict "Label" "Due Date (Target Selesai)" "Type" "date" "Name" "due_date_lanjutan" "Id" "due_date_lanjutan" "Placeholder" "Pilih Tanggal" "RequiredBinding" "status_area === 'sementara'" "Attr" "x-model=due_date_lanjutan") }}
 
@@ -691,7 +692,7 @@
 
 	<div class="justify-self-end w-full max-w-md">
 		<button type="submit" class="btn btn-primary btn-sm px-6 mt-4 btn-block">
-			{{ lucide "save" (dict "class" "size-4") }} Simpan
+			{{ lucide "save" (dict "class" "size-4") }} {{ index .Tr "Submit" }}
 		</button>
 	</div>
 </form>
