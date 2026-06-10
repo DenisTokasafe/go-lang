@@ -5,6 +5,7 @@ import (
 	"latihan1/models"
 	"latihan1/seeders"
 	"log"
+	"os"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -12,7 +13,15 @@ import (
 
 func InitDB() *gorm.DB {
 
-	dsn := "root:@tcp(127.0.0.1:3306)/go_crud_db?charset=utf8mb4&parseTime=True&loc=Local"
+	dbUser := os.Getenv("DB_USER")
+	dbPass := os.Getenv("DB_PASSWORD")
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	dbName := os.Getenv("DB_NAME")
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		dbUser, dbPass, dbHost, dbPort, dbName,
+	)
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
