@@ -4,7 +4,6 @@ import (
 	"latihan1/models"
 	"latihan1/utils" // Pastikan fungsi HashPassword & CheckPasswordHash ada di sini
 	"net/http"
-	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -21,6 +20,7 @@ func (ac *AuthController) ShowLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // Login memproses autentikasi user
+// Login memproses autentikasi user
 func (ac *AuthController) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -32,7 +32,6 @@ func (ac *AuthController) Login(w http.ResponseWriter, r *http.Request) {
 
 	var user models.User
 	if err := ac.DB.Where("username = ?", username).First(&user).Error; err != nil {
-		// Set flash message jika user tidak ditemukan (Implementasikan fungsi setCookie flash jika perlu)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
@@ -43,14 +42,23 @@ func (ac *AuthController) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set Session via Cookie
+	// 🟢 1. Generate JWT Token (Menggantikan ID mentah)
+	token, err := utils.GenerateJWT(user.ID)
+	if err != nil {
+		http.Error(w, "Gagal membuat session aman", http.StatusInternalServerError)
+		return
+	}
+
+	// 🟢 2. Set Session via Cookie dengan pengamanan ekstra
 	expiration := time.Now().Add(24 * time.Hour)
 	cookie := http.Cookie{
 		Name:     "user_session",
-		Value:    strconv.FormatUint(uint64(user.ID), 10),
+		Value:    token, // Sekarang nilainya berupa token acak terenkripsi JWT
 		Expires:  expiration,
 		Path:     "/",
-		HttpOnly: true, // Keamanan ekstra
+		HttpOnly: true,                 // Mencegah XSS (JavaScript tidak bisa mencuri cookie)
+		Secure:   false,                // Set ke 'true' jika kamu sudah pakai HTTPS
+		SameSite: http.SameSiteLaxMode, // Melindungi dari serangan CSRF
 	}
 	http.SetCookie(w, &cookie)
 

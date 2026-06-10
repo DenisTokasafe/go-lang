@@ -1,6 +1,11 @@
-Options +ExecCGI
-AddHandler cgi-script .fcgi
+Options +FollowSymLinks +ExecCGI
+AddHandler fcgi-script .fcgi
+DirectoryIndex app.fcgi
 
-RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteRule ^(.*)$ app.fcgi/$1 [L]
+<IfModule mod_rewrite.c>
+	RewriteEngine On
+	RewriteBase /
+	RewriteCond %{REQUEST_FILENAME} !-f
+	RewriteCond %{REQUEST_FILENAME} !-d
+	RewriteRule ^(.*)$ app.fcgi/$1 [L]
+</IfModule>
