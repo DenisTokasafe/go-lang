@@ -12,7 +12,7 @@
 	<!-- LABEL -->
 	{{ if .Label }}
 		<label class="label">
-			<span class="text-xs font-bold text-base-content opacity-60">
+			<span class="text-xs font-bold text-base-content opacity-60 ">
 				{{ .Label }}
 
 				{{ if .Required }}
@@ -24,7 +24,7 @@
 
 	<!-- DROPZONE -->
 	<div
-		class="border-dashed rounded-md p-4 transition-all duration-300 select-none"
+		class="border-dashed rounded-md p-2 transition-all duration-300 select-none"
 		:class="[
 		getBorderClass(),
 		disabled

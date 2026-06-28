@@ -1,0 +1,1397 @@
+{{ define "title" }}Buat Laporan Insiden - SENTRY{{ end }}
+{{ define "content" }}
+<div class="px-4 w-full " 
+	x-data="{
+	isSubmitting: false,
+	activeTab: 1, totalTabs: 4,
+	incident: {{ json .Incident }},
+
+	// Data list (array dari database)
+	involvedParties: {{ json .Incident.InvolvedParties }},
+	// =========================
+	// BASIC STATE
+	// =========================
+	type_error: false,
+	status: 'submit', // Status default saat create
+
+	// State khusus untuk CKEditor / Rich Text
+	TaskPerformed: '',
+	IncidentDescription: '',
+	ImmediateAction: '',
+	DamageDetail: '',
+
+	dokumentasi_desc: [],
+
+	// =========================
+	// EVENT DATA
+	// =========================
+	event_category_id: '',
+	event_type_id: '',
+	scat_option_id: '',
+
+	location_id: '{{ .Data.LocationID }}',
+	location_specific: '',
+	event_date: '',
+	reporter_id: '{{ .AuthUser.ID }}',
+
+	// =========================
+	// RISK MATRIX
+	// =========================
+	risk_matrix_id: '',
+	consequence_id: '',
+	likelihood_id: '',
+	assessment_id: '',
+
+	matrices: {{ json .Matrices }},
+	consequences: {{ json .Consequences }},
+	likelihoods: {{ json .Likelihoods }},
+	assessments: {{ json .Assessments }},
+
+	isManualMatrixSelect: false,
+
+	// =========================
+	// PIC & WORK TYPE (Bagian 1)
+	// =========================
+	work_type: 'department',
+	department_id: '',
+	contractor_id: '',
+	pic_id: '',
+	all_pics: [],
+	all_types: [],
+
+	// =========================
+	// NEW: STATE BAGIAN 2 (Pihak Terlibat Langsung)
+	// =========================
+
+	involved_parties: [
+	{
+	user_id: null,
+	reporter_manual: '',
+	work_type: 'department', // 'department' atau 'contractor'
+	department_id: '',
+	contractor_id: '',
+	jabatan: '',
+	roster: '',
+	shift: 'Day',
+	keterlibatan: '',
+	pengalaman: 0
+	}
+	],
+	involved_error: false,
+	// =========================
+	// STATE BAGIAN 3 (Tim Investigasi)
+	// =========================
+	investigators: [
+	{ 
+	role: 'Pemimpin Investigasi', 
+	employee_id: null, 
+	jabatan: '', 
+	work_type: 'department', // Default internal
+	department_id: '', 
+	contractor_id: '' 
+	},
+	{ 
+	role: 'Facilitator', 
+	employee_id: null, 
+	jabatan: '', 
+	work_type: 'department', 
+	department_id: '', 
+	contractor_id: '' 
+	},
+	{ 
+	role: 'Anggota', 
+	employee_id: null, 
+	jabatan: '', 
+	work_type: 'department', 
+	department_id: '', 
+	contractor_id: '' 
+	}
+	],
+	investigator_error: false,
+	// Logika Tambah Baris
+	addInvestigator(roleType) {
+	this.investigators.push({
+	role: roleType,
+	employee_id: null,
+	jabatan: '',
+	work_type: 'department',
+	department_id: '',
+	contractor_id: ''
+	});
+	this.investigator_error=false;
+	},
+
+	removeInvestigator(index) {
+	this.investigators.splice(index, 1);
+	},
+	// =========================
+	// NEW: LOGIK BAGIAN 2
+	// =========================
+	addInvolvedParty() {
+	this.involved_parties.push({
+	user_id: null,
+	reporter_manual: '',
+	work_type: 'department',
+	department_id: '',
+	contractor_id: '',
+	jabatan: '',
+	roster: '',
+	shift: 'Day',
+	keterlibatan: '',
+	pengalaman: 0
+	});
+	this.involved_error = false;
+	},
+
+	removeInvolvedParty(index) {
+	this.involved_parties.splice(index, 1);
+	},
+
+	peepo_factors: [
+	{ factor: 'Orang', findings: '', description: '' },
+	{ factor: 'Peralatan', findings: '', description: '' },
+	{ factor: 'Lingkungan', findings: '', description: '' },
+	{ factor: 'Prosedur', findings: '', description: '' },
+	{ factor: 'Organisasi', findings: '', description: '' }
+	],
+	addFactor() {
+	this.peepo_factors.push({ factor: 'Orang', findings: '', description: '' });
+	},
+
+	removeFactor(index) {
+	if (this.peepo_factors.length > 1) {
+	this.peepo_factors.splice(index, 1);
+	} else {
+	alert('Minimal harus ada 1 faktor');
+	}
+	},
+
+	// Contoh di dalam x-data utama form
+	validateAndJump() {
+	// Daftar tab yang ingin dicek
+	const tabs = [
+	{ id: 1, ref: 'tab1' },
+	{ id: 2, ref: 'tab2' },
+	{ id: 3, ref: 'tab3' },
+	{ id: 4, ref: 'tab4' }
+	];
+
+	for (const tab of tabs) {
+	// Cari container tab tersebut
+	const container = this.$refs[tab.ref];
+	if (!container) continue;
+
+	// Cari semua textarea yang required dan kosong di dalam tab ini
+	const invalidInputs = container.querySelectorAll('textarea[required]');
+
+	for (const input of invalidInputs) {
+	// Cek apakah input kosong
+	if (!input.value.trim()) {
+	// 1. Buka Tab yang bersangkutan
+	this.activeTab = tab.id;
+
+	// 2. Trigger validasi pada komponen tersebut (jika ada fungsi validasi)
+	// Kita dispatch event agar komponen textarea menangkapnya
+	input.dispatchEvent(new Event('input')); // Memaksa update state isInvalid
+
+	// 3. Tunggu tab terbuka, baru scroll
+	this.$nextTick(() => {
+	input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	input.focus();
+	});
+
+	return false; // Berhenti di error pertama
+	}
+	}
+	}
+	return true; // Jika semua valid
+	},// COLSE
+
+	checkFlash() {
+	const getCookie = (name) => {
+	let value = `; ${document.cookie}`;
+	let parts = value.split(`; ${name}=`);
+	if (parts.length === 2) return parts.pop().split(';').shift();
+	}
+
+	const msg = getCookie('flash_msg');
+	const type = getCookie('flash_type');
+
+	if (msg) {
+	const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+	if (window.showToast) {
+	window.showToast(decodedMsg, type || 'success');
+	}
+	document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+	document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+	}
+	},
+	doc: {{ json .Docs }},
+	// =========================
+	// INIT
+	// =========================
+	async init() {
+	this.checkFlash();
+	this.event_category_id = this.incident.EventCategory ? String(this.incident.EventCategory.parent_id) : '';
+	this.event_type_id = this.incident.event_category_id ? String(this.incident.event_category_id) : '';
+	this.scat_option_id= this.incident.scat_option_id ;
+	this.location_id = this.incident.location_id;
+	this.location_specific = this.incident.location_specific;
+	this.department_id = this.incident.department_id;
+
+	this.consequence_id= this.incident.RiskMatrix.risk_consequence_id;
+	this.likelihood_id= this.incident.RiskMatrix.risk_likelihood_id;
+	this.assessment_id= this.incident.RiskMatrix.risk_assessment_id;
+	this.risk_matrix_id= this.incident.risk_matrix_id;
+
+	this.pic_id = this.incident.pic_id;
+	this.IncidentDescription = this.incident.deskripsi || '';
+	this.TaskPerformed = this.incident.tugas_dijalankan || '';
+	this.ImmediateAction = this.incident.tindakan_langsung || '';
+	this.DamageDetail = this.incident.detil_kerusakan_kerugian || '';
+
+	// Watch matrix dependency
+	this.$watch('consequence_id', () => this.findMatrix());
+	this.$watch('likelihood_id', () => this.findMatrix());
+
+	// Watch work type
+	this.handleWorkTypeChange(this.work_type);
+	this.$watch('work_type', (value) => {
+	this.handleWorkTypeChange(value);
+	});
+
+	// =========================
+	// LOAD EVENT TYPES
+	// =========================
+	if (this.event_category_id) {
+	await this.syncData('event_category_id', this.event_category_id, true);
+	const syncedType = this.all_types.find(item => String(item.ID) === String(this.event_type_id));
+	if (syncedType) {
+	this.event_type_id = String(syncedType.ID);
+	}
+	}
+
+	// =========================
+	// RESET TYPE WHEN CATEGORY CHANGES
+	// =========================
+	this.$watch('event_category_id', (value, oldValue) => {
+	if (oldValue && value !== oldValue) {
+	this.event_type_id = '';
+	}
+	});
+
+	// =========================
+	// LOAD PICS
+	// =========================
+	this.all_pics = {{ json .AllPics }};
+	const match = this.all_pics.find(item => String(item.ID) === String(this.incident.pic_id));
+
+	if (this.work_type === 'department' && this.department_id) {
+	await this.syncData('department_id', this.department_id);
+	}
+
+	if (this.work_type === 'contractor' && this.contractor_id) {
+	await this.syncData('contractor_id', this.contractor_id);
+	}
+
+	if (match) {
+	this.pic_id = String(match.ID);
+	}
+
+	// Cek apakah data insiden memiliki pihak_terlibat (saat mode Edit)
+	if (this.incident && this.incident.pihak_terlibat && this.incident.pihak_terlibat.length > 0) {
+	this.involved_parties = this.incident.pihak_terlibat.map(party => {
+	let currentWorkType = '';
+	if (party.department_id !== null && party.department_id > 0) {
+	currentWorkType = 'department';
+	} else if (party.contractor_id !== null && party.contractor_id > 0) {
+	currentWorkType = 'contractor';
+	}
+
+	return {
+	user_id: party.user_id || null,
+	work_type: currentWorkType, 
+	department_id: party.department_id || '',
+	contractor_id: party.contractor_id || '',
+	jabatan: party.jabatan || '',
+	roster: party.roster || '',
+	shift: party.shift || '',
+	keterlibatan: party.keterlibatan || '',
+	pengalaman: party.pengalaman || 0
+	};
+	});
+	} else {
+	this.involved_parties = []; 
+	}
+
+	// =================================================================
+	// INIT PARTISIPAN INVESTIGASI (Edit Mode)
+	// =================================================================
+	if (this.incident && this.incident.investigation_participants && this.incident.investigation_participants.length > 0) {
+	this.investigators = this.incident.investigation_participants.map((inv, idx) => {
+	let currentWorkType = 'department'; 
+
+	if (inv.contractor_id !== null && inv.contractor_id > 0) {
+	currentWorkType = 'contractor';
+	}
+	return {
+	role: inv.role || '',
+	employee_id: inv.employee_id || null, // Pastikan ini null/kosong untuk data baru
+	jabatan: inv.jabatan || '',
+	work_type: currentWorkType, 
+	department_id: inv.department_id || '',
+	contractor_id: inv.contractor_id || ''
+	};
+	});
+	} else {
+	// Jika mode Create (Data Baru), sediakan 3 baris default kosong
+	this.investigators = [];
+	}
+
+	if (this.incident.peepo_factors && this.incident.peepo_factors.length > 0) {
+	this.peepo_factors = this.incident.peepo_factors;
+	}
+
+	}, // CLOSED INIT
+
+	// =========================
+	// MATRIX LOGIC
+	// =========================
+	findMatrix() {
+	if (!this.consequence_id || !this.likelihood_id) {
+	this.resetMatrix()
+	return
+	}
+
+	const matrix = this.matrices.find((item) =>
+	String(item.risk_consequence_id) === String(this.consequence_id) &&
+	String(item.risk_likelihood_id) === String(this.likelihood_id)
+	)
+
+	this.risk_matrix_id = matrix?.id || ''
+	this.assessment_id = matrix?.risk_assessment_id || ''
+	},
+
+	resetMatrix() {
+	this.risk_matrix_id = ''
+	this.assessment_id = ''
+	},
+
+	openEdit(id, consequenceId, likelihoodId, assessmentId) {
+	this.risk_matrix_id = id
+	this.consequence_id = consequenceId
+	this.likelihood_id = likelihoodId
+	this.assessment_id = assessmentId
+
+	this.$dispatch('field-updated', { field: 'consequence_id' })
+	this.$dispatch('field-updated', { field: 'likelihood_id' })
+	},
+
+	// =========================
+	// UI HELPERS
+	// =========================
+	getConsequenceDesc() {
+	const consequence = this.consequences.find((item) =>
+	String(item.ID) === String(this.consequence_id)
+	)
+	return consequence ? consequence.description : ''
+	},
+
+	getLikelihoodNotes() {
+	const likelihood = this.likelihoods.find((item) =>
+	String(item.ID) === String(this.likelihood_id)
+	)
+	return likelihood ? likelihood.notes : ''
+	},
+
+	getAssessment() {
+	return this.assessments.find((item) =>
+	String(item.ID) === String(this.assessment_id)
+	) || {}
+	},
+
+
+
+	// =========================
+	// WORK TYPE LOGIC
+	// =========================
+	handleWorkTypeChange(value) {
+	if (value === 'department') {
+	this.contractor_id = ''
+	this.syncData('contractor_id', '')
+	return
+	}
+	this.department_id = ''
+	this.syncData('department_id', '')
+	},
+
+	// ==========================================
+	// HELPER: RAKIT PAYLOAD JSON
+	// ==========================================
+	buildPayload() {
+	return {
+	Incident: {
+	id: parseInt(this.incident.ID || this.incident.id) || 0,
+	event_category_id: parseInt(this.event_type_id) || null,
+	scat_option_id: parseInt(this.scat_option_id) || null,
+	location_id: parseInt(this.location_id) || null,
+	location_specific: this.location_specific,
+	deskripsi: this.IncidentDescription,
+	tugas_dijalankan: this.TaskPerformed,
+	tindakan_langsung: this.ImmediateAction,
+	detil_kerusakan_kerugian: this.DamageDetail,
+	status: 'submit',
+	department_id: this.work_type === 'department' ? (parseInt(this.department_id) || null) : null,
+	contractor_id: this.work_type === 'contractor' ? (parseInt(this.contractor_id) || null) : null,
+	pic_id: parseInt(this.pic_id) || null,
+	risk_matrix_id: parseInt(this.risk_matrix_id) || null
+	},
+	InvolvedParties: this.involved_parties.map(party => ({
+	user_id: party.user_id ? parseInt(party.user_id) : null,
+	reporter_manual: party.reporter_manual || '',
+	department_id: party.work_type === 'department' ? (parseInt(party.department_id) || null) : null,
+	contractor_id: party.work_type === 'contractor' ? (parseInt(party.contractor_id) || null) : null,
+	jabatan: party.jabatan,
+	roster: party.roster,
+	shift: party.shift,
+	keterlibatan: party.keterlibatan,
+	pengalaman: parseInt(party.pengalaman) || 0
+	})),
+	InvestigationParticipants: this.investigators.map(inv => ({
+	role: inv.role,
+	employee_id: inv.employee_id ? parseInt(inv.employee_id) : null,
+	jabatan: inv.jabatan,
+	work_type: inv.work_type, 
+	department_id: inv.work_type === 'department' && inv.department_id ? parseInt(inv.department_id) : null,
+	contractor_id: inv.work_type === 'contractor' && inv.contractor_id ? parseInt(inv.contractor_id) : null
+	})),
+	PeepoFactors: this.peepo_factors.map(p => ({
+	factor: p.factor,
+	findings: p.findings,
+	description: p.description
+	}))
+	};
+	},
+
+	// ==========================================
+	// VALIDASI PER-TAB SEBELUM NEXT
+	// ==========================================
+	validateStep(step) {
+	const container = this.$refs['tab' + step];
+	if (!container) return true;
+
+	// 1. Cek HTML5 Validation (HANYA CEK, JANGAN UBAH TAB/SCROLL DISINI)
+	const invalidFields = container.querySelectorAll(':invalid');
+	if (invalidFields.length > 0) {
+	if (window.showToast) window.showToast('Mohon lengkapi field wajib di Tab ' + step, 'error');
+	return false; // Langsung kembalikan false
+	}
+
+	// 2. Validasi Custom (Bagian 2 - Pihak Terlibat)
+	if (step === 2) {
+	if (!this.involved_parties || this.involved_parties.length === 0) {
+	this.involved_error = true;
+	if (window.showToast) window.showToast('BAGIAN 2 wajib diisi minimal 1 personil!', 'error');
+	return false;
+	}
+	for (let i = 0; i < this.involved_parties.length; i++) {
+	let party = this.involved_parties[i];
+	let hasName = party.user_id || party.reporter_manual.trim() !== '';
+
+	if (!hasName || !party.jabatan.trim() || !party.keterlibatan) {
+	if (window.showToast) window.showToast('Lengkapi Nama, Jabatan, dan Keterlibatan pada baris ke-' + (i + 1) + '!', 'error');
+	return false;
+	}
+	if (party.work_type === 'department' && !party.department_id) {
+	if (window.showToast) window.showToast('Pilih Department untuk personil baris ke-' + (i + 1) + '!', 'error');
+	return false;
+	}
+	if (party.work_type === 'contractor' && !party.contractor_id) {
+	if (window.showToast) window.showToast('Pilih Kontraktor untuk personil baris ke-' + (i + 1) + '!', 'error');
+	return false;
+	}
+	}
+	}
+
+	// 3. Validasi Custom (Bagian 3 - Tim Investigasi)
+	if (step === 3) {
+	if (!this.investigators || this.investigators.length === 0) {
+	this.investigator_error = true;
+	if (window.showToast) window.showToast('BAGIAN 3 wajib diisi minimal 1 investigator!', 'error');
+	return false;
+	}
+	for (let i = 0; i < this.investigators.length; i++) {
+	let inv = this.investigators[i];
+
+	if (!inv.employee_id || inv.employee_id.toString().trim() === '') {
+	if (window.showToast) window.showToast('Mohon pilih Nama/ID pada investigator baris ke-' + (i + 1) + '!', 'error');
+	return false;
+	}
+	if (!inv.jabatan || inv.jabatan.trim() === '') {
+	if (window.showToast) window.showToast('Mohon lengkapi Jabatan pada investigator baris ke-' + (i + 1) + '!', 'error');
+	return false;
+	}
+	if (inv.work_type === 'department' && !inv.department_id) {
+	if (window.showToast) window.showToast('Pilih Department untuk investigator baris ke-' + (i + 1) + '!', 'error');
+	return false;
+	}
+	if (inv.work_type === 'contractor' && !inv.contractor_id) {
+	if (window.showToast) window.showToast('Pilih Kontraktor untuk investigator baris ke-' + (i + 1) + '!', 'error');
+	return false;
+	}
+	}
+	}
+
+	return true;
+	},
+
+
+	focusInvalidField(tabId) {
+
+	// Kita gunakan setTimeout agar menunggu DOM benar-benar siap 
+	// (misalnya animasi transisi tab selesai)
+	setTimeout(() => {
+	const container = this.$refs['tab' + tabId];
+	if (!container) return;
+
+	// 1. Cari semua input/textarea/select yang 'required'
+
+	// ke input tersembunyi yang bisa menyebabkan error di browser
+	const allInputs = container.querySelectorAll('input[required]:not([type=\'hidden\']), select[required], textarea[required]');
+	let invalidElement = null;
+
+	// 2. Cari secara manual mana yang kosong
+	for (let input of allInputs) {
+	// Cek apakah nilai kosong atau hanya berisi spasi
+	if (!input.value || input.value.trim() === '') {
+	invalidElement = input;
+	break; // Berhenti di elemen pertama yang kosong
+	}
+	}
+
+	// 3. Eksekusi aksi jika ditemukan field yang invalid
+	if (invalidElement) {
+	// Trigger event 'invalid' agar Alpine/komponen lain bisa merespons
+	invalidElement.dispatchEvent(new Event('invalid', { bubbles: true }));
+
+	// Scroll ke posisi elemen dengan smooth
+	invalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+	// Fokus ke elemen
+	invalidElement.focus();
+	} else {
+	// Fallback: Jika validasi manual sudah lolos tapi masih dianggap invalid
+	// (misalnya ada validasi custom), scroll ke atas container
+	container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+	}, 200); // 200ms sudah cukup responsif tanpa terasa delay
+	},
+
+	// ==========================================
+	// SAVE DATA KE BACKEND TANPA REDIRECT
+	// ==========================================
+	async saveBackground() {
+
+	const payload = this.buildPayload();
+	const formData = new FormData();
+	formData.append('payload', JSON.stringify(payload));
+
+	const deletedInputs = document.getElementsByName('deleted_files[]');
+	for (let i = 0; i < deletedInputs.length; i++) {
+	formData.append('deleted_files[]', deletedInputs[i].value);
+	}
+
+	const fileInput = document.getElementById('dokumentasi_desc');
+	if (fileInput && fileInput.files && fileInput.files.length > 0) {
+	for (let i = 0; i < fileInput.files.length; i++) {
+	formData.append('dokumentasi[]', fileInput.files[i]);
+	}
+	}
+
+	try {
+	const incidentID = this.incident.ID || this.incident.id;
+	const response = await fetch('/incident/update/' + incidentID, {
+	method: 'POST',
+	headers: { 'Accept': 'application/json' },
+	body: formData
+	});
+
+	if (!response.ok) {
+	const errText = await response.text();
+	throw new Error(errText || 'Terjadi kesalahan internal server.');
+	}
+	return true;
+	} catch (error) {
+
+	if (window.showToast) window.showToast('Gagal menyimpan progress: ' + error.message, 'error');
+	return false;
+	}
+	},
+
+	// ==========================================
+	// LOGIKA TOMBOL NEXT DIKLIK
+	// ==========================================
+	async goNext() {
+	// 1. Jalankan validasi terlebih dahulu
+	if (!this.validateStep(this.activeTab)) {
+	// Jika GAGAL, pastikan isSubmitting tetap false agar tidak loading
+	this.focusInvalidField(this.activeTab);
+	return; 
+	}
+
+
+	this.isSubmitting = true;
+
+	try {
+	// 3. Jalankan proses simpan data di background
+	const success = await this.saveBackground();
+
+	if (success) {
+	if (window.showToast) {
+	window.showToast('Progress Bagian ' + this.activeTab + ' tersimpan.', 'success');
+	}
+	this.activeTab++;
+	}
+	} catch (error) {
+	console.error('Error pada goNext:', error);
+	} finally {
+	// 4. PENTING: Apapun yang terjadi (sukses atau error dari server), 
+	// matikan kembali status loading agar tombol bisa digunakan lagi.
+	this.isSubmitting = false;
+	}
+	},
+
+	// ====================================================
+	// FORM FINAL SUBMIT (TOMBOL UPDATE PALING BAWAH)
+	// ====================================================
+	async handleSubmit(e) {
+
+	// 1. Validasi dulu semua tab
+	for (let i = 1; i <= this.totalTabs; i++) {
+	// Cek validasi custom Anda
+	if (!this.validateStep(i)) {
+
+	// Pindah ke tab yang bermasalah
+	this.activeTab = i;
+
+	// Tunggu transisi DOM/Animasi
+	this.$nextTick(() => {
+	setTimeout(() => {
+	const container = this.$refs['tab' + i];
+	if (!container) return;
+
+	// --- PERUBAHAN DI SINI ---
+	// 1. Cari semua input/textarea/select yang 'required'
+	const allInputs = container.querySelectorAll('[required]');
+	let invalidElement = null;
+
+	// 2. Cari secara manual mana yang kosong
+	for (let input of allInputs) {
+	if (!input.value || input.value.trim() === '') {
+	invalidElement = input;
+	break; // Berhenti di elemen pertama yang kosong
+	}
+	}
+
+	if (invalidElement) {
+	// 3. Trigger @invalid.prevent agar Alpine menjalankan isInvalid = true
+	invalidElement.dispatchEvent(new Event('invalid', { bubbles: true }));
+
+	// 4. Scroll dan Focus
+	invalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	invalidElement.focus();
+	} else {
+	// Fallback: Jika tidak ditemukan input kosong (mungkin error di validasi custom), 
+	// scroll saja ke atas tab agar user sadar
+	container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+	}, 500);
+	});
+
+	return; // Berhenti di sini
+	}
+	}
+
+	// 2. Jika semua valid, lanjut submit
+	const form = e.target;
+	if (form.dataset.submitting === 'true') return;
+	form.dataset.submitting = 'true';
+
+	const success = await this.saveBackground();
+
+	if (success) {
+	const incidentID = this.incident.ID || this.incident.id;
+	this.isSubmitting = true;
+	sessionStorage.setItem('flash_msg', 'Berhasil!');
+	sessionStorage.setItem('flash_type', 'success');
+	window.location.href = `/incident/edit/${incidentID}`;
+	} else {
+	form.dataset.submitting = 'false';
+	this.isSubmitting = false;
+	}
+	},
+
+	// =========================
+	// BACKEND SYNC
+	// =========================
+	async syncData(name, value, isInit = false) {
+	this[name] = value
+	if (name === 'reporter_id') return
+
+	const formData = new FormData()
+	formData.append('name', name)
+	formData.append('value', value)
+
+	try {
+	const response = await fetch('/incident/sync', {
+	method: 'POST',
+	body: formData
+	})
+	const result = await response.json()
+	if (result.status !== 'success') return
+
+	if (name === 'event_category_id') {
+	this.all_types = result.types || []
+	if (!isInit) this.event_type_id = ''
+	}
+
+	if (name === 'department_id' || name === 'contractor_id') {
+	this.all_pics = result.pics || []
+	if (!isInit) this.pic_id = ''
+	}
+	} catch (error) {
+
+	}
+	}
+	}" id="incident-form">
+	<div class="mb-2 font-semibold">
+		<h3 class="text-sm font-bold  text-base-content uppercase tracking-wider">{{ index .Tr "RingkasanInsiden" }}</h3>
+		<p class="text-xs text-slate-500">{{ index .Tr "subJudulIncident" }}</p>
+	</div>
+
+	<form x-ref="form" action="/incident/update/{{ .Incident.ID }}" method="POST" enctype="multipart/form-data" @submit.prevent="handleSubmit" novalidate>
+		{{ template "card_scroll" . }}
+
+		<div class="flex justify-between items-center py-2">
+			<button 
+				type="button" 
+				class="btn btn-secondary btn-soft btn-xs"
+				:disabled="activeTab === 1"  
+				@click="activeTab--">
+				{{ lucide "chevrons-left" (dict "class" "size-4") }} {{ index .Tr "Previous" }}
+			</button>
+
+			<span class="text-xs text-base-content/50" x-text="`Step ${activeTab} of ${totalTabs}`"></span>
+
+			<button 
+				type="button" 
+				class="btn btn-secondary btn-soft btn-xs"
+				x-show="activeTab < totalTabs" 
+				@click="goNext()">
+
+				<span x-show="!isSubmitting" class="flex items-center gap-1">
+					{{ index .Tr "SaveNext" }} {{ lucide "chevrons-right" (dict "class" "size-4") }}
+				</span>
+				<span x-show="isSubmitting" class="flex items-center gap-1">
+					<span class="loading loading-spinner loading-xs"></span> 
+
+					{{ index .Tr "Save" }}... {{ lucide "send" (dict "class" "size-4") }}
+				</span>
+
+			</button>
+
+			<button 
+				type="submit" 
+				class="btn btn-success btn-xs"
+				x-show="activeTab === totalTabs">
+				<span x-show="!isSubmitting" class="flex items-center gap-1">
+					{{ lucide "square-pen" (dict "class" "size-4") }} {{ index .Tr "Update" }}
+				</span>
+				<span x-show="isSubmitting" class="flex items-center gap-1">
+					<span class="loading loading-spinner loading-xs"></span> 
+
+					{{ index .Tr "Save" }}... {{ lucide "send" (dict "class" "size-4") }}
+				</span>
+
+			</button>
+
+		</div>
+
+	</form>
+</div>
+{{ end }}
+
+{{ define "slot" }}
+
+<div  class="w-full mx-auto">
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab1">
+		<input type="radio" name="my-accordion-1" :checked="activeTab === 1" @change="activeTab = 1" />
+		<div class="collapse-title font-semibold">
+			<h3 class="text-lg font-bold text-slate-700">BAGIAN 1 – Detil Laporan</h3>
+			<p class="text-xs text-slate-500">(Informasi Umum, Lokasi, Kronologi, & Tindakan Langsung)</p>
+		</div>
+		<div class="collapse-content">
+
+			<div class="bg-base-100 rounded-md border border-base-200 p-2">
+				<div class="grid grid-cols-1 md:grid-cols-4 gap-2 ">
+					<div class="relative " @change="syncData('event_category_id', $event.detail)">
+						{{ template "select-search" (dict
+							"Label" (index .Tr "ReportType")
+							"Name" "event_category_id"
+							"ModelName" "event_category_id"
+							"Value" .Incident.EventCategory.ParentID
+							"Options" .EventCategories
+							"Required" true
+							"DefaultText" "-- Pilih Tipe Bahaya --"
+							"Placeholder" "Cari tipe bahaya..."
+							)
+						}}
+					</div>
+					{{ template "select-dynamic" (dict "Label" (index .Tr "HazardType") "Name" "event_type_id" "Value" .Incident.EventCategoryID "Model" "event_type_id" "OptionsArray" "all_types" "ShowCondition" "event_category_id" "DefaultText" (index .Tr "SelectHazardType") "Required" true) }}
+					{{ template "select_input" (dict "Label" (index .Tr "HazardCategory") "Name" "scat_option_id" "ShowType" true "Model" "scat_option_id" "Placeholder" (index .Tr "SelectHazardCategory") "Options" .ScatOptions "Required" true) }}
+
+					<div class="relative my-select-field" @change="location_id = $event.detail">
+						{{ template "select-search" (dict
+							"Label" (index .Tr "Location")
+							"Name" "location_id"
+							"Value" .Incident.LocationID
+							"Options" .Locations
+							"Required" true
+							"DefaultText" (index .Tr "SelectLocation")
+							"Attr" "x-model='location_id'"
+							"SearchURL" "/incident/locations/search"
+							"Placeholder" "Cari nama lokasi..."
+							)
+						}}
+					</div>
+
+					{{ template "input" (dict "Label" (index .Tr "LocationSpecific") "Name" "location_specific" "Placeholder" (index .Tr "InputLocationSpecific") "ShowCondition" "location_id" "Required" true "Attr" "x-model='location_specific'") }}
+
+					<div class="relative ">
+						{{ template "select-user-search" (dict "Label" (index .Tr "ReporterName") "Options" .Users "Value" .AuthUser.ID "SelectedLabel" .AuthUser.Name "DefaultValue" .AuthUser.ID "DefaultText" (index .Tr "SelectReporterName") "Attr" "x-model='reporter_id'" "Required" true) }}
+					</div>
+
+					{{ template "input-flatpickr" dict
+						"Label" (index .Tr "DateTimeObservation")
+						"Name" "event_date"
+						"Id" "event_date"
+						"Value" (.Incident.TanggalWaktu.Format "2006-01-02 15:04")
+						"Type" "date-time"
+						"Placeholder" (index .Tr "InputDateObservation")
+						"Required" true
+						"RequiredBinding" ""
+						"Attr" "x-model=event_date"
+					}}
+				</div>
+
+				<fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border px-2 mt-4">
+					<legend class="fieldset-legend">{{ index .Tr "ResponsibleParty" }}</legend>
+					<div class="flex flex-col md:flex-row items-center gap-2 ">
+						<fieldset class="w-full">
+							<input id="draft" class="peer/draft" type="radio" value="department" name="work_type" x-model="work_type" checked />
+							<label for="draft" class="peer-checked/draft:text-sky-500 text-sm font-semibold text-base-content opacity-60 mb-1 ">{{ index .Tr "Department" }}</label>
+
+							<input id="published" class="peer/published" type="radio" name="work_type" value="contractor" x-model="work_type" />
+							<label for="published" class="peer-checked/published:text-sky-500 text-sm font-semibold mb-1 text-base-content opacity-60">{{ index .Tr "Contractor" }}</label>
+
+							<div class="hidden peer-checked/draft:block relative" @change="syncData('department_id', $event.detail)">
+								{{ template "select-search" (dict "Label" ""
+									"Name" "department_id"
+									"Value" .Incident.DepartmentID
+									"ModelName" "department_id"
+									"Options" .Departments
+									"SearchURL" "/incident/departments/search"
+									"DefaultText" (index .Tr "SelectDepartment")
+									"Attr" "x-model='department_id' aria-label='Pilih Department'"
+									"RequiredBinding" "work_type === 'department'"
+									)
+								}}
+							</div>
+
+							<div class="hidden peer-checked/published:block relative" @change="syncData('contractor_id', $event.detail)">
+								{{ template "select-search" (dict
+									"Label" ""
+									"Name" "contractor_id"
+									"ModelName" "contractor_id"
+									"Value" .Incident.ContractorID
+									"Options" .Contractors
+									"SearchURL" "/incident/contractors/search"
+									"DefaultText" (index .Tr "SelectContractor")
+									"Attr" "x-model='contractor_id' aria-label='Pilih Kontraktor'"
+									"RequiredBinding" "work_type === 'contractor'"
+									)
+								}}
+							</div>
+						</fieldset>
+						{{ template "select-dynamic" (dict
+							"Label" (index .Tr "PIC")
+							"Name" "pic_id"
+							"Model" "pic_id"
+							"OptionsArray" "all_pics"
+							"ShowCondition" "work_type"
+							"DefaultText" (index .Tr "SelectPIC")
+							"Required" true
+							)
+						}}
+					</div>
+				</fieldset>
+
+				{{ template "ckeditor" dict "ID" "TaskPerformed" "Label" (index .Tr "TaskPerformed") "Name" "tugas_dijalankan" "Model" "TaskPerformed" "Value" .Incident.TugasDijalankan "Required" true "Attr" "" }}
+				{{ template "ckeditor" dict "ID" "IncidentDescription" "Label" (index .Tr "IncidentDescription") "Placeholder" (index .Tr "IncidentDescriptionPlaceholder") "Name" "deskripsi" "Model" "IncidentDescription" "Value" .Incident.Deskripsi "Required" true }}
+
+				{{ template "input-file" (dict "Label" (index .Tr "UploadDocument") "DragDropUpload" (index .Tr "DragDropUpload") "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "ExistingFiles" .Docs "Attr" "") }}
+
+				{{ template "ckeditor" dict "ID" "ImmediateAction" "Label" (index .Tr "ImmediateAction") "Placeholder" (index .Tr "WorkStatus") "Name" "tindakan_langsung" "Model" "ImmediateAction" "Value" .Incident.TindakanLangsung "Required" true }}
+				{{ template "ckeditor" dict "ID" "DamageDetail" "Label" (index .Tr "DamageDetail") "Placeholder" (index .Tr "UnplannedOutcome") "Name" "detil_kerusakan_kerugian" "Model" "DamageDetail" "Value" .Incident.DetilKerusakanKerugian "Required" true }}
+
+				<div class="flex flex-col md:flex-row gap-2 mt-4">
+					<div class="col-span-2 md:grow">
+						<div class="flex-col">
+							{{ template "select_input" (dict "Label" "Consequences" "Name" "consequence_id" "Model" "consequence_id" "Placeholder" "Pilih Consequences" "Class" "max-w-sm" "Options" .Consequences "Required" true) }}
+							<div x-show="consequence_id" x-transition>
+								<textarea class="textarea textarea-bordered w-full" x-text="getConsequenceDesc()" readonly></textarea>
+							</div>
+
+							{{ template "select_input" (dict "Label" "Likelihood" "Name" "likelihood_id" "Model" "likelihood_id" "Placeholder" "Pilih Likelihood" "Class" "max-w-sm" "Options" .Likelihoods "Required" true) }}
+							<div x-show="likelihood_id" x-transition>
+								<textarea class="textarea textarea-bordered w-full" x-text="getLikelihoodNotes()" readonly></textarea>
+							</div>
+						</div>
+					</div>
+
+					<div class="md:flex-none">
+						<div class="flex flex-col items-center max-w-md">
+							<table class="border-collapse border border-base-300 text-[10px]">
+								<caption class="caption-top font-bold text-center bg-base-200 border border-base-300">RISK MATRIX GRID</caption>
+								<thead>
+									<tr>
+										<th rowspan="2" colspan="2" class="border border-base-300 p-2 bg-base-200 italic">Likelihood</th>
+										<th colspan="5" class="border border-base-300 p-1 bg-base-200">Consequence</th>
+									</tr>
+									<tr class="bg-base-200 text-center">
+										{{ range $c := $.Consequences }}
+											<th class="border border-base-300 p-1 w-24">{{ $c.Name }}</th>
+										{{ end }}
+									</tr>
+								</thead>
+								<tbody>
+									{{ range $l := .Likelihoods }}
+										<tr>
+											<td class="border border-base-300 bg-base-200 p-2 font-bold">{{ $l.Sequence }}</td>
+											<td class="border border-base-300 bg-base-200 p-2 font-medium w-full max-w-xs">{{ $l.Name }}</td>
+											{{ range $c := $.Consequences }}
+												{{ $mID := getMatrixID $.Matrices $c.ID $l.ID }}
+												{{ $aID := getMatrixAssessmentID $.Matrices $c.ID $l.ID }}
+												<td class="border border-base-300 text-center font-bold text-base-content uppercase shadow-inner cursor-pointer hover:opacity-80 hover:scale-[1.02] transition-all"
+													:class="risk_matrix_id == '{{ $mID }}' ? 'ring-2 ring-black ring-inset scale-105 z-10 '  : ''"
+													style="background-color: {{ getMatrixColor $.Matrices $c.ID $l.ID }};"
+													@click="if('{{ $mID }}' !== '0') { openEdit('{{ $mID }}', '{{ $c.ID }}', '{{ $l.ID }}', '{{ $aID }}') }">
+													{{ firstChar (getMatrixName $.Matrices $c.ID $l.ID) }}
+													<input type="hidden" name="risk_matrix_id" x-model="risk_matrix_id">
+												</td>
+											{{ end }}
+										</tr>
+									{{ end }}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+
+				<div x-show="assessment_id" x-transition class="my-3 overflow-x-auto">
+					<table class="table table-xs table-zebra w-full border border-base-300 rounded-box">
+						<tbody>
+							<tr>
+								<td class="font-semibold w-40">Assessment</td>
+								<td><span class="font-bold" x-text="getAssessment().name || '-'"></span></td>
+							</tr>
+							<tr>
+								<td class="font-semibold">Notes</td>
+								<td><div class="whitespace-pre-line text-sm" x-text="getAssessment().notes || '-'"></div></td>
+							</tr>
+							<tr>
+								<td class="font-semibold">Investigation Required</td>
+								<td><div class="whitespace-pre-line text-sm" x-text="getAssessment().investigation_reqd || '-'"></div></td>
+							</tr>
+							<tr>
+								<td class="font-semibold">Reporting Obligation</td>
+								<td><span x-text="getAssessment().reporting_obligation || '-'"></span></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab2">
+		<input type="radio" name="my-accordion-1" :checked="activeTab === 2" @change="activeTab = 2" />
+		<div class="collapse-title font-semibold">
+			<h3 class="text-lg font-bold text-slate-700">BAGIAN 2 – Pihak Terlibat Langsung</h3>
+			<p class="text-xs text-slate-500">(Saksi, korban cedera, kontraktor, operator, dll.)</p>
+		</div>
+		<div class="collapse-content">
+
+			<template x-if="involved_error">
+				<div class="alert alert-error my-2 py-2 text-sm text-white">
+					<span>Gagal Submit! Harap masukkan minimal 1 personil terlibat langsung dengan data lengkap.</span>
+				</div>
+			</template>
+
+			<div class="overflow-visible w-full bg-white rounded-lg border border-slate-200">
+				<table class="table table-compact w-full text-sm">
+					<thead class="bg-slate-100 text-slate-700">
+						<tr>
+							<th class="w-10">No</th>
+							<th class="w-64">Nama Personil</th>
+							<th class="w-48">Perusahaan / Dept</th>
+							<th class="w-32">Jabatan</th>
+							<th class="w-24">Roster</th>
+							<th class="w-24">Shift</th>
+							<th class="w-40">Keterlibatan</th>
+							<th class="w-20">Pengalaman (Thn)</th>
+							<th class="w-12 text-center">Aksi</th>
+						</tr>
+					</thead>
+					<tbody>
+						<template x-for="(party, index) in involved_parties" :key="index">
+							<tr class="hover:bg-slate-50 transition-colors focus-within:relative focus-within:z-50">
+								<td class="font-bold text-center align-middle" x-text="index + 1"></td>
+
+								<td class="align-middle">
+									{{ template "select-user-search_model" (dict
+										"Label" ""
+										"Options" .Users
+										"Model" "party.user_id"
+										"DefaultText" "-- Pilih Personil --"
+										"Required" true
+										)
+									}}
+
+								</td>
+
+								<td>
+									<div class="flex flex-col gap-1">
+										{{ template "select_input" (dict
+											"Label" ""
+											"Name" "work_type"
+											"Model" "party.work_type"
+											"Placeholder" "Pilih Tipe"
+											"Required" true
+											"Slot" "<option value='department'>Internal Dept</option><option value='contractor'>Kontraktor</option>"
+											)
+										}}
+
+										<template x-if="party.work_type === 'department'">
+											<div>
+												{{ template "select_input" (dict
+													"Label" ""
+													"Name" "department_id"
+													"Model" "party.department_id"
+													"Placeholder" "Pilih Dept"
+													"Required" true
+													"Options" .Departments
+													)
+												}}
+											</div>
+										</template>
+
+										<template x-if="party.work_type === 'contractor'">
+											<div>
+												{{ template "select_input" (dict
+													"Label" ""
+													"Name" "contractor_id"
+													"Model" "party.contractor_id"
+													"Placeholder" "Pilih Kontraktor"
+													"Required" true
+													"Options" .Contractors
+													)
+												}}
+											</div>
+										</template>
+									</div>
+								</td>
+								<td >
+									{{ template "input" (dict
+										"Label" ""
+										"Name" "jabatan"
+										"Placeholder" "Jabatan"
+										"Required" true
+										"Attr" "x-model='party.jabatan'"
+										)
+									}}
+
+								</td>
+								<td >
+									{{ template "input" (dict
+										"Label" ""
+										"Name" "roster"
+										"Placeholder" "Roster"
+										"Required" true
+										"Attr" "x-model='party.roster'"
+										)
+									}}
+								</td>
+								<td>
+									{{ template "select_input" (dict
+										"Label" ""
+										"Name" "Sift"
+										"Model" "party.shift"
+										"Placeholder" "Pilih Sift"
+										"Required" true
+										"Slot" "<option value='Day'>Day</option><option value='Night'>Night</option>"
+										)
+									}}
+
+								</td>
+								<td>
+									{{ template "select_input" (dict
+										"Label" ""
+										"Name" "Keterlibatan"
+										"Model" "party.keterlibatan"
+										"Placeholder" "Pilih"
+										"Required" true
+										"Slot" "<option value='Saksi'>Saksi</option><option value='Korban Cedera'>Korban Cedera</option><option value='Operator Unit'>Operator Unit</option><option value='Pengawas Lapangan'>Pengawas Lapangan</option>"
+										)
+									}}
+
+								</td>
+								<td>
+									{{ template "input" (dict
+										"Label" ""
+										"Type" "number"
+										"Name" "pengalaman"
+										"Placeholder" "Pengalaman"
+										"Required" true
+										"Attr" "x-model='party.pengalaman'"
+										)
+									}}
+								</td>
+
+								<td class="text-center align-middle">
+									<template x-if="index >= 0">
+										<button type="button" 
+											@click="removeInvolvedParty(index)" 
+											class="btn btn-xs btn-error text-white flex items-center gap-1 mx-auto"
+											title="Hapus baris ini">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+											</svg>
+											<span>Hapus</span>
+										</button>
+									</template>
+								</td>
+							</tr>
+						</template>
+					</tbody>
+				</table>
+			</div>
+			<div class="mt-2">
+				<button 
+					type="button" 
+					class="btn btn-accent btn-soft btn-sm"
+					@click="addInvolvedParty()">
+					{{ lucide "user-round-plus" (dict "class" "size-4") }} {{ index .Tr "TambahPersonil" }}
+				</button>
+			</div>
+			<input type="hidden" name="involved_parties_json" :value="JSON.stringify(involved_parties)">
+
+		</div>
+	</div>
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab3">
+		<input type="radio" name="my-accordion-1" :checked="activeTab === 3" @change="activeTab = 3" />
+		<div class="collapse-title font-semibold"><h3 class="text-lg font-bold text-slate-700">BAGIAN 3 – Partisipan Investigasi</h3></div>
+		<div class="collapse-content">
+			<div class="overflow-visible w-full bg-white rounded-lg border border-slate-200">
+				<table class="table table-xs w-full">
+					<thead>
+						<tr class="bg-base-200">
+							<th>Peran</th>
+							<th>Nama Personil</th>
+							<th>Jabatan</th>
+							<th>Tipe Dept/Perusahaan</th>
+							<th>Nama Dept/Perusahaan</th>
+							<th>Aksi</th>
+						</tr>
+					</thead>
+					<tbody>
+						<template x-for="(inv, index) in investigators" :key="index">
+							<tr class="hover:bg-slate-50 transition-colors focus-within:relative focus-within:z-50">
+								<td>
+									<select x-model="inv.role" class="select select-bordered select-xs w-full
+										focus:outline-none focus:border-info
+										leading-normal focus:ring-info
+										appearance-none">
+										<option value="Pemimpin Investigasi">Pemimpin Investigasi</option>
+										<option value="Facilitator">Facilitator</option>
+										<option value="Anggota">Anggota</option>
+									</select>
+								</td>
+
+								<td>
+									{{ template "select-user-search_model" (dict
+										"Label" ""
+										"Name" "employee_id"
+										"Options" .Users
+										"Model" "inv.employee_id"
+										"DefaultText" "-- Pilih Personil --"
+										"Required" true
+										)
+									}}
+
+								</td>
+
+								<td>
+
+
+									{{ template "input" (dict
+										"Label" ""
+										"Name" ""
+										"Placeholder" "Jabatan"
+										"Required" true
+										"Attr" "x-model='inv.jabatan'"
+										)
+									}}
+								</td>
+
+								<td>
+									<select x-model="inv.work_type" @change="inv.department_id = ''; inv.contractor_id = ''" class="select select-bordered select-xs w-full
+										focus:outline-none focus:border-info
+										leading-normal focus:ring-info
+										appearance-none">
+										<option value="department">Internal (Department)</option>
+										<option value="contractor">Eksternal (Contractor)</option>
+									</select>
+								</td>
+
+								<td>
+
+									<template x-if="inv.work_type === 'department'">
+
+										{{ template "select_input" (dict
+											"Label" ""
+											"Name" "department_id"
+											"Model" "inv.department_id"
+											"Placeholder" "Pilih Dept"
+											"Required" true
+											"Options" .Departments
+											)
+										}}
+
+									</template>
+
+									<template x-if="inv.work_type === 'contractor'">
+
+										{{ template "select_input" (dict
+											"Label" ""
+											"Name" "contractor_id"
+											"Model" "inv.contractor_id"
+											"Placeholder" "Pilih Kontraktor"
+											"Required" true
+											"Options" .Contractors
+											)
+										}}
+
+									</template>
+
+								</td>
+
+								<td>
+									<button type="button" @click="removeInvestigator(index)" class="btn btn-error btn-xs btn-square text-white">
+										✕
+									</button>
+								</td>
+							</tr>
+						</template>
+					</tbody>
+				</table>
+			</div>
+
+			<div class="mt-4 flex gap-2">
+
+				<button 
+					type="button" 
+					class="btn btn-accent btn-soft btn-xs"
+					@click="addInvestigator('Pemimpin Investigasi')">
+					{{ lucide "circle-plus" (dict "class" "size-4") }} {{ index .Tr "TambahPemimpin" }}
+				</button>
+				<button 
+					type="button" 
+					class="btn btn-info btn-soft btn-xs"
+					@click="addInvestigator('Facilitator')">
+					{{ lucide "circle-plus" (dict "class" "size-4") }} {{ index .Tr "TambahFacilitator" }}
+				</button>
+				<button 
+					type="button" 
+					class="btn btn-primary btn-soft btn-xs"
+					@click="addInvestigator('Anggota')">
+					{{ lucide "circle-plus" (dict "class" "size-4") }} {{ index .Tr "TambahAnggota" }}
+				</button>
+			</div>
+		</div>
+	</div>
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab4">
+		<input type="radio" name="my-accordion-1" :checked="activeTab === 4" @change="activeTab = 4" />
+		<div class="collapse-title font-semibold"><h3 class="text-lg font-bold text-slate-700">BAGIAN 4 – PEEPO Investigation questions for identification of the incident factors</h3></div>
+		<div class="collapse-content text-sm">
+			<div class="overflow-y-auto w-full bg-white rounded-lg border border-slate-200">
+				<table class="table table-xs w-full">
+					<thead>
+						<tr class="bg-base-200">
+							<th>Faktor</th>
+							<th>Temuan</th>
+							<th>Deskripsi</th>
+							<th class="w-16">Aksi</th>
+						</tr>
+					</thead>
+					<tbody>
+						<template x-for="(item, index) in peepo_factors" :key="index">
+							<tr class="hover:bg-slate-50 transition-colors focus-within:relative focus-within:z-50">
+								<td>
+									<select x-model="item.factor" class="select select-bordered select-xs w-full
+										focus:outline-none focus:border-info
+										leading-normal focus:ring-info
+										appearance-none">
+										<option value="Orang">Orang</option>
+										<option value="Peralatan">Peralatan</option>
+										<option value="Lingkungan">Lingkungan</option>
+										<option value="Prosedur">Prosedur</option>
+										<option value="Organisasi">Organisasi</option>
+									</select>
+								</td>
+								<td>
+									{{ template "textarea" (dict
+										"Label" ""
+										"Name" "finding"
+										"Placeholder" "Sebutkan poin utama temuan atau masalah yang ditemukan..."
+										"Required" true
+										"Attr" " x-model='item.findings'"
+										)
+									}}
+								</td>
+								<td>
+									{{ template "textarea" (dict
+										"Label" ""
+										"Name" "description"
+										"Placeholder" "Berikan penjelasan detail, konteks, atau kronologi kejadian..."
+										"Required" true
+										"Attr" " x-model='item.description'"
+										)
+									}}
+								</td>
+								<td>
+									<button type="button" @click="removeFactor(index)" class="btn btn-error btn-xs btn-square text-white">x</button>
+								</td>
+							</tr>
+						</template>
+					</tbody>
+				</table>
+			</div>
+			<button type="button" @click="addFactor()" class="mt-2 btn btn-outline btn-xs">
+				+ Tambah Faktor
+			</button>
+
+		</div>
+	</div>
+</div>
+
+{{ end }}

@@ -25,7 +25,7 @@ type IncidentReport struct {
 	ModeratorComment   string       `json:"moderator_comment" gorm:"type:text"`
 	ModeratorCommentEn string       `json:"moderator_comment_en" gorm:"type:text"`
 	// Relasi Scat Option
-	ScatOptionID uint       `gorm:"column:scat_option_id;after:event_category_id"`
+	ScatOptionID uint       `gorm:"column:scat_option_id;after:event_category_id" json:"scat_option_id"`
 	ScatOption   ScatOption `gorm:"foreignKey:ScatOptionID;references:ID"`
 
 	PotensiLTIFatality    bool   `gorm:"default:false" json:"potensi_lti_fatality"`
@@ -68,7 +68,9 @@ type IncidentReport struct {
 
 	// Relasi One-to-Many ke BAGIAN 2 (Pihak Terlibat)
 	// constraint:OnDelete:CASCADE memastikan jika data IncidentReport dihapus, data di InvolvedParty juga otomatis ikut terhapus
-	InvolvedParties []InvolvedParty         `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE" json:"pihak_terlibat"`
-	Documentations  []IncidentDocumentation `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE" json:"documentations"`
-	Audits          []IncidentReportedAudit `gorm:"foreignKey:IncidentReportID"`
+	InvolvedParties           []InvolvedParty            `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE" json:"pihak_terlibat"`
+	Documentations            []IncidentDocumentation    `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE" json:"documentations"`
+	Audits                    []IncidentReportedAudit    `gorm:"foreignKey:IncidentReportID"`
+	InvestigationParticipants []InvestigationParticipant `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"investigation_participants"`
+	PeepoFactors              []PeepoFactor              `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"peepo_factors"`
 }

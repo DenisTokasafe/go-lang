@@ -3,8 +3,15 @@ AccountSettings: "Pengaturan Akun"
 Logout: "Keluar Sistem"
 Guest: "Tamu"
 Submit: "Kirim"
+Save: "Simpan"
+Next: "Selanjutnya"
+SaveNext: "Simpan & Selanjutnya"
+Previous: "Sebelumnya"
 NewReport: "Report Baru"
-
+TambahPersonil: "Tambah Personil"
+TambahPemimpin: "Tambah Pemimpin"
+TambahFacilitator: "Tambah Facilitator"
+TambahAnggota: "Tambah Anggota"
 # Label Form & Input
 ReportType: "Tipe Bahaya"
 HazardType: "Jenis Bahaya"
@@ -21,6 +28,9 @@ PIC: "Person In Charge (PIC)"
 HazardDescription: "Deskripsi Bahaya"
 UploadDocument: "Upload Dokumen (PNG/PDF, Max 2MB)"
 ImmediateCorrectiveAction: "Tindakan Perbaikan Langsung"
+
+RingkasanInsiden: "Ringkasan Insident"
+subJudulIncident: "Deskripsi Kejadian, Lokasi, Kronologi, dan Tindakan Segera yang Dilakukan"
 
 # Placeholder / Dropdown
 SelectHazardType: "-- Pilih Jenis Bahaya --"
@@ -58,8 +68,8 @@ OptionalInfo: "Opsional: Isi bagian ini jika Anda mengembalikan status pelaporan
 CompleteInstruction: "Silakan lengkapi atau perbaiki laporan Anda berdasarkan catatan dari tim Safety / Auditor di atas."
 UpdateHazard: "Update Hazard"
 VerifyClose: "Verifikasi & Close"
-Delete: "Delete"
-
+Delete: "Hapus"
+Update: "Perbarui"
 ContractArea: "Area Kontrak Karya"
 TaskPerformed: "Tugas yang Dilakukan"
 IncidentDescription: "Deskripsi Lengkap Insiden"

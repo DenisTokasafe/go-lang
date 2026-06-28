@@ -89,6 +89,7 @@ func RenderTemplate(
 		// =========================
 		"views/partials/fild/input-floating.gohtml",
 		"views/partials/fild/input.gohtml",
+		"views/partials/fild/textarea.gohtml",
 		"views/partials/fild/input-file.gohtml",
 		"views/partials/fild/input-date.gohtml",
 		"views/partials/fild/input-flatpickr.gohtml",
@@ -99,6 +100,7 @@ func RenderTemplate(
 		"views/partials/fild/select-search-loop.gohtml",
 		"views/partials/fild/select-dinamic.gohtml",
 		"views/partials/fild/select-user-search.gohtml",
+		"views/partials/fild/select-user-search_model.gohtml",
 		"views/partials/fild/cd-editor.gohtml",
 		"views/partials/fild/ckeditor-loop.gohtml",
 		"views/partials/fild/select_serach_2.gohtml",

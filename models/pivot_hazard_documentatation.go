@@ -9,8 +9,7 @@ type HazardDocumentation struct {
 
 	HazardID        uint
 	DocumentationID uint
-
-	DocType string `gorm:"type:varchar(20)" json:"doc_type"`
+	DocType         string `gorm:"type:varchar(20)" json:"doc_type"`
 	// contoh: desc / corrective / evidence
 
 	// =========================

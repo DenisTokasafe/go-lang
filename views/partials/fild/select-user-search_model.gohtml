@@ -1,0 +1,283 @@
+{{ define "select-user-search_model" }}
+<div class="w-full text-left" {{ if .Model }} x-model="{{ .Model }}" {{ end }}
+	x-data="{
+	open: false,
+	isInvalid: false,
+	errorMsg: '', 
+	required: {{ if .Required }}true{{ else }}false{{ end }},
+	q: '',
+	highlightedIndex: -1,
+	multiple: {{ if .Multiple }}true{{ else }}false{{ end }},
+	selected: {{ if .Multiple }}[]{{ else }}'{{ .Value }}'{{ end }},
+	selectedLabelFallback: '{{ .SelectedLabel }}',
+	isLoading: false,
+
+	options: [
+{{- range $i, $opt := .Options -}}
+{{- if $i }},{{ end -}}{ id: '{{ $opt.ID }}', label: '{{ js $opt.Name }}' }
+{{- end -}}],
+
+	isManual(val) {
+	return val && String(val).startsWith('manual:')
+	},
+
+	validate() {
+	if (!this.required) return true;
+	if (this.multiple) {
+	if (!this.selected.length) {
+	this.isInvalid = true;
+	this.errorMsg = 'Field ini wajib diisi.';
+	return false;
+	}
+	} 
+	else {
+	if (!this.selected) {
+	this.isInvalid = true;
+	this.errorMsg = 'Field ini wajib diisi.';
+	return false;
+	}
+	}
+	this.isInvalid = false;
+	this.errorMsg = '';
+	return true;
+	},
+
+	addManual() {
+	const val = this.q.trim();
+	if (!val) return;
+
+	const existing = this.options.find(o => 
+	o.label.toLowerCase() === val.toLowerCase()
+	);
+
+	if (existing) {
+	this.choose(existing);
+	this.close();
+	return;
+	}
+
+	const manualId = 'manual:' + val;
+	this.options.push({ id: manualId, label: val });
+	this.choose({ id: manualId, label: val });
+	this.close();
+	},
+
+	async fetchUsers(query) {
+	if (!query.trim()) return;
+	this.isLoading = true;
+	try {
+	const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
+	if (res.ok) {
+	const data = await res.json();
+	const newOptions = data.map(item => ({
+	id: String(item.id),
+	label: item.label
+	}));
+
+	const currentSelected = this.options.find(o => String(o.id) === String(this.selected));
+	if (currentSelected && !newOptions.some(o => String(o.id) === String(currentSelected.id))) {
+	newOptions.push(currentSelected);
+	}
+
+	this.options = newOptions;
+	this.highlightedIndex = this.options.length ? 0 : -1;
+	}
+	} catch (err) {
+	console.error('Gagal mengambil data user:', err);
+	} finally {
+	this.isLoading = false;
+	}
+	},
+
+	init() {
+{{ if .Multiple }}
+{{ if .Values }}
+	this.selected = [
+{{- range $i, $v := .Values -}}
+{{- if $i }},{{ end -}}'{{ $v }}'
+{{- end -}}];
+{{ end }}
+{{ end }}
+
+	const defaultValue = '{{ .DefaultValue }}';
+	if (defaultValue !== '' && (this.selected === '' || this.selected === null || this.selected === 'undefined')) {
+	this.selected = defaultValue;
+	}
+
+	this.$watch('selected', value => {
+	this.validate(); 
+	this.$dispatch('change', value);
+	this.$dispatch('input', value);
+	this.$dispatch('field-updated', { field: 'user_id', value: value });
+	});
+
+	let searchTimeout;
+	this.$watch('q', value => {
+	clearTimeout(searchTimeout);
+	if (!value.trim()) return;
+
+	searchTimeout = setTimeout(() => {
+	this.fetchUsers(value);
+	}, 300);
+	});
+	},
+
+	filtered() {
+	return this.options;
+	},
+
+	isSelected(id) {
+	if (this.multiple) return this.selected.includes(String(id));
+	return String(this.selected) === String(id);
+	},
+
+	selectedLabel() {
+	if (this.multiple) {
+	if (!this.selected.length) return '{{ .DefaultText }}';
+	const picked = this.options.filter(o => this.selected.includes(String(o.id)));
+	const labels = picked.map(o => o.label);
+	return labels.slice(0, 2).join(', ') + (labels.length > 2 ? ` +${labels.length - 2}` : '');
+	}
+
+	const f = this.options.find(o => String(o.id) === String(this.selected));
+	if (f) return f.label;
+
+	if (this.selected && !this.isManual(this.selected)) {
+	return this.selectedLabelFallback || this.selected;
+	}
+
+	return this.selected ? this.selected.replace('manual:', '') : '{{ .DefaultText }}';
+	},
+
+	choose(opt) {
+	const id = String(opt.id);
+	if (this.multiple) {
+	if (this.selected.includes(id)) {
+	this.selected = this.selected.filter(x => x !== id);
+	} else {
+	this.selected.push(id);
+	}
+	} else {
+	this.selected = id;
+	this.close();
+	}
+	this.isInvalid = false;
+	this.errorMsg = ''; 
+	},
+
+	toggle() {
+	this.open = !this.open;
+	if (this.open) {
+	this.highlightedIndex = this.filtered().length ? 0 : -1;
+	// ✅ Dimodifikasi agar memanggil reposition() tepat saat tombol diklik
+	this.$nextTick(() => {
+	this.reposition();
+	this.$refs.searchInput?.focus();
+	});
+	}
+	},
+
+	close() {
+	this.open = false;
+	this.q = '';
+	this.highlightedIndex = -1;
+	},
+
+	// ====================================================================
+	// REPOSITION WITH AUTO-FLIP (Optimized with Fixed Context for Tables)
+	// ====================================================================
+	reposition() {
+	const button = this.$refs.triggerButton;
+	const popover = this.$refs.dropdownPopover;
+	if (!button || !popover) return;
+
+	const rect = button.getBoundingClientRect();
+	const popoverHeight = 220; 
+	const spaceBelow = window.innerHeight - rect.bottom;
+	const margin = 10;
+
+	if (spaceBelow < popoverHeight + margin && rect.top > popoverHeight + margin) {
+	// Dropdown Terbuka ke ATAS
+	popover.style.top = `${rect.top - popoverHeight - 4}px`;
+	} else {
+	// Dropdown Terbuka ke BAWAH (Normal)
+	popover.style.top = `${rect.bottom + 4}px`;
+	}
+
+	popover.style.left = `${rect.left}px`;
+	popover.style.width = `${rect.width}px`;
+	}
+	}"
+	x-modelable="selected" 
+{{ .Attr }}
+	@validate-me="validate()"
+	@keydown.escape.window="close()"
+	@resize.window="open && reposition()"
+	@scroll.window="open && reposition()">
+
+	{{ if .Label }} 
+		<label class="label p-0 mb-1"> 
+			<span class="text-xs font-bold text-base-content opacity-60">{{ .Label }}{{ if .Required }}<span class="text-error font-bold ml-0.5">*</span>{{ end }}</span>
+		</label>
+	{{ end }}
+
+	<input type="text" class="absolute opacity-0 pointer-events-none" tabindex="-1" :value="multiple ? (selected.length ? 'valid' : '') : selected">
+
+	{{ if not .Multiple }}
+		{{ if .Name }}
+			<input type="hidden" name="{{ .Name }}" :value="selected && !isManual(selected) ? selected : ''">
+		{{ else }}
+			<input type="hidden" name="report_by_id" :value="selected && !isManual(selected) ? selected : ''">
+			<input type="hidden" name="reporter_manual" :value="selected && isManual(selected) ? selected.replace('manual:', '') : ''">
+		{{ end }}
+	{{ end }}
+
+	<button type="button" x-ref="triggerButton" class="btn btn-block btn-xs border bg-base-100 flex items-center justify-between w-full text-left font-normal"
+		{{ if .DisabledBinding }} :disabled="{{ .DisabledBinding }}" {{ end }}
+		:class="[ isInvalid ? 'border-error text-error' : 'border-base-300 focus:border-info', {{ if .DisabledBinding }} ({{ .DisabledBinding }}) ? 'opacity-50 cursor-not-allowed bg-base-200' : '' {{ else }} '' {{ end }} ]"
+		@click="!$el.disabled && toggle()"> 
+		<span class="truncate text-xs" x-text="selectedLabel()"></span>
+		<span class="text-xs opacity-60 ml-1">▾</span>
+	</button>
+
+	<div x-show="isInvalid && errorMsg" x-cloak class="mt-0.5">
+		<p class="text-error text-[10px] font-semibold" x-text="errorMsg"></p>
+	</div>
+	<template x-teleport="body">
+		<div x-show="open" x-ref="dropdownPopover" x-transition @click.outside="close()" class="fixed z-50 rounded-md border border-base-300 bg-base-100 shadow-xl overflow-hidden min-w-[220px]">
+			<div class="p-1.5 border-b border-base-200 bg-base-50">
+				<input x-ref="searchInput" x-model="q"
+					{{ if .DisabledBinding }} :disabled="{{ .DisabledBinding }}" {{ end }}
+					@keydown.enter.prevent="highlightedIndex >= 0 ? choose(filtered()[highlightedIndex]) : addManual()"
+					@keydown.arrow-down.prevent="highlightedIndex = (highlightedIndex + 1) % filtered().length"
+					@keydown.arrow-up.prevent="highlightedIndex = (highlightedIndex <= 0) ? filtered().length - 1 : highlightedIndex - 1"
+					type="text" placeholder="Cari nama karyawan..." class="w-full rounded border border-base-300 px-2 py-1 text-xs focus:outline-none focus:border-info bg-base-100" />
+			</div>
+
+			<ul class="max-h-48 overflow-auto py-0.5 text-xs">
+				<li x-show="isLoading" class="p-2 text-center text-base-content opacity-50">
+					Memuat data...
+				</li>
+
+				<template x-for="(opt, i) in filtered()" :key="opt.id">
+					<li x-show="!isLoading">
+						<button type="button" class="w-full px-3 py-2 text-left hover:bg-base-200 flex justify-between items-center transition-colors"
+							:class="{ 'bg-primary/10 text-primary font-semibold': isSelected(opt.id), 'bg-base-200': highlightedIndex === i }"
+							@mouseenter="highlightedIndex = i" @click="choose(opt)">
+							<span x-text="opt.label"></span>
+							<span x-show="isSelected(opt.id)" class="text-primary font-bold">✓</span>
+						</button>
+					</li>
+				</template>
+
+				<li x-show="!isLoading && q.trim().length > 0 && filtered().length === 0" class="p-1.5">
+					<button type="button" @click="addManual()" class="btn btn-primary btn-xs btn-block flex gap-1 justify-center items-center">
+						<span class="text-[9px] opacity-80">+ BUAT BARU:</span>
+						<span class="font-bold truncate max-w-[120px]" x-text="q"></span>
+					</button>
+				</li>
+			</ul>
+		</div>
+	</template>
+</div>
+{{ end }}

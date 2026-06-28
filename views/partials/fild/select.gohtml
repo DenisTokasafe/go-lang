@@ -1,7 +1,7 @@
 {{ define "select_input" }}
-<fieldset class=" w-full" x-data="{ isInvalid: false }">
+<fieldset class="fieldset w-full" x-data="{ isInvalid: false }">
 
-	{{ if .Label }} <label class="label"> <span class="text-xs font-bold text-base-content opacity-60">{{ .Label }}{{ if .Required }}<span class="text-error font-bold ml-0.5">*</span>{{ end }}</span></label>{{ end }}
+	{{ if .Label }} <label class="label"> <span class="text-xs font-bold text-base-content opacity-60">{{ .Label }}{{ if .Required }}<span class="text-error font-bold ml-0.5 ">*</span>{{ end }}</span></label>{{ end }}
 
 	<select
 		name="{{ .Name }}"

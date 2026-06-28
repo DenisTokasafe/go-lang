@@ -57,7 +57,14 @@ func InitDB() *gorm.DB {
 		&models.InvolvedParty{},
 		&models.IncidentDocumentation{}, // Pastikan tabel pivot ini ikut dimigrasi
 		&models.IncidentReportedAudit{},
+		&models.InvestigationParticipant{},
+		&models.PeepoFactor{},
 	)
+	if err != nil {
+		log.Fatalf("MIGRASI DATABASE GAGAL: %v", err)
+	} else {
+		fmt.Println("Migrasi sukses!")
+	}
 
 	fmt.Println("Database terkoneksi & Migrasi berhasil!")
 

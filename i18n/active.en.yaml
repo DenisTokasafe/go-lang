@@ -3,8 +3,15 @@ AccountSettings: "Account Settings"
 Logout: "Logout"
 Guest: "Guest"
 Submit: "Submit"
+Save: "Save"
+Next: "Next"
+SaveNext: "Save & Next"
+Previous: "Previous"
 NewReport: "New Report"
-
+TambahPersonil: "Add Personnel"
+TambahPemimpin: "Add Leader"
+TambahFacilitator: "Add Facilitator"
+TambahAnggota: "Add Member"
 # Label Form & Input
 ReportType: "Report Type"
 HazardType: "Hazard Type"
@@ -21,6 +28,8 @@ PIC: "Person in Charge (PIC)"
 HazardDescription: "Hazard Description"
 UploadDocument: "Upload Document (PNG/PDF, Max 2MB)"
 ImmediateCorrectiveAction: "Immediate Corrective Action"
+RingkasanInsiden: "Summary of Incident"
+subJudulIncident: "Incident Description, Location, Sequence of Events, and Immediate Actions Taken"
 
 # Placeholder / Dropdown
 SelectHazardType: "-- Select Hazard Type --"
@@ -59,6 +68,7 @@ CompleteInstruction: "Please complete or correct your report based on the notes 
 UpdateHazard: "Update Hazard"
 VerifyClose: "Verify & Close"
 Delete: "Delete"
+Update: "Update"
 
 ContractArea: "Contract of Work Area"
 TaskPerformed: "Task Being Performed"

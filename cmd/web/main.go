@@ -6,8 +6,9 @@ import (
 	"latihan1/cmd/web/helpers"
 	"latihan1/cmd/web/routes"
 	"log"
-	"net/http/fcgi" // 1. IMPORT PACKAGE FASTCGI INI
+	"net/http"
 
+	// 1. IMPORT PACKAGE FASTCGI INI
 	"github.com/joho/godotenv"
 )
 
@@ -35,11 +36,11 @@ func main() {
 	// Karena routes Anda terdaftar ke default mux, fcgi akan otomatis membacanya
 	routes.RegisterRoutes(db, controllers)
 
-	log.Println("Aplikasi Golang berjalan menggunakan FastCGI di Hostinger...")
+	log.Println("Aplikasi SENTRY berjalan lokal di http://localhost:8080")
 
-	// 2. GANTI LISTENANDSERVE DENGAN INI
-	err := fcgi.Serve(nil, nil)
+	// Menjalankan server lokal di port 8080
+	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
-		log.Fatalf("Gagal menjalankan FastCGI server: %v\n", err)
+		log.Fatalf("Gagal menjalankan server lokal: %v\n", err)
 	}
 }

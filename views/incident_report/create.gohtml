@@ -92,12 +92,9 @@
 	},
 
 	removeInvolvedParty(index) {
-	if (this.involved_parties.length > 1) {
+	// Karena baris pertama tidak punya tombol hapus, 
+	// fungsi ini pasti hanya tereksekusi jika jumlah baris > 1
 	this.involved_parties.splice(index, 1);
-	} else {
-	// Jika baris terakhir dihapus, kosongkan array
-	this.involved_parties = [];
-	}
 	},
 
 	checkFlash() {
@@ -229,12 +226,34 @@
 	}
 
 	// 2. VALIDASI BAGIAN 2: Loop cek kelengkapan kolom input wajib per baris
+	console.log('=== MEMULAI VALIDASI BAGIAN 2 ===');
+	console.log('Total baris personil:', this.involved_parties.length);
+
 	for (let i = 0; i < this.involved_parties.length; i++) {
 	let party = this.involved_parties[i];
+	let userIdValue = party.user_id ? String(party.user_id).trim() : '';
+	let manualValue = party.reporter_manual ? String(party.reporter_manual).trim() : '';
 
-	if (!party.reporter_manual.trim() || !party.jabatan.trim() || !party.keterlibatan) {
+
+	// --- 🔍 CONSOLE LOG UNTUK PENGECEKAN ---
+	console.log('userIdValue:', userIdValue);
+	console.log('--- Mengecek Baris ke-' + (i + 1) + ' ---');
+	console.log('Data utuh baris ini:', JSON.parse(JSON.stringify(party))); 
+	console.log('1. user_id:', party.user_id, '| Tipe:', typeof party.user_id);
+	console.log('2. reporter_manual:', party.reporter_manual);
+	console.log('3. jabatan:', party.jabatan);
+	console.log('4. keterlibatan:', party.keterlibatan);
+	console.log('5. work_type:', party.work_type);
+	// -----------------------------------------
+
+	// Cek apakah user_id ada isinya ATAU reporter_manual ada isinya
+	let hasName = party.user_id || party.reporter_manual.trim() !== '';
+	console.log('=> Hasil evaluasi hasName:', hasName);
+
+	if (!hasName || !party.jabatan.trim() || !party.keterlibatan) {
+	console.error('[Validasi Gagal] Baris ke-' + (i + 1) + ': Nama, Jabatan, atau Keterlibatan kosong.');
 	this.involved_error = true;
-	const msg = `Mohon lengkapi Nama, Jabatan, dan Keterlibatan pada personil baris ke-${i + 1}!`;
+	const msg = 'Mohon lengkapi Nama Personil, Jabatan, dan Keterlibatan pada baris ke-' + (i + 1) + '!';
 	if (window.showToast) {
 	window.showToast(msg, 'error');
 	} else {
@@ -244,22 +263,32 @@
 	}
 
 	// Cek dropdown departemen atau kontraktor berdasarkan pilihan tipe kerjanya
-	if (party.work_type === 'department' && !party.department_id) {
+	if (party.work_type === 'department') {
+	console.log('=> Mengecek department_id:', party.department_id);
+	if (!party.department_id) {
+	console.error('[Validasi Gagal] Baris ke-' + (i + 1) + ': Department belum dipilih.');
 	this.involved_error = true;
-	const msg = `Mohon pilih Department internal untuk personil baris ke-${i + 1}!`;
+	const msg = 'Mohon pilih Department internal untuk personil baris ke-' + (i + 1) + '!';
 	if (window.showToast) window.showToast(msg, 'error'); else alert(msg);
 	return;
+	}
 	}
 
-	if (party.work_type === 'contractor' && !party.contractor_id) {
+	if (party.work_type === 'contractor') {
+	console.log('=> Mengecek contractor_id:', party.contractor_id);
+	if (!party.contractor_id) {
+	console.error('[Validasi Gagal] Baris ke-' + (i + 1) + ': Contractor belum dipilih.');
 	this.involved_error = true;
-	const msg = `Mohon pilih Nama Kontraktor/Perusahaan untuk personil baris ke-${i + 1}!`;
+	const msg = 'Mohon pilih Nama Kontraktor/Perusahaan untuk personil baris ke-' + (i + 1) + '!';
 	if (window.showToast) window.showToast(msg, 'error'); else alert(msg);
 	return;
 	}
+	}
+	console.log('Baris ke-' + (i + 1) + ' lolos validasi.');
 	}
 
 	// Reset status error jika lolos validasi Bagian 2
+	console.log('=== VALIDASI BAGIAN 2 SELESAI & SUKSES ===');
 	this.involved_error = false;
 
 	// 3. VALIDASI BAGIAN 1: Cek internal HTML5 Form validation bawaan browser
@@ -328,6 +357,7 @@
 	<p class="text-xs text-slate-500">(Informasi Umum, Lokasi, Kronologi, & Tindakan Langsung)</p>
 </div>
 <form x-ref="form" action="/incident/store" method="POST" enctype="multipart/form-data" @submit.prevent="handleSubmit" >
+
 	<div class="bg-base-100 rounded-md border border-base-200 p-2">
 		<div class="grid grid-cols-1 md:grid-cols-4 gap-2 ">
 			<div class="relative " @change="syncData('event_category_id', $event.detail)">
@@ -514,17 +544,15 @@
 							<td class="font-bold text-center align-middle" x-text="index + 1"></td>
 
 							<td class="align-middle">
-								{{ template "select-user-search" (dict
+								{{ template "select-user-search_model" (dict
 									"Label" ""
 									"Options" .Users
-									"Value" ""
-									"SelectedLabel" ""
-									"DefaultValue" ""
+									"Model" "party.user_id"
 									"DefaultText" "-- Pilih Personil --"
-									"Attr" "x-model='party.user_id'"
 									"Required" true
 									)
 								}}
+
 							</td>
 
 							<td>
@@ -625,17 +653,18 @@
 								}}
 							</td>
 
-
 							<td class="text-center align-middle">
-								<button type="button" 
-									@click="removeInvolvedParty(index)" 
-									class="btn btn-xs btn-error text-white flex items-center gap-1 mx-auto"
-									title="Hapus baris ini">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-									</svg>
-									<span>Hapus</span>
-								</button>
+								<template x-if="index >= 0">
+									<button type="button" 
+										@click="removeInvolvedParty(index)" 
+										class="btn btn-xs btn-error text-white flex items-center gap-1 mx-auto"
+										title="Hapus baris ini">
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+										</svg>
+										<span>Hapus</span>
+									</button>
+								</template>
 							</td>
 						</tr>
 					</template>

@@ -1,0 +1,47 @@
+{{ define "textarea" }}
+<fieldset class="fieldset" x-data="{ isInvalid: false }">
+
+	{{ if .Label }}
+		<label class="label">
+			<span class="text-xs font-bold text-base-content opacity-60">
+				{{ .Label }}
+				{{ if .Required }}
+					<span class="text-error font-bold ml-0.5">*</span>
+				{{ end }}
+			</span>
+		</label>
+	{{ end }}
+
+	<div class="w-full">
+		<textarea
+			name="{{ .Name }}"
+			id="{{ .Id }}"
+			placeholder="{{ .Placeholder }}"
+
+			@invalid.prevent="isInvalid = true"
+			@input="isInvalid = false"
+			@blur="if (!event.target.checkValidity()) isInvalid = true"
+			{{ if .Required }} required {{ end }}
+			{{ if .DisabledBinding }} :disabled="{{ .DisabledBinding }}" {{ end }}
+
+
+			class="textarea textarea-xs w-full focus:outline-hidden"
+			:class="{
+			'textarea-error border-error': isInvalid,
+			'focus:textarea-info focus:border-info ': !isInvalid,
+			'opacity-50 cursor-not-allowed bg-base-200': {{ if .DisabledBinding }} {{ .DisabledBinding }} {{ else }} false {{ end }}
+			}"
+
+		{{ .Attr | htmlattr }}
+		></textarea>
+
+		<div class="">
+			<template x-if="isInvalid">
+				<p class="text-error text-[9px] font-semibold leading-none mt-1">
+					{{ if .Label }}{{ .Label }}{{ else }}Field{{ end }} ini wajib diisi.
+				</p>
+			</template>
+		</div>
+	</div>
+</fieldset>
+{{ end }}

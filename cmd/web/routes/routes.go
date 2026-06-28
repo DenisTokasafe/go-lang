@@ -256,9 +256,10 @@ func RegisterRoutes(db *gorm.DB, c *bootstrap.Controllers) {
 	http.HandleFunc("GET /incident/locations/search", withAuth(c.IncidentController.SearchLocation))
 	// 3. Endpoint untuk mencari Nama Perusahaan Kontraktor
 	http.HandleFunc("GET /incident/contractors/search", withAuth(c.IncidentController.SearchContractor))
-	// http.HandleFunc("POST /incident/store", withAuth(c.IncidentController.Store))
-	// http.HandleFunc("GET /incident/edit/{id}", withAuth(c.IncidentController.Edit))
-	// http.HandleFunc("POST /incident/update/{id}", withAuth(c.IncidentController.Update))
+	http.HandleFunc("GET /incident/departments/search", withAuth(c.IncidentController.SearchDepartment))
+	http.HandleFunc("POST /incident/store", withAuth(c.IncidentController.Store))
+	http.HandleFunc("GET /incident/edit/{id}", withAuth(c.IncidentController.Edit))
+	http.HandleFunc("POST /incident/update/{id}", withAuth(c.IncidentController.Update))
 	// http.HandleFunc("POST /incident/update-status/{id}", withAuth(c.IncidentController.UpdateStatus))
 	// http.HandleFunc("POST /incident/delete/{id}", withAuth(c.IncidentController.Delete))
 }
