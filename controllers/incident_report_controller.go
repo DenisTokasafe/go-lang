@@ -303,6 +303,24 @@ func (ic *IncidentController) Edit(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("lang"); err == nil {
 		lang = cookie.Value
 	}
+	groupedCauses := map[string][]models.IncidentCause{
+		"unsafe_condition": {},
+		"unsafe_act":       {},
+		"personal_factor":  {},
+		"job_factor":       {},
+		"control_system":   {},
+	}
+
+	// Kelompokkan berdasarkan CategoryType
+	for _, cause := range editData.Incident.Causes {
+		fmt.Printf("DEBUG: Memproses Cause ID: %d | Type: '%s'\n", cause.ID, cause.CategoryType) // <--- TAMBAHKAN INI
+
+		if _, exists := groupedCauses[cause.CategoryType]; exists {
+			groupedCauses[cause.CategoryType] = append(groupedCauses[cause.CategoryType], cause)
+		} else {
+			fmt.Printf("WARNING: CategoryType '%s' tidak cocok dengan map!\n", cause.CategoryType) // <--- TAMBAHKAN INI
+		}
+	}
 
 	// Bongkar struct EditData ke dalam map agar template HTML tidak pecah
 	data := map[string]interface{}{
@@ -325,6 +343,8 @@ func (ic *IncidentController) Edit(w http.ResponseWriter, r *http.Request) {
 		"Contractors":     editData.Contractors,
 		"Users":           editData.Users,
 		"ScatOptions":     editData.ScatOptions,
+		"ScatOptionsAll":  editData.ScatOptionsAll,
+		"GroupedCauses":   toJSON(groupedCauses),
 		"TotalRows":       editData.TotalRows,
 		"AllTypes":        editData.AllTypes,
 		"AllPics":         editData.AllPics,
@@ -379,6 +399,8 @@ func (ic *IncidentController) Update(w http.ResponseWriter, r *http.Request) {
 		InvolvedParties           []models.InvolvedParty            `json:"InvolvedParties"`
 		InvestigationParticipants []models.InvestigationParticipant `json:"InvestigationParticipants"`
 		PeepoFactors              []models.PeepoFactor              `json:"PeepoFactors"`
+		Timelines                 []models.Timeline                 `json:"Timelines"`
+		Causes                    []models.IncidentCause            `json:"IncidentCauses"`
 	}
 
 	// 3. UNMARSHAL string JSON tersebut ke struct req
@@ -386,9 +408,22 @@ func (ic *IncidentController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid input JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	// --- TAMBAHAN BARU: Filter Data Causes Kosong ---
+	var validCauses []models.IncidentCause
+	for _, cause := range req.Causes {
+		// Pastikan ID SCAT tidak kosong (sesuaikan dengan tipe data struct Anda)
+		// Jika ScatOptionID berupa *uint (pointer):
+		if cause.ScatOptionID != nil && *cause.ScatOptionID > 0 {
+			validCauses = append(validCauses, cause)
+		}
+
+		// Catatan: Jika ScatOptionID di model berupa uint biasa (bukan pointer), gunakan ini:
+		// if cause.ScatOptionID > 0 { validCauses = append(validCauses, cause) }
+	}
+	// -------------------------------------------------
 
 	// 4. PANGGIL SERVICE dengan menyertakan 'r' untuk memproses file dokumentasi
-	partiesUpdated, err := ic.ServiceIncident.UpdateIncident(uint(id), userID.ID, &req.Incident, req.InvolvedParties, req.InvestigationParticipants, req.PeepoFactors, r)
+	partiesUpdated, err := ic.ServiceIncident.UpdateIncident(uint(id), userID.ID, &req.Incident, req.InvolvedParties, req.InvestigationParticipants, req.PeepoFactors, req.Timelines, req.Causes, r)
 
 	if err != nil {
 		fmt.Printf("DEBUG - Service Error: %v\n", err)

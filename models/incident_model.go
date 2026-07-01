@@ -73,4 +73,8 @@ type IncidentReport struct {
 	Audits                    []IncidentReportedAudit    `gorm:"foreignKey:IncidentReportID"`
 	InvestigationParticipants []InvestigationParticipant `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"investigation_participants"`
 	PeepoFactors              []PeepoFactor              `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"peepo_factors"`
+
+	// Relasi One-to-Many ke BAGIAN 3 (Timeline)
+	Timelines []Timeline      `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"timelines"`
+	Causes    []IncidentCause `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"causes"`
 }

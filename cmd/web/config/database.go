@@ -59,6 +59,8 @@ func InitDB() *gorm.DB {
 		&models.IncidentReportedAudit{},
 		&models.InvestigationParticipant{},
 		&models.PeepoFactor{},
+		&models.Timeline{},
+		&models.IncidentCause{},
 	)
 	if err != nil {
 		log.Fatalf("MIGRASI DATABASE GAGAL: %v", err)

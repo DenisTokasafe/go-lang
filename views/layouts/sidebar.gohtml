@@ -113,12 +113,12 @@
 								</a>
 
 							</li>
-							{{ if hasPrefix .CurrentPath "/hazard/edit" }}
+							{{ if hasPrefix .CurrentPath "/incident/edit" }}
 								<li>
 
 									<a href="{{ .CurrentPath }}"
 										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs
-									{{ if hasPrefix .CurrentPath "/hazard/edit" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}}">
+									{{ if hasPrefix .CurrentPath "/incident/edit" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}}">
 
 										Detail Report
 

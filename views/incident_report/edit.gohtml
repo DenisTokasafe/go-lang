@@ -2,12 +2,26 @@
 {{ define "content" }}
 <div class="px-4 w-full " 
 	x-data="{
+	stripHtml(html) {
+	let tmp = document.createElement('DIV');
+	tmp.innerHTML = html;
+	return tmp.textContent || tmp.innerText || '';
+	},
 	isSubmitting: false,
-	activeTab: 1, totalTabs: 4,
+	showErrors: false,
+	activeTab: 1, totalTabs: 6,
 	incident: {{ json .Incident }},
+	all_scat_options: {{ json .ScatOptionsAll }},
 
 	// Data list (array dari database)
-	involvedParties: {{ json .Incident.InvolvedParties }},
+	server_causes: {{ .GroupedCauses }},
+	causes: {
+	unsafe_condition: [],
+	unsafe_act: [],
+	personal_factor: [],
+	job_factor: [],
+	control_system: []
+	},
 	// =========================
 	// BASIC STATE
 	// =========================
@@ -166,6 +180,78 @@
 	}
 	},
 
+	initTimelines() {
+	if (this.incident && this.incident.timelines && this.incident.timelines.length > 0) {
+	this.timelines = this.incident.timelines.map((t) => {
+	// Cek apakah data sudah dalam format baru (JSONB)
+	let processedWhys = [];
+
+	if (t.whys && Array.isArray(t.whys)) {
+	// Jika sudah ada 'whys' (dari DB JSONB), gunakan langsung
+	processedWhys = t.whys;
+	} else {
+	// Jika masih data lama (flat), lakukan migrasi ke format baru
+	processedWhys = [
+	{ text: t.why1 || '', children: [] },
+	{ text: t.why2 || '', children: [] },
+	{ text: t.why3 || '', children: [] },
+	{ text: t.why4 || '', children: [] },
+	{ text: t.why5 || '', children: [] }
+	].filter(w => w.text !== '');
+	}
+
+	return {
+	event: t.event || '',
+	// Pastikan minimal ada 1 input kosong jika array kosong
+	whys: processedWhys.length > 0 ? processedWhys : [{ text: '', children: [] }]
+	};
+	});
+	} else {
+	// Fallback jika tidak ada timeline sama sekali (data baru)
+	this.timelines = [{
+	event: (this.incident && this.incident.deskripsi) ? this.incident.deskripsi : '',
+	whys: [{ text: '', children: [] }]
+	}];
+	}
+	},
+
+	addWhy(timelineIndex) {
+	this.timelines[timelineIndex].whys.push({ text: '', children: [] });
+	},
+	removeWhy(timelineIndex, whyIndex) {
+	this.timelines[timelineIndex].whys.splice(whyIndex, 1);
+	},
+	addChildWhy(timelineIndex, whyIndex) {
+	this.timelines[timelineIndex].whys[whyIndex].children.push({ text: '' });
+	},
+	removeChildWhy(timelineIndex, whyIndex, childIndex) {
+	this.timelines[timelineIndex].whys[whyIndex].children.splice(childIndex, 1);
+	},
+
+
+
+
+
+
+	addCauseRow(type) {
+	// Karena di template Anda menggunakan type + 's' (e.g., unsafe_conditions)
+	// Kita panggil key yang sesuai
+	const key = type + 's'; 
+	this.causes[key].push({
+	category_type: type,
+	scat_option_id: '',
+	description: ''
+	});
+	},
+
+	// Fungsi menghapus baris
+	removeCauseRow(type, index) {
+	const key = type + 's';
+	if (this.causes[key].length > 0) {
+	this.causes[key].splice(index, 1);
+	}
+	},
+
 	// Contoh di dalam x-data utama form
 	validateAndJump() {
 	// Daftar tab yang ingin dicek
@@ -173,7 +259,9 @@
 	{ id: 1, ref: 'tab1' },
 	{ id: 2, ref: 'tab2' },
 	{ id: 3, ref: 'tab3' },
-	{ id: 4, ref: 'tab4' }
+	{ id: 4, ref: 'tab4' },
+	{ id: 5, ref: 'tab5' },
+	{ id: 6, ref: 'tab6' }
 	];
 
 	for (const tab of tabs) {
@@ -227,18 +315,62 @@
 	}
 	},
 	doc: {{ json .Docs }},
+
+
+
+	getScatOptions(categoryType) {
+	// 1. Pastikan data tersedia
+	if (!this.all_scat_options) return [];
+	// 2. Gunakan toLowerCase agar tidak sensitif terhadap huruf besar/kecil
+	const targetType = categoryType.toLowerCase();
+	return this.all_scat_options.filter(opt => {
+	return opt.type && opt.type.toLowerCase() === targetType; 
+	});
+	},
 	// =========================
 	// INIT
 	// =========================
 	async init() {
 	this.checkFlash();
+	this.initTimelines();
+	// Mapping: Kunci di Alpine (Kiri) -> Kunci dari Server Go (Kanan)
+	const keyMap = {
+	'unsafe_condition': 'unsafe_condition',
+	'unsafe_act': 'unsafe_act',
+	'personal_factor': 'personal_factor',
+	'job_factor': 'job_factor',
+	'control_system': 'control_system'
+	};
+
+	Object.keys(this.causes).forEach(key => {
+	const serverKey = keyMap[key];
+
+	// Memastikan data diproses dengan konsisten
+	if (this.server_causes[serverKey] && this.server_causes[serverKey].length > 0) {
+	this.causes[key] = this.server_causes[serverKey].map(item => {
+	return {
+	...item,
+	// Paksa jadi angka jika ada, jika tidak kosongkan
+	scat_option_id: item.scat_option_id ? Number(item.scat_option_id) : ''
+	};
+	});
+	} else {
+	// Jika data server tidak ada, inisialisasi sebagai baris kosong
+	this.causes[key] = [{ 
+	category_type: key, 
+	scat_option_id: '', 
+	description: '' 
+	}];
+	}
+	});
 	this.event_category_id = this.incident.EventCategory ? String(this.incident.EventCategory.parent_id) : '';
 	this.event_type_id = this.incident.event_category_id ? String(this.incident.event_category_id) : '';
 	this.scat_option_id= this.incident.scat_option_id ;
 	this.location_id = this.incident.location_id;
 	this.location_specific = this.incident.location_specific;
 	this.department_id = this.incident.department_id;
-
+	this.event_date = this.incident.tanggal_waktu;
+	console.log(this.event_date);
 	this.consequence_id= this.incident.RiskMatrix.risk_consequence_id;
 	this.likelihood_id= this.incident.RiskMatrix.risk_likelihood_id;
 	this.assessment_id= this.incident.RiskMatrix.risk_assessment_id;
@@ -351,7 +483,6 @@
 	if (this.incident.peepo_factors && this.incident.peepo_factors.length > 0) {
 	this.peepo_factors = this.incident.peepo_factors;
 	}
-
 	}, // CLOSED INIT
 
 	// =========================
@@ -429,6 +560,13 @@
 	// HELPER: RAKIT PAYLOAD JSON
 	// ==========================================
 	buildPayload() {
+	let formattedDate = this.event_date;
+
+	// 2. Cek jika formatnya masih mengandung spasi (berasal dari input Flatpickr)
+	if (formattedDate && formattedDate.includes(' ')) {
+
+	formattedDate = formattedDate.replace(' ', 'T') + ':00+08:00';
+	}
 	return {
 	Incident: {
 	id: parseInt(this.incident.ID || this.incident.id) || 0,
@@ -436,6 +574,7 @@
 	scat_option_id: parseInt(this.scat_option_id) || null,
 	location_id: parseInt(this.location_id) || null,
 	location_specific: this.location_specific,
+	tanggal_waktu: formattedDate,
 	deskripsi: this.IncidentDescription,
 	tugas_dijalankan: this.TaskPerformed,
 	tindakan_langsung: this.ImmediateAction,
@@ -469,8 +608,39 @@
 	factor: p.factor,
 	findings: p.findings,
 	description: p.description
+	})),
+	Timelines: this.timelines.map(t => ({
+	event: t.event,
+	whys: t.whys // Kirim langsung array whys yang sudah terstruktur
+	})),
+	IncidentCauses: [
+	...this.causes.unsafe_condition,
+	...this.causes.unsafe_act,
+	...this.causes.personal_factor,
+	...this.causes.job_factor,
+	...this.causes.control_system
+	].map(c => ({
+	category_type: c.category_type,
+	scat_option_id: c.scat_option_id ? parseInt(c.scat_option_id) : null,
+	description: c.description
 	}))
 	};
+	},
+
+	validateWhys(whys) {
+	// Jika whys kosong atau bukan array
+	if (!whys || !Array.isArray(whys) || whys.length === 0) return false;
+
+	for (let node of whys) {
+	// Cek apakah text kosong atau hanya spasi
+	if (!node.text || node.text.trim() === '') return false;
+
+	// Jika punya children, cek anak-anaknya secara rekursif
+	if (node.children && node.children.length > 0) {
+	if (!this.validateWhys(node.children)) return false;
+	}
+	}
+	return true;
 	},
 
 	// ==========================================
@@ -541,6 +711,25 @@
 	}
 	}
 	}
+	// --- BARU: Validasi Custom Bagian 5 ---
+	if (step === 5) {
+	if (!this.timelines || this.timelines.length === 0) {
+	if (window.showToast) window.showToast('Bagian 5 wajib diisi minimal 1 baris analisis!', 'error');
+	return false;
+	}
+	// Pastikan baris pertama ada input event-nya
+	if (!this.timelines[0].event || this.timelines[0].event.trim() === '') {
+	if (window.showToast) window.showToast('Kejadian/Kronologi pada baris pertama tidak boleh kosong!', 'error');
+	return false;
+	}
+	for (let t of this.timelines) {
+	if (!this.validateWhys(t.whys)) {
+	if (window.showToast) window.showToast('Setiap baris analisis harus memiliki isi Why yang lengkap!', 'error');
+	return false;
+	}
+	}
+	}
+
 
 	return true;
 	},
@@ -641,6 +830,7 @@
 
 
 	this.isSubmitting = true;
+	this.showErrors = true;
 
 	try {
 	// 3. Jalankan proses simpan data di background
@@ -658,6 +848,7 @@
 	// 4. PENTING: Apapun yang terjadi (sukses atau error dari server), 
 	// matikan kembali status loading agar tombol bisa digunakan lagi.
 	this.isSubmitting = false;
+	this.showErrors = true;
 	}
 	},
 
@@ -722,12 +913,14 @@
 	if (success) {
 	const incidentID = this.incident.ID || this.incident.id;
 	this.isSubmitting = true;
+
 	sessionStorage.setItem('flash_msg', 'Berhasil!');
 	sessionStorage.setItem('flash_type', 'success');
 	window.location.href = `/incident/edit/${incidentID}`;
 	} else {
 	form.dataset.submitting = 'false';
 	this.isSubmitting = false;
+
 	}
 	},
 
@@ -795,7 +988,7 @@
 				<span x-show="isSubmitting" class="flex items-center gap-1">
 					<span class="loading loading-spinner loading-xs"></span> 
 
-					{{ index .Tr "Save" }}... {{ lucide "send" (dict "class" "size-4") }}
+					{{ index .Tr "Save" }}... {{ lucide "send-horizontal" (dict "class" "size-4") }}
 				</span>
 
 			</button>
@@ -805,12 +998,12 @@
 				class="btn btn-success btn-xs"
 				x-show="activeTab === totalTabs">
 				<span x-show="!isSubmitting" class="flex items-center gap-1">
-					{{ lucide "square-pen" (dict "class" "size-4") }} {{ index .Tr "Update" }}
+					{{ lucide "save" (dict "class" "size-4") }} {{ index .Tr "Update" }}
 				</span>
 				<span x-show="isSubmitting" class="flex items-center gap-1">
 					<span class="loading loading-spinner loading-xs"></span> 
 
-					{{ index .Tr "Save" }}... {{ lucide "send" (dict "class" "size-4") }}
+					{{ index .Tr "Save" }}... {{ lucide "send-horizontal" (dict "class" "size-4") }}
 				</span>
 
 			</button>
@@ -827,8 +1020,8 @@
 	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab1">
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 1" @change="activeTab = 1" />
 		<div class="collapse-title font-semibold">
-			<h3 class="text-lg font-bold text-slate-700">BAGIAN 1 – Detil Laporan</h3>
-			<p class="text-xs text-slate-500">(Informasi Umum, Lokasi, Kronologi, & Tindakan Langsung)</p>
+			<h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian1" }}</h3>
+			<p class="text-xs text-slate-500">{{ index .Tr "Subbagian1" }}</p>
 		</div>
 		<div class="collapse-content">
 
@@ -1026,8 +1219,8 @@
 	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab2">
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 2" @change="activeTab = 2" />
 		<div class="collapse-title font-semibold">
-			<h3 class="text-lg font-bold text-slate-700">BAGIAN 2 – Pihak Terlibat Langsung</h3>
-			<p class="text-xs text-slate-500">(Saksi, korban cedera, kontraktor, operator, dll.)</p>
+			<h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian2" }}</h3>
+			<p class="text-xs text-slate-500">{{ index .Tr "Subbagian2" }}</p>
 		</div>
 		<div class="collapse-content">
 
@@ -1199,7 +1392,7 @@
 	</div>
 	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab3">
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 3" @change="activeTab = 3" />
-		<div class="collapse-title font-semibold"><h3 class="text-lg font-bold text-slate-700">BAGIAN 3 – Partisipan Investigasi</h3></div>
+		<div class="collapse-title font-semibold"><h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian3" }}</h3></div>
 		<div class="collapse-content">
 			<div class="overflow-visible w-full bg-white rounded-lg border border-slate-200">
 				<table class="table table-xs w-full">
@@ -1331,9 +1524,9 @@
 	</div>
 	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab4">
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 4" @change="activeTab = 4" />
-		<div class="collapse-title font-semibold"><h3 class="text-lg font-bold text-slate-700">BAGIAN 4 – PEEPO Investigation questions for identification of the incident factors</h3></div>
+		<div class="collapse-title font-semibold"><h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian4" }}</h3></div>
 		<div class="collapse-content text-sm">
-			<div class="overflow-y-auto w-full bg-white rounded-lg border border-slate-200">
+			<div class="overflow-auto w-full bg-white rounded-lg border border-slate-200">
 				<table class="table table-xs w-full">
 					<thead>
 						<tr class="bg-base-200">
@@ -1390,6 +1583,224 @@
 				+ Tambah Faktor
 			</button>
 
+		</div>
+	</div>
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab5">
+		<input type="radio" name="my-accordion-1" :checked="activeTab === 5" @change="activeTab = 5" />
+		<div class="collapse-title font-semibold">
+			<h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian5" }}</h3>
+		</div>
+
+		<div class="collapse-content text-sm">
+			<div class="space-y-6">
+				<template x-for="(item, tIndex) in timelines" :key="tIndex">
+					<div class="p-4 bg-slate-50 border border-slate-200 rounded-lg shadow-sm overflow-y-auto">
+
+						<div class="mb-4 ">
+							<div role="alert" class="alert alert-vertical sm:alert-horizontal border-l-4 border-info">
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current text-info h-6 w-6 shrink-0">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+								</svg>
+								<div class="">
+									<h3 class="font-bold">Kejadian / Kronologi</h3>
+									<div class="text-xs prose" x-html="item.event"></div>	
+								</div>
+
+							</div>
+						</div>
+
+						<div class="space-y-3 ">
+							<template x-for="(why, wIndex) in item.whys" :key="wIndex">
+								<div class="relative pl-4">
+									<div class="flex gap-2 items-start">
+										<span class="mt-2 font-bold text-primary">
+											{{ index .Tr "Why" }} <span x-text="wIndex + 1"></span> ? :
+										</span>
+										<div class="flex-grow">
+											{{ template "textarea" (dict
+												"Label" ""
+												"Name" "why"
+												"Placeholder" "Mengapa hal ini terjadi?..."
+												"Required" true
+												"Attr" " x-model='why.text'"
+												)
+											}}
+										</div>
+										<div class="tooltip " data-tip="tambah sub why">
+											<button type="button" @click="addChildWhy(tIndex, wIndex)" class="btn btn-xs btn-square btn-soft btn-info ">
+												{{ lucide "plus" (dict "class" "size-4") }}
+											</button>
+										</div>
+										<div class="tooltip " data-tip="hapus why">
+											<button type="button" @click="removeWhy(tIndex, wIndex)" class="btn btn-xs btn-square btn-soft btn-error ">
+												{{ lucide "circle-x" (dict "class" "size-4") }}
+											</button>
+										</div>
+									</div>
+
+									<div class="mt-2 ml-8 border-l-2 border-slate-300 pl-4 space-y-2">
+										<template x-for="(child, cIndex) in why.children" :key="cIndex">
+											<div class="flex gap-2 items-start">
+												<span class="mt-2 text-xs text-slate-400">Sub:</span>
+												<div class="flex-grow">
+													{{ template "textarea" (dict
+														"Label" ""
+														"Name" "child_why"
+														"Placeholder" "Sub-alasan..."
+														"Required" true
+														"Attr" " x-model='child.text'"
+														)
+													}}
+												</div>
+
+												<div class="tooltip " data-tip="hapus Sub Why">
+													<button type="button" @click="removeChildWhy(tIndex, wIndex, cIndex)"  class="btn btn-xs btn-square btn-soft btn-error ">
+														{{ lucide "circle-x" (dict "class" "size-4") }}
+													</button>
+												</div>
+											</div>
+										</template>
+									</div>
+								</div>
+							</template>
+						</div>
+
+						<button type="button" @click="addWhy(tIndex)" class="mt-4 btn btn-primary btn-xs">
+							+ Tambah Why Utama
+						</button>
+					</div>
+				</template>
+			</div>
+		</div>
+	</div>
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab6">
+		<input type="radio" name="my-accordion-1" :checked="activeTab === 6" @change="activeTab = 6" />
+		<div class="collapse-title font-semibold">
+			<h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian6" }}</h3>
+		</div>
+
+		<div class="collapse-content text-sm">
+			<div class="space-y-8"> 
+				<div class="p-4 border border-error/40 rounded-md">
+					<h3 class="text-base font-bold mb-2 border-b border-base-300 pb-2 text-error">Penyebab Langsung</h3>
+					<div class="space-y-4">
+						<template x-for="(label, key) in {
+							'unsafe_condition': 'Unsafe Condition',
+							'unsafe_act': 'Unsafe Act'
+							}" :key="key">
+							<div class="card card-xs bg-base-200 shadow-sm p-2">
+								<div class="card-body">
+									<h4 class="card-title font-bold text-slate-600 mb-3" x-text="label"></h4>
+
+									<template x-for="(item, index) in causes[key]" :key="index">
+										<div class="flex gap-4 hover:bg-base-300 items-center mb-2">
+											<div class="flex-1 ">
+												<div class="flex flex-col">
+													{{ template "select_input" (dict
+														"Model" "item.scat_option_id"
+														"Placeholder" "Pilih"
+														"Required" true
+														"Class" "w-64"
+														"Slot" "<template x-for='opt in getScatOptions(key)' :key='opt.ID'><option :value='opt.ID' :selected='opt.ID == item.scat_option_id' x-text='opt.Code + \" - \" + opt.Name'></option></template>"
+														)
+													}}
+
+													{{ template "textarea" (dict
+														"Label" ""
+														"Name" "description_cause"
+														"Placeholder" "Sub-alasan..."
+														"Required" true
+														"Attr" " x-model='item.description'"
+														)
+													}}
+												</div>
+											</div>
+											<div class="w-14 flex-none">
+												<div class="w-14 flex-none">
+													<div class="tooltip" :data-tip="'Hapus ' + label">
+														<button type="button" @click="causes[key].splice(index, 1)"  class="btn btn-xs btn-square btn-soft btn-error ">
+															{{ lucide "circle-x" (dict "class" "size-4") }} 
+														</button>
+													</div>
+												</div>
+											</div>
+										</div>
+									</template>
+									<div class="justify-end card-actions">
+										<button 
+											type="button" 
+											class="btn btn-accent  btn-dash btn-xs mt-2"
+											@click="causes[key].push({category_type: key, scat_option_id: '', description: ''})" >
+											{{ lucide "plus" (dict "class" "size-4") }} {{ index .Tr "TambahBaris" }} <span x-text="label"></span>
+										</button>
+									</div>
+								</div>
+							</div>
+						</template>
+					</div>
+				</div>
+
+				<div class="px-4 border border-warning rounded-md">
+					<h3 class="text-base font-bold mb-2 border-b border-base-300 pb-2 text-warning">Penyebab Dasar</h3>
+					<div class="space-y-4">
+						<template x-for="(label, key) in {
+							'personal_factor': 'Personal Factor',
+							'job_factor': 'Job Factor',
+							'control_system': 'Control Weakness'
+							}" :key="key">
+							<div class="card card-xs bg-base-200 shadow-sm p-2">
+								<div class="card-body">
+									<h4 class="card-title  font-bold text-slate-600 mb-3" x-text="label"></h4>
+
+									<template x-for="(item, index) in causes[key]" :key="index">
+										<div class="flex gap-4 hover:bg-base-300 items-center mb-2">
+											<div class="flex-1 ">
+												<div class="flex flex-col">
+													{{ template "select_input" (dict
+														"Model" "item.scat_option_id"
+														"Placeholder" "Pilih"
+														"Required" true
+														"Class" "w-64"
+														"Slot" "<template x-for='opt in getScatOptions(key)' :key='opt.ID'><option :value='opt.ID' :selected='opt.ID == item.scat_option_id' x-text='opt.Code + \" - \" + opt.Name'></option></template>"
+														)
+													}}
+
+													{{ template "textarea" (dict
+														"Label" ""
+														"Name" "description_cause"
+														"Placeholder" "Sub-alasan..."
+														"Required" true
+														"Attr" " x-model='item.description'"
+														)
+													}}
+												</div>
+											</div>
+											<div class="w-14 flex-none">
+												<div class="w-14 flex-none">
+													<div class="tooltip" :data-tip="'Hapus ' + label">
+														<button type="button" @click="causes[key].splice(index, 1)"  class="btn btn-xs btn-square btn-soft btn-error ">
+															{{ lucide "circle-x" (dict "class" "size-4") }} 
+														</button>
+													</div>
+												</div>
+											</div>
+										</div>
+									</template>
+									<div class="justify-end card-actions">
+										<button 
+											type="button" 
+											class="btn btn-accent btn-dash btn-xs mt-2"
+											@click="causes[key].push({category_type: key, scat_option_id: '', description: ''})" >
+											{{ lucide "plus" (dict "class" "size-4") }} {{ index .Tr "TambahBaris" }} <span x-text="label"></span>
+										</button>
+									</div>
+								</div>
+							</div>
+						</template>
+					</div>
+				</div>
+
+			</div>
 		</div>
 	</div>
 </div>

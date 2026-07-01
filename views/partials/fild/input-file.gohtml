@@ -21,7 +21,6 @@
 			</span>
 		</label>
 	{{ end }}
-
 	<!-- DROPZONE -->
 	<div
 		class="border-dashed rounded-md p-2 transition-all duration-300 select-none"
@@ -31,7 +30,6 @@
 		? 'opacity-50 cursor-not-allowed bg-base-200'
 		: 'cursor-pointer'
 		]"
-
 		@click="!disabled && $refs.fileInput.click()"
 
 		@dragover.prevent="if (!disabled) isDragging = true"
@@ -49,13 +47,11 @@
 					{{ end }}
 				</span>
 			</template>
-
 			<template x-if="disabled">
 				<span>
 					Upload dinonaktifkan
 				</span>
 			</template>
-
 		</div>
 
 		<input

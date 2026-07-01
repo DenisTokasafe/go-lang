@@ -21,7 +21,7 @@ type IncidentService interface {
 	GetFormDataReferences(page int) (map[string]interface{}, error)
 	CreateIncident(incident *models.IncidentReport, parties []models.InvolvedParty) error
 	// Tambahkan r *http.Request di akhir parameter ini:
-	UpdateIncident(id uint, userID uint, updatedIncident *models.IncidentReport, parties []models.InvolvedParty, investigators []models.InvestigationParticipant, peepoFactors []models.PeepoFactor, r *http.Request) (bool, error)
+	UpdateIncident(id uint, userID uint, updatedIncident *models.IncidentReport, parties []models.InvolvedParty, investigators []models.InvestigationParticipant, peepoFactors []models.PeepoFactor, timelines []models.Timeline, causes []models.IncidentCause, r *http.Request) (bool, error)
 	GetByID(id uint) (*models.IncidentReport, error)
 	GetEditData(id uint, currentUserID uint, page int) (*IncidentEditData, error)
 }
@@ -171,6 +171,8 @@ func (s *incidentService) GetByID(id uint) (*models.IncidentReport, error) {
 		Preload("InvestigationParticipants.ReportBy"). // Sesuai nama field di struct Anda
 		// =================================================================
 		Preload("PeepoFactors").
+		Preload("Timelines").
+		Preload("Causes").
 		Preload("Documentations.Documentation").
 		First(&incident, id).Error
 
@@ -200,6 +202,7 @@ type IncidentEditData struct {
 	Contractors     []models.Contractor
 	Users           []models.User
 	ScatOptions     []models.ScatOption
+	ScatOptionsAll  []models.ScatOption
 	Consequences    []models.RiskConsequence
 	Likelihoods     []models.RiskLikelihood
 	Assessments     []models.RiskAssessmentCode
@@ -241,6 +244,8 @@ func (s *incidentService) GetEditData(id uint, currentUserID uint, page int) (*I
 		Preload("InvestigationParticipants.Contractor").
 		Preload("InvestigationParticipants.ReportBy").
 		// =================================================================
+		Preload("Timelines").
+		Preload("Causes").
 		Preload("PeepoFactors").
 		Preload("Documentations.Documentation").
 		Preload("Audits").
@@ -375,6 +380,8 @@ func (s *incidentService) GetEditData(id uint, currentUserID uint, page int) (*I
 	s.db.Where("type IN ?", []string{"unsafe_act", "personal_factor"}).
 		Order("FIELD(type, 'unsafe_act', 'personal_factor'), code asc").Find(&result.ScatOptions)
 
+	s.db.Order("code asc").Find(&result.ScatOptionsAll)
+
 	s.db.Order("severity_level DESC").Find(&result.Consequences)
 	s.db.Order("sequence ASC").Find(&result.Likelihoods)
 	s.db.Find(&result.Assessments)
@@ -415,10 +422,12 @@ type UpdateIncidentRequest struct {
 	InvolvedParties           []models.InvolvedParty            `json:"InvolvedParties"`
 	InvestigationParticipants []models.InvestigationParticipant `json:"InvestigationParticipants"`
 	PeepoFactors              []models.PeepoFactor              `json:"PeepoFactors"`
+	Timelines                 []models.Timeline                 `json:"Timelines"`
+	Causes                    []models.IncidentCause            `json:"Causes"`
 }
 
 // Tambahkan parameter investigators []models.InvestigationParticipant
-func (s *incidentService) UpdateIncident(id uint, userID uint, updatedIncident *models.IncidentReport, parties []models.InvolvedParty, investigators []models.InvestigationParticipant, peepoFactors []models.PeepoFactor, r *http.Request) (bool, error) {
+func (s *incidentService) UpdateIncident(id uint, userID uint, updatedIncident *models.IncidentReport, parties []models.InvolvedParty, investigators []models.InvestigationParticipant, peepoFactors []models.PeepoFactor, timelines []models.Timeline, causes []models.IncidentCause, r *http.Request) (bool, error) {
 
 	var partiesUpdated bool
 	var filesToDeletePhysical []string // List untuk menghapus file fisik pasca commit
@@ -511,6 +520,49 @@ func (s *incidentService) UpdateIncident(id uint, userID uint, updatedIncident *
 				return err
 			}
 		}
+		// =================================================================
+		// UPDATE/RE-SYNC TIMELINES (BAGIAN BARU)
+		// =================================================================
+		// Hapus data timeline lama
+		if err := tx.Where("incident_report_id = ?", id).Delete(&models.Timeline{}).Error; err != nil {
+			return err
+		}
+
+		// Siapkan data baru
+		for i := range timelines {
+			timelines[i].IncidentReportID = id
+			// GORM secara otomatis akan menangani datatypes.JSON
+			// jika struct Timeline sudah benar
+		}
+
+		// Insert data baru
+		if len(timelines) > 0 {
+			if err := tx.Create(&timelines).Error; err != nil {
+				return err
+			}
+		}
+		// =================================================================
+
+		// =================================================================
+		// UPDATE/RE-SYNC SCAT CAUSES (BAGIAN BARU)
+		// =================================================================
+		// Hapus data SCAT lama (Hard Delete)
+		if err := tx.Unscoped().Where("incident_report_id = ?", id).Delete(&models.IncidentCause{}).Error; err != nil {
+			return err
+		}
+
+		// Siapkan data SCAT baru (Pastikan data kosong difilter dari sisi Controller sebelum dikirim kemari)
+		for i := range causes {
+			causes[i].IncidentReportID = id
+		}
+
+		// Insert data baru
+		if len(causes) > 0 {
+			if err := tx.Create(&causes).Error; err != nil {
+				return err
+			}
+		}
+		// =================================================================
 
 		// 4. Handle Deletion (DB Records & Queue Physical Deletion)
 		if r.MultipartForm != nil {

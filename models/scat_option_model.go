@@ -11,7 +11,7 @@ type ScatOption struct {
 	Code string `gorm:"type:varchar(255);not null;uniqueIndex:idx_code_type"`
 	Name string `gorm:"type:varchar(255);not null"`
 	// Definisi Enum di MySQL melalui tag GORM
-	Type      string    `gorm:"type:enum('unsafe_act','personal_factor','job_factor','control_system');not null;uniqueIndex:idx_code_type"`
+	Type      string    `json:"type" gorm:"type:enum('unsafe_condition','unsafe_act','personal_factor','job_factor','control_system');not null;uniqueIndex:idx_code_type"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime"`
 }
