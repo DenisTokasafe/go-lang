@@ -1,190 +1,380 @@
 {{ define "ckeditor-loop" }}
+
 <div class="mt-2" x-data="{ isInvalid: false }">
 
-    {{ if .Label }}
-    <label class="label">
-        <span class="text-xs font-bold text-base-content opacity-60">
-            {{ .Label }}
 
-            {{ if or .Required .RequiredBinding }}
-            <span class="text-error font-bold ml-0.5">*</span>
-            {{ end }}
 
-        </span>
-    </label>
-    {{ end }}
+	{{ if .Label }}
 
-    <div
-        class="border rounded-md overflow-hidden"
-        :class="isInvalid ? 'border-error' : 'border-base-300'">
+		<label class="label">
 
-        <div
-            x-init="
-            (async () => {
+			<span class="text-xs font-bold text-base-content opacity-60">
 
-                try {
+				{{ .Label }}
 
-                    // =========================
-                    // LOAD CKEDITOR
-                    // =========================
-                    const ClassicEditor =
-                    await window.ClassicEditor;
 
-                    // =========================
-                    // CREATE EDITOR
-                    // =========================
-                    const editor =
-                    await ClassicEditor.create(
-                        $refs.editor,
-                        {
-                            toolbar: [
-                                'heading',
-                                '|',
-                                'bold',
-                                'italic',
-                                'link',
-                                'bulletedList',
-                                'numberedList',
-                                'blockQuote'
-                            ]
-                        }
-                    );
 
-                    // =========================
-                    // SAVE INSTANCE
-                    // =========================
-                    $el._editor = editor;
+				{{ if or .Required .RequiredBinding }}
 
-                    // =========================
-                    // INITIAL VALUE
-                    // =========================
-                    let initialData = '';
+					<span class="text-error font-bold ml-0.5">*</span>
 
-                    {{ if .Value }}
+				{{ end }}
 
-                    initialData = `{{ .Value }}`;
 
-                    {{ else if .AlpineVar }}
 
-                    initialData =
-                    {{ .AlpineVar }} || '';
+			</span>
 
-                    {{ end }}
+		</label>
 
-                    editor.setData(initialData);
+	{{ end }}
 
-                    // =========================
-                    // CKEDITOR -> ALPINE
-                    // =========================
-                    editor.model.document.on(
-                        'change:data',
-                        () => {
 
-                            const htmlData =
-                            editor.getData();
 
-                            $refs.editor.value =
-                            htmlData;
+	<div
 
-                            isInvalid = false;
+		class="border rounded-md overflow-hidden"
 
-                            {{ if .AlpineVar }}
+		:class="isInvalid ? 'border-error' : 'border-base-300'">
 
-                            {{ .AlpineVar }} =
-                            htmlData;
 
-                            {{ end }}
 
-                            $refs.editor.dispatchEvent(
-                                new Event('input')
-                            );
-                        }
-                    );
+		<div
 
-                    // =========================
-                    // ALPINE -> CKEDITOR
-                    // =========================
-                    {{ if .AlpineVar }}
+			x-init="
 
-                    $watch(
-                        '{{ .AlpineVar }}',
-                        (newVal) => {
+			(async () => {
 
-                            if (
-                                newVal !==
-                                editor.getData()
-                            ) {
 
-                                editor.setData(
-                                    newVal || ''
-                                );
 
-                            }
-                        }
-                    );
+			try {
 
-                    {{ end }}
 
-                } catch (error) {
 
-                    console.error(
-                        'CKEditor Error:',
-                        error
-                    );
+			// =========================
 
-                }
+			// LOAD CKEDITOR
 
-            })()
-            "
+			// =========================
 
-             x-effect="
-    if ($el._editor && !$el.isConnected) {
+			const ClassicEditor =
 
-        $el._editor.destroy()
-        .catch(err => console.log(err))
+			await window.ClassicEditor;
 
-    }
-    ">
 
-            <textarea
-                x-bind:id="{{ .ID }}"
-                x-ref="editor"
-                name="{{ .Name }}"
-                class="hidden"
 
-                {{ if .AlpineVar }}
-                x-model="{{ .AlpineVar }}"
-                {{ end }}
+			// =========================
 
-                {{ .Attr }}
+			// CREATE EDITOR
 
-                {{ if .Required }}
-                required
-                {{ end }}
+			// =========================
 
-                {{ if .RequiredBinding }}
-                x-bind:required="{{ .RequiredBinding }}"
-                {{ end }}
+			const editor =
 
-                @invalid.prevent="isInvalid = true"
-                @input="isInvalid = false"
+			await ClassicEditor.create(
 
-                aria-label="{{ .Label }}">
+			$refs.editor,
 
-                {{ .Value }}
+			{
 
-            </textarea>
+			toolbar: [
 
-        </div>
-    </div>
+			'heading',
 
-    <div
-        x-show="isInvalid"
-        x-cloak
-        class="text-error text-[9px] font-semibold leading-none mt-1">
+			'|',
 
-        Field {{ .Label }} wajib diisi.
+			'bold',
 
-    </div>
-</div>
+			'italic',
+
+			'link',
+
+			'bulletedList',
+
+			'numberedList',
+
+			'blockQuote'
+
+			]
+
+			}
+
+			);
+
+
+
+			// =========================
+
+			// SAVE INSTANCE
+
+			// =========================
+
+			$el._editor = editor;
+
+
+
+			// =========================
+
+			// INITIAL VALUE
+
+			// =========================
+
+			let initialData = '';
+
+
+
+{{ if .Value }}
+
+
+
+			initialData = `{{ .Value }}`;
+
+
+
+{{ else if .AlpineVar }}
+
+
+
+			initialData =
+
+		{{ .AlpineVar }} || '';
+
+
+
 {{ end }}
+
+
+
+			editor.setData(initialData);
+
+
+
+			// =========================
+
+			// CKEDITOR -> ALPINE
+
+			// =========================
+
+			editor.model.document.on(
+
+			'change:data',
+
+			() => {
+
+
+
+			const htmlData =
+
+			editor.getData();
+
+
+
+			$refs.editor.value =
+
+			htmlData;
+
+
+
+			isInvalid = false;
+
+
+
+{{ if .AlpineVar }}
+
+
+
+		{{ .AlpineVar }} =
+
+			htmlData;
+
+
+
+{{ end }}
+
+
+
+			$refs.editor.dispatchEvent(
+
+			new Event('input')
+
+			);
+
+			}
+
+			);
+
+
+
+			// =========================
+
+			// ALPINE -> CKEDITOR
+
+			// =========================
+
+{{ if .AlpineVar }}
+
+
+
+			$watch(
+
+			'{{ .AlpineVar }}',
+
+			(newVal) => {
+
+
+
+			if (
+
+			newVal !==
+
+			editor.getData()
+
+			) {
+
+
+
+			editor.setData(
+
+			newVal || ''
+
+			);
+
+
+
+			}
+
+			}
+
+			);
+
+
+
+{{ end }}
+
+
+
+			} catch (error) {
+
+
+
+			console.error(
+
+			'CKEditor Error:',
+
+			error
+
+			);
+
+
+
+			}
+
+
+
+			})()
+
+			"
+
+
+
+			x-effect="
+
+			if ($el._editor && !$el.isConnected) {
+
+
+
+			$el._editor.destroy()
+
+			.catch(err => console.log(err))
+
+
+
+			}
+
+			">
+
+
+
+			<textarea
+
+				x-bind:id="{{ .ID }}"
+
+				x-ref="editor"
+
+				name="{{ .Name }}"
+
+				class="hidden"
+
+
+
+				{{ if .AlpineVar }}
+
+					x-model="{{ .AlpineVar }}"
+
+				{{ end }}
+
+
+
+			{{ .Attr }}
+
+
+
+				{{ if .Required }}
+
+					required
+
+				{{ end }}
+
+
+
+				{{ if .RequiredBinding }}
+
+					x-bind:required="{{ .RequiredBinding }}"
+
+				{{ end }}
+
+
+
+				@invalid.prevent="isInvalid = true"
+
+				@input="isInvalid = false"
+
+
+
+				aria-label="{{ .Label }}">
+
+
+
+				{{ .Value }}
+
+
+
+			</textarea>
+
+
+
+		</div>
+
+	</div>
+
+
+
+	<div
+
+		x-show="isInvalid"
+
+		x-cloak
+
+		class="text-error text-[9px] font-semibold leading-none mt-1">
+
+
+
+		Field {{ .Label }} wajib diisi.
+
+
+
+	</div>
+
+</div>
+
+{{ end }} 
+

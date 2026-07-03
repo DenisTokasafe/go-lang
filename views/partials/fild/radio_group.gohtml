@@ -1,0 +1,56 @@
+{{ define "radio_group" }}
+<fieldset class="fieldset" 
+	x-data="{ isInvalid: false }" 
+	x-init="
+	// Cek saat halaman pertama di-load
+	isInvalid = ({{ .Model }} === null);
+	// Pantau perubahan saat diklik
+	$watch('{{ .Model }}', value => isInvalid = (value === null));
+	"
+>
+	{{ if .Label }}
+		<label class="label">
+			<span class="text-xs font-bold text-base-content opacity-60">
+				{{ .Label }}
+				{{ if .Required }}
+					<span class="text-error font-bold ml-0.5">*</span>
+				{{ end }}
+			</span>
+		</label>
+	{{ end }}
+
+	<div class="flex gap-5 items-center">
+		<label class="cursor-pointer flex items-center gap-2">
+			<input 
+				type="radio" 
+				:name="{{ .Name }}" 
+				value="true" 
+				x-model="{{ .Model }}" 
+				class="radio radio-sm checked:bg-info"
+				:class="isInvalid ? 'radio-error' : ''"
+				{{ if .DisabledBinding }}:disabled="{{ .DisabledBinding }}"{{ end }}
+			/> 
+			<span class="text-sm font-medium">Ya</span>
+		</label>
+
+		<label class="cursor-pointer flex items-center gap-2">
+			<input 
+				type="radio" 
+				:name="{{ .Name }}" 
+				value="false" 
+				x-model="{{ .Model }}" 
+				class="radio radio-sm checked:bg-error" 
+				:class="isInvalid ? 'radio-error' : ''"
+				{{ if .DisabledBinding }}:disabled="{{ .DisabledBinding }}"{{ end }}
+			/> 
+			<span class="text-sm font-medium">Tidak</span>
+		</label>
+	</div>
+
+	<template x-if="isInvalid">
+		<p class="text-error text-[9px] font-semibold leading-none mt-1">
+			{{ .Label }} wajib dipilih.
+		</p>
+	</template>
+</fieldset>
+{{ end }}

@@ -21,7 +21,7 @@ type IncidentService interface {
 	GetFormDataReferences(page int) (map[string]interface{}, error)
 	CreateIncident(incident *models.IncidentReport, parties []models.InvolvedParty) error
 	// Tambahkan r *http.Request di akhir parameter ini:
-	UpdateIncident(id uint, userID uint, updatedIncident *models.IncidentReport, parties []models.InvolvedParty, investigators []models.InvestigationParticipant, peepoFactors []models.PeepoFactor, timelines []models.Timeline, causes []models.IncidentCause, r *http.Request) (bool, error)
+	UpdateIncident(id uint, userID uint, updatedIncident *models.IncidentReport, parties []models.InvolvedParty, investigators []models.InvestigationParticipant, peepoFactors []models.PeepoFactor, timelines []models.Timeline, causes []models.IncidentCause, corrective_action_incidents []models.CorrectiveActionIncident, reviews *models.IncidentReview, r *http.Request) (bool, error)
 	GetByID(id uint) (*models.IncidentReport, error)
 	GetEditData(id uint, currentUserID uint, page int) (*IncidentEditData, error)
 }
@@ -130,7 +130,7 @@ func (s *incidentService) CreateIncident(incident *models.IncidentReport, partie
 
 			// CUKUP PANGGIL SATU KALI DI SINI (Secara Batch Insert)
 			if err := tx.Create(&parties).Error; err != nil {
-				fmt.Printf("DEBUG: Gagal menyimpan InvolvedParties: %v\n", err)
+
 				return err // Otomatis Rollback Laporan Utama & Batalkan Insert Pihak Terlibat
 			}
 		}
@@ -173,6 +173,7 @@ func (s *incidentService) GetByID(id uint) (*models.IncidentReport, error) {
 		Preload("PeepoFactors").
 		Preload("Timelines").
 		Preload("Causes").
+		Preload("CorrectiveActionIncidents").
 		Preload("Documentations.Documentation").
 		First(&incident, id).Error
 
@@ -249,6 +250,8 @@ func (s *incidentService) GetEditData(id uint, currentUserID uint, page int) (*I
 		Preload("PeepoFactors").
 		Preload("Documentations.Documentation").
 		Preload("Audits").
+		Preload("CorrectiveActionIncidents").
+		Preload("Reviews").
 		First(&incident, id).Error
 
 	if err != nil {
@@ -424,10 +427,21 @@ type UpdateIncidentRequest struct {
 	PeepoFactors              []models.PeepoFactor              `json:"PeepoFactors"`
 	Timelines                 []models.Timeline                 `json:"Timelines"`
 	Causes                    []models.IncidentCause            `json:"Causes"`
+	CorrectiveActionIncidents []models.CorrectiveActionIncident `json:"CorrectiveActionIncidents"`
+	Reviews                   []models.IncidentReview           `json:"Reviews"`
 }
 
 // Tambahkan parameter investigators []models.InvestigationParticipant
-func (s *incidentService) UpdateIncident(id uint, userID uint, updatedIncident *models.IncidentReport, parties []models.InvolvedParty, investigators []models.InvestigationParticipant, peepoFactors []models.PeepoFactor, timelines []models.Timeline, causes []models.IncidentCause, r *http.Request) (bool, error) {
+func (s *incidentService) UpdateIncident(id uint, userID uint,
+	updatedIncident *models.IncidentReport,
+	parties []models.InvolvedParty,
+	investigators []models.InvestigationParticipant,
+	peepoFactors []models.PeepoFactor,
+	timelines []models.Timeline,
+	causes []models.IncidentCause,
+	corrective_action_incidents []models.CorrectiveActionIncident,
+	reviews *models.IncidentReview,
+	r *http.Request) (bool, error) {
 
 	var partiesUpdated bool
 	var filesToDeletePhysical []string // List untuk menghapus file fisik pasca commit
@@ -564,9 +578,69 @@ func (s *incidentService) UpdateIncident(id uint, userID uint, updatedIncident *
 		}
 		// =================================================================
 
+		// =================================================================
+		// UPDATE TINDAKAN PERBAIKAN
+		// =================================================================
+
+		// Hapus data SCAT lama (Hard Delete)
+		if err := tx.Unscoped().Where("incident_report_id = ?", id).Delete(&models.CorrectiveActionIncident{}).Error; err != nil {
+			return err
+		}
+
+		for i := range corrective_action_incidents {
+			corrective_action_incidents[i].IncidentReportID = id
+		}
+
+		// Insert data baru
+		if len(corrective_action_incidents) > 0 {
+			if err := tx.Create(&corrective_action_incidents).Error; err != nil {
+				return err
+			}
+		}
+
+		// =================================================================
+
+		// =================================================================
+		// UPDATE/RE-SYNC REVIEWS
+		// =================================================================
+
+		// 1. Hapus data review lama (Hard Delete) agar tidak duplikat
+		if err := tx.Unscoped().Where("incident_report_id = ?", id).Delete(&models.IncidentReview{}).Error; err != nil {
+			return err
+		}
+
+		// 2. Proses data baru jika ada
+		if reviews != nil {
+			reviews.IncidentReportID = id
+
+			// CLEANUP POINTER (Sangat Penting!)
+			// Mencegah error "Foreign Key Constraint Fails" jika frontend mengirim ID 0 untuk reviewser yang kosong
+			if reviews.PMUserID != nil && *reviews.PMUserID == 0 {
+				reviews.PMUserID = nil
+			}
+			if reviews.DeptUserID != nil && *reviews.DeptUserID == 0 {
+				reviews.DeptUserID = nil
+			}
+			if reviews.OHSUserID != nil && *reviews.OHSUserID == 0 {
+				reviews.OHSUserID = nil
+			}
+			if reviews.DirOpsUserID != nil && *reviews.DirOpsUserID == 0 {
+				reviews.DirOpsUserID = nil
+			}
+			if reviews.KTTUserID != nil && *reviews.KTTUserID == 0 {
+				reviews.KTTUserID = nil
+			}
+			fmt.Printf("DEBUG: Data yang akan di-save: %+v\n", reviews)
+			// 3. Insert 1 row reviews baru ke database
+			if err := tx.Create(reviews).Error; err != nil {
+				return err
+			}
+		}
+		// =================================================================
+
 		// 4. Handle Deletion (DB Records & Queue Physical Deletion)
 		if r.MultipartForm != nil {
-			fmt.Printf("DEBUG - Nilai deleted_files[] yang diterima: %v\n", r.MultipartForm.Value["deleted_files[]"])
+
 			deletedFiles := r.MultipartForm.Value["deleted_files[]"]
 			for _, idStr := range deletedFiles {
 				docID, err := strconv.ParseUint(idStr, 10, 64)

@@ -7,9 +7,10 @@
 	tmp.innerHTML = html;
 	return tmp.textContent || tmp.innerText || '';
 	},
+	checkValidate:false,
 	isSubmitting: false,
 	showErrors: false,
-	activeTab: 1, totalTabs: 6,
+	activeTab: 1, totalTabs: 9,
 	incident: {{ json .Incident }},
 	all_scat_options: {{ json .ScatOptionsAll }},
 
@@ -33,6 +34,7 @@
 	IncidentDescription: '',
 	ImmediateAction: '',
 	DamageDetail: '',
+	KeyLearning: '',
 
 	dokumentasi_desc: [],
 
@@ -98,7 +100,7 @@
 	investigators: [
 	{ 
 	role: 'Pemimpin Investigasi', 
-	employee_id: null, 
+	employee_id: '', 
 	jabatan: '', 
 	work_type: 'department', // Default internal
 	department_id: '', 
@@ -106,7 +108,7 @@
 	},
 	{ 
 	role: 'Facilitator', 
-	employee_id: null, 
+	employee_id: '', 
 	jabatan: '', 
 	work_type: 'department', 
 	department_id: '', 
@@ -114,7 +116,7 @@
 	},
 	{ 
 	role: 'Anggota', 
-	employee_id: null, 
+	employee_id: '', 
 	jabatan: '', 
 	work_type: 'department', 
 	department_id: '', 
@@ -126,7 +128,7 @@
 	addInvestigator(roleType) {
 	this.investigators.push({
 	role: roleType,
-	employee_id: null,
+	employee_id: '',
 	jabatan: '',
 	work_type: 'department',
 	department_id: '',
@@ -143,7 +145,7 @@
 	// =========================
 	addInvolvedParty() {
 	this.involved_parties.push({
-	user_id: null,
+	user_id: '',
 	reporter_manual: '',
 	work_type: 'department',
 	department_id: '',
@@ -228,11 +230,6 @@
 	this.timelines[timelineIndex].whys[whyIndex].children.splice(childIndex, 1);
 	},
 
-
-
-
-
-
 	addCauseRow(type) {
 	// Karena di template Anda menggunakan type + 's' (e.g., unsafe_conditions)
 	// Kita panggil key yang sesuai
@@ -252,6 +249,28 @@
 	}
 	},
 
+	corrective_actions: [
+	{
+	action: '',
+	control_hierarchy: '',
+	user_id: '', 
+	due_date: ''
+	}
+	],
+	addCorrectiveAction() {
+	this.corrective_actions.push({
+	action: '',
+	control_hierarchy: '',
+	user_id: '', 
+	due_date: ''
+	});
+	},
+
+	// Fungsi untuk menghapus baris berdasarkan index
+	removeCorrectiveAction(index) {
+	this.corrective_actions.splice(index, 1);
+	},
+
 	// Contoh di dalam x-data utama form
 	validateAndJump() {
 	// Daftar tab yang ingin dicek
@@ -261,7 +280,10 @@
 	{ id: 3, ref: 'tab3' },
 	{ id: 4, ref: 'tab4' },
 	{ id: 5, ref: 'tab5' },
-	{ id: 6, ref: 'tab6' }
+	{ id: 6, ref: 'tab6' },
+	{ id: 7, ref: 'tab7' },
+	{ id: 8, ref: 'tab8' },
+	{ id: 9, ref: 'tab9' }
 	];
 
 	for (const tab of tabs) {
@@ -270,7 +292,7 @@
 	if (!container) continue;
 
 	// Cari semua textarea yang required dan kosong di dalam tab ini
-	const invalidInputs = container.querySelectorAll('textarea[required]');
+	const invalidInputs = container.querySelectorAll('input[required]:not([type=\'hidden\']), select[required], textarea[required]');
 
 	for (const input of invalidInputs) {
 	// Cek apakah input kosong
@@ -327,6 +349,24 @@
 	return opt.type && opt.type.toLowerCase() === targetType; 
 	});
 	},
+
+	reviewerConfigs: [
+	{ key: 'pm', title: 'Penerimaan & Komentar Project Manager: (Jika kontraktor)' },
+	{ key: 'dept', title: 'Penerimaan & Komentar Dept Penanggung Jawab:' },
+	{ key: 'ohs', title: 'Penerimaan & Komentar OHS Dept Head:' },
+	{ key: 'dirops', title: 'Penerimaan & Komentar Direktur Operasi: (Hanya untuk insiden dengan aktual Level 3,4,5)' },
+	{ key: 'ktt', title: 'Penerimaan & Komentar KTT: (Hanya untuk insiden dengan aktual Level 3,4,5)' }
+	],
+
+
+	reviews: {
+	pm: { comment: '', user_id: '', accepted: null },
+	dept: { comment: '', user_id: '', accepted: null },
+	ohs: { comment: '', user_id: '', accepted: null },
+	dirops: { comment: '', user_id: '', accepted: null },
+	ktt: { comment: '', user_id: '', accepted: null }
+	},
+
 	// =========================
 	// INIT
 	// =========================
@@ -369,8 +409,8 @@
 	this.location_id = this.incident.location_id;
 	this.location_specific = this.incident.location_specific;
 	this.department_id = this.incident.department_id;
+	this.contractor_id = this.incident.contractor_id;
 	this.event_date = this.incident.tanggal_waktu;
-	console.log(this.event_date);
 	this.consequence_id= this.incident.RiskMatrix.risk_consequence_id;
 	this.likelihood_id= this.incident.RiskMatrix.risk_likelihood_id;
 	this.assessment_id= this.incident.RiskMatrix.risk_assessment_id;
@@ -381,6 +421,7 @@
 	this.TaskPerformed = this.incident.tugas_dijalankan || '';
 	this.ImmediateAction = this.incident.tindakan_langsung || '';
 	this.DamageDetail = this.incident.detil_kerusakan_kerugian || '';
+	this.KeyLearning = this.incident.key_learining || '';
 
 	// Watch matrix dependency
 	this.$watch('consequence_id', () => this.findMatrix());
@@ -441,7 +482,7 @@
 	}
 
 	return {
-	user_id: party.user_id || null,
+	user_id: party.user_id || '',
 	work_type: currentWorkType, 
 	department_id: party.department_id || '',
 	contractor_id: party.contractor_id || '',
@@ -453,7 +494,19 @@
 	};
 	});
 	} else {
-	this.involved_parties = []; 
+	this.involved_parties = [
+	{
+	user_id: null,
+	work_type: 'department', 
+	department_id: '',
+	contractor_id: '',
+	jabatan: '',
+	roster: '',
+	shift: 'Day',
+	keterlibatan: '',
+	pengalaman: 0
+	}
+	]; 
 	}
 
 	// =================================================================
@@ -467,8 +520,9 @@
 	currentWorkType = 'contractor';
 	}
 	return {
+	id_existing: 'existing-' + idx,
 	role: inv.role || '',
-	employee_id: inv.employee_id || null, // Pastikan ini null/kosong untuk data baru
+	employee_id: inv.employee_id || '', // Pastikan ini null/kosong untuk data baru
 	jabatan: inv.jabatan || '',
 	work_type: currentWorkType, 
 	department_id: inv.department_id || '',
@@ -477,12 +531,76 @@
 	});
 	} else {
 	// Jika mode Create (Data Baru), sediakan 3 baris default kosong
-	this.investigators = [];
+	this.investigators = [
+	{
+	id_existing: 'new-' + Date.now(),
+	role: '',
+	employee_id: null,
+	jabatan: '',
+	work_type: 'department', // 'department' atau 'contractor'
+	department_id: '',
+	contractor_id: ''
+	}
+	];
 	}
 
 	if (this.incident.peepo_factors && this.incident.peepo_factors.length > 0) {
 	this.peepo_factors = this.incident.peepo_factors;
 	}
+
+	// =================================================================
+	// INIT corrective_action_incidents
+	// =================================================================
+	if (this.incident && this.incident.corrective_action_incidents && this.incident.corrective_action_incidents.length > 0) {
+	this.corrective_actions = this.incident.corrective_action_incidents.map((act, idx) => {
+	console.log(act.due_date);
+	return {
+	key_id: 'existing-' + idx, // Key unik untuk act dari DB
+	action: act.action,
+	control_hierarchy: act.control_hierarchy,
+	user_id: act.user_id || null, 
+	due_date: act.due_date
+	};
+	});
+	} else {
+	this.corrective_actions = [
+	{
+	key_id: 'new-' + Date.now(), // Key unik untuk item baru
+	action: '',
+	control_hierarchy: '',
+	user_id: null, 
+	due_date: ''
+	}
+	];
+	}
+	// =================================================================
+	// INIT REVIEWS (Bagian 9) - PERBAIKAN RADIO BINDING
+	// =================================================================
+	if (this.incident && this.incident.reviews && this.incident.reviews.length > 0) {
+	const dbRev = this.incident.reviews[0];
+
+	this.reviews.pm.comment = dbRev.pm_comment || '';
+	this.reviews.pm.user_id = dbRev.pm_user_id || '';
+
+	this.reviews.pm.accepted = dbRev.pm_accepted !== null && dbRev.pm_accepted !== undefined ? String(dbRev.pm_accepted) : '';
+
+	this.reviews.dept.comment = dbRev.dept_comment || '';
+	this.reviews.dept.user_id = dbRev.dept_user_id || '';
+	this.reviews.dept.accepted = dbRev.dept_accepted !== null && dbRev.dept_accepted !== undefined ? String(dbRev.dept_accepted) : '';
+
+	this.reviews.ohs.comment = dbRev.ohs_comment || '';
+	this.reviews.ohs.user_id = dbRev.ohs_user_id || '';
+	this.reviews.ohs.accepted = dbRev.ohs_accepted !== null && dbRev.ohs_accepted !== undefined ? String(dbRev.ohs_accepted) : '';
+
+	this.reviews.dirops.comment = dbRev.dirops_comment || '';
+	this.reviews.dirops.user_id = dbRev.dirops_user_id || '';
+	this.reviews.dirops.accepted = dbRev.dirops_accepted !== null && dbRev.dirops_accepted !== undefined ? String(dbRev.dirops_accepted) : '';
+
+	this.reviews.ktt.comment = dbRev.ktt_comment || '';
+	this.reviews.ktt.user_id = dbRev.ktt_user_id || '';
+	this.reviews.ktt.accepted = dbRev.ktt_accepted !== null && dbRev.ktt_accepted !== undefined ? String(dbRev.ktt_accepted) : '';
+	}
+
 	}, // CLOSED INIT
 
 	// =========================
@@ -508,7 +626,7 @@
 	this.assessment_id = ''
 	},
 
-	openEdit(id, consequenceId, likelihoodId, assessmentId) {
+	getDataMatrix(id, consequenceId, likelihoodId, assessmentId) {
 	this.risk_matrix_id = id
 	this.consequence_id = consequenceId
 	this.likelihood_id = likelihoodId
@@ -527,6 +645,14 @@
 	)
 	return consequence ? consequence.description : ''
 	},
+	getConsequenceLevel() {
+	const consequence = this.consequences.find((item) =>
+	String(item.ID) === String(this.consequence_id)
+	);
+	// Jika tidak ditemukan, anggap level 0
+	return consequence ? parseInt(consequence.severity_level) : 0;
+	},
+
 
 	getLikelihoodNotes() {
 	const likelihood = this.likelihoods.find((item) =>
@@ -567,6 +693,11 @@
 
 	formattedDate = formattedDate.replace(' ', 'T') + ':00+08:00';
 	}
+	const parseBool = (val) => {
+	if (val === 'true' || val === true || val === '1') return true;
+	if (val === 'false' || val === false || val === '0') return false;
+	return null;
+	};
 	return {
 	Incident: {
 	id: parseInt(this.incident.ID || this.incident.id) || 0,
@@ -578,6 +709,7 @@
 	deskripsi: this.IncidentDescription,
 	tugas_dijalankan: this.TaskPerformed,
 	tindakan_langsung: this.ImmediateAction,
+	key_learning: this.KeyLearning,
 	detil_kerusakan_kerugian: this.DamageDetail,
 	status: 'submit',
 	department_id: this.work_type === 'department' ? (parseInt(this.department_id) || null) : null,
@@ -585,6 +717,29 @@
 	pic_id: parseInt(this.pic_id) || null,
 	risk_matrix_id: parseInt(this.risk_matrix_id) || null
 	},
+
+	Reviews: {
+	pm_comment: this.reviews.pm.comment,
+	pm_user_id: this.reviews.pm.user_id ? parseInt(this.reviews.pm.user_id) : null,
+	pm_accepted: parseBool(this.reviews.pm.accepted),
+
+	dept_comment: this.reviews.dept.comment,
+	dept_user_id: this.reviews.dept.user_id ? parseInt(this.reviews.dept.user_id) : null,
+	dept_accepted: parseBool(this.reviews.dept.accepted),
+
+	ohs_comment: this.reviews.ohs.comment,
+	ohs_user_id: this.reviews.ohs.user_id ? parseInt(this.reviews.ohs.user_id) : null,
+	ohs_accepted: parseBool(this.reviews.ohs.accepted),
+
+	dirops_comment: this.reviews.dirops.comment,
+	dirops_user_id: this.reviews.dirops.user_id ? parseInt(this.reviews.dirops.user_id) : null,
+	dirops_accepted: parseBool(this.reviews.dirops.accepted),
+
+	ktt_comment: this.reviews.ktt.comment,
+	ktt_user_id: this.reviews.ktt.user_id ? parseInt(this.reviews.ktt.user_id) : null,
+	ktt_accepted: parseBool(this.reviews.ktt.accepted),
+	},
+
 	InvolvedParties: this.involved_parties.map(party => ({
 	user_id: party.user_id ? parseInt(party.user_id) : null,
 	reporter_manual: party.reporter_manual || '',
@@ -623,6 +778,19 @@
 	category_type: c.category_type,
 	scat_option_id: c.scat_option_id ? parseInt(c.scat_option_id) : null,
 	description: c.description
+	})),
+	CorrectiveActionIncidents: this.corrective_actions.map(item => ({
+	action: item.action,
+	control_hierarchy: item.control_hierarchy,
+	user_id: item.user_id ? parseInt(item.user_id) : null,
+
+	// Logika Pintar:
+	// 1. Cek apakah ada nilai
+	// 2. Jika sudah mengandung 'T' (berarti sudah format ISO lengkap), gunakan apa adanya.
+	// 3. Jika hanya tanggal (format YYYY-MM-DD), baru tambahkan T00:00:00Z
+	due_date: (item.due_date && item.due_date !== '') 
+	? (item.due_date.includes('T') ? item.due_date : item.due_date + 'T00:00:00Z')
+	: null
 	}))
 	};
 	},
@@ -642,6 +810,56 @@
 	}
 	return true;
 	},
+	isReviewVisible(key) {
+	// 1. Logika untuk Dirops & KTT (Hanya level 3, 4, 5)
+	const level = parseInt(this.getConsequenceLevel());
+	if ((key === 'dirops' || key === 'ktt') && level < 3) {
+	return false;
+	}
+
+	// 2. Logika untuk PM (Hanya jika ada contractor_id)
+	// Pastikan this.contractor_id memiliki nilai (tidak null/undefined/0)
+	if (key === 'pm' && (!this.contractor_id || this.contractor_id == 0)) {
+	return false;
+	}
+
+	return true;
+	},
+
+	validateReviews() {
+	for (let config of this.reviewerConfigs) {
+	// SKIP validasi jika section disembunyikan
+	const isVisible = this.isReviewVisible(config.key);
+	console.log(`Key: ${config.key}, IsVisible: ${isVisible}, Level: ${this.getConsequenceLevel()}, ContractorID: ${this.contractor_id}`);
+	// --------------------------------------
+
+	// SKIP validasi jika section disembunyikan
+	if (!isVisible) continue;
+
+	let r = this.reviews[config.key];
+
+	// 1. Validasi Komentar
+	if (!r.comment || r.comment.trim() === '') {
+	if (window.showToast) window.showToast(`Komentar untuk ${config.title} wajib diisi!`, 'error');
+	return false;
+	}
+
+	// 2. Validasi Status Penerimaan
+	if (r.accepted === null || r.accepted === '') {
+	r.accepted = null;
+	if (window.showToast) window.showToast(`Status penerimaan untuk ${config.title} wajib dipilih!`, 'error');
+	return false;
+	}
+
+	// 3. Validasi User ID
+	if (!r.user_id || parseInt(r.user_id) <= 0) {
+	r.user_id = null;
+	if (window.showToast) window.showToast(`Penanggung jawab untuk ${config.title} belum ditentukan!`, 'error');
+	return false;
+	}
+	}
+	return true;
+	},
 
 	// ==========================================
 	// VALIDASI PER-TAB SEBELUM NEXT
@@ -652,7 +870,9 @@
 
 	// 1. Cek HTML5 Validation (HANYA CEK, JANGAN UBAH TAB/SCROLL DISINI)
 	const invalidFields = container.querySelectorAll(':invalid');
+
 	if (invalidFields.length > 0) {
+	invalidFields.forEach(el => console.log('Elemen bermasalah:', el.name || el.id, el));
 	if (window.showToast) window.showToast('Mohon lengkapi field wajib di Tab ' + step, 'error');
 	return false; // Langsung kembalikan false
 	}
@@ -668,10 +888,20 @@
 	let party = this.involved_parties[i];
 	let hasName = party.user_id || party.reporter_manual.trim() !== '';
 
-	if (!hasName || !party.jabatan.trim() || !party.keterlibatan) {
-	if (window.showToast) window.showToast('Lengkapi Nama, Jabatan, dan Keterlibatan pada baris ke-' + (i + 1) + '!', 'error');
+	if (!party.user_id) {
+	party.user_id = null;
+	if (window.showToast) window.showToast(`Karyawan Terlibat pada baris ke-${i + 1} wajib diisi!`, 'error');
 	return false;
 	}
+	if (!party.jabatan.trim()) {
+	if (window.showToast) window.showToast('Lengkapi Jabatan pada baris ke-' + (i + 1) + '!', 'error');
+	return false;
+	}
+	if (!party.keterlibatan) {
+	if (window.showToast) window.showToast('Lengkapi Keterlibatan pada baris ke-' + (i + 1) + '!', 'error');
+	return false;
+	}
+
 	if (party.work_type === 'department' && !party.department_id) {
 	if (window.showToast) window.showToast('Pilih Department untuk personil baris ke-' + (i + 1) + '!', 'error');
 	return false;
@@ -694,6 +924,7 @@
 	let inv = this.investigators[i];
 
 	if (!inv.employee_id || inv.employee_id.toString().trim() === '') {
+	inv.employee_id = null;
 	if (window.showToast) window.showToast('Mohon pilih Nama/ID pada investigator baris ke-' + (i + 1) + '!', 'error');
 	return false;
 	}
@@ -729,7 +960,46 @@
 	}
 	}
 	}
+	if (step === 7) {
+	// 1. Validasi minimal harus ada 1 baris tindakan perbaikan
+	if (!this.corrective_actions || this.corrective_actions.length === 0) {
+	if (window.showToast) window.showToast('Bagian 7 wajib diisi minimal 1 tindakan perbaikan!', 'error');
+	return false;
+	}
 
+	// 2. Loop setiap baris untuk memastikan data di dalamnya tidak kosong
+	for (let i = 0; i < this.corrective_actions.length; i++) {
+	let item = this.corrective_actions[i];
+
+	// Validasi deskripsi tindakan (Sesuaikan nama variabelnya jika berbeda)
+	if (!item.action || item.action.trim() === '') {
+	if (window.showToast) window.showToast(`Rencana tindakan pada baris ke-${i + 1} tidak boleh kosong!`, 'error');
+	return false;
+	}
+	if (!item.control_hierarchy || item.control_hierarchy.trim() === '') {
+	if (window.showToast) window.showToast(`Rencana tindakan pada baris ke-${i + 1} tidak boleh kosong!`, 'error');
+	return false;
+	}
+
+	// Validasi PIC / Penanggung Jawab (Sesuaikan jika nama variabelnya berbeda)
+	if (!item.user_id ) {
+	item.user_id = null;
+	if (window.showToast) window.showToast(`Penanggung jawab (PIC) pada baris ke-${i + 1} wajib diisi!`, 'error');
+	return false;
+	}
+
+	// Validasi Due Date (Field yang baru kita perbaiki sebelumnya)
+	if (!item.due_date || item.due_date.trim() === '') {
+	if (window.showToast) window.showToast(`Tenggat waktu (Due Date) pada baris ke-${i + 1} wajib dipilih!`, 'error');
+	return false;
+	}
+	}
+	}
+	if (step === 9) {
+	if (!this.validateReviews()) {
+	return false;
+	}
+	}
 
 	return true;
 	},
@@ -753,6 +1023,7 @@
 	for (let input of allInputs) {
 	// Cek apakah nilai kosong atau hanya berisi spasi
 	if (!input.value || input.value.trim() === '') {
+	invalidElement.dispatchEvent(new Event('invalid', { bubbles: true }));
 	invalidElement = input;
 	break; // Berhenti di elemen pertama yang kosong
 	}
@@ -760,17 +1031,29 @@
 
 	// 3. Eksekusi aksi jika ditemukan field yang invalid
 	if (invalidElement) {
-	// Trigger event 'invalid' agar Alpine/komponen lain bisa merespons
+	// 3. Trigger @invalid.prevent agar Alpine menjalankan isInvalid = true
 	invalidElement.dispatchEvent(new Event('invalid', { bubbles: true }));
 
-	// Scroll ke posisi elemen dengan smooth
-	invalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	// 4. Cek apakah elemen ini disembunyikan (seperti textarea CKEditor)
+	if (invalidElement.classList.contains('hidden')) {
+	// Ambil parent element (div) tempat kita menyimpan instance editor
+	const editorContainer = invalidElement.parentElement;
 
-	// Fokus ke elemen
-	invalidElement.focus();
+	// Scroll ke container editor
+	editorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+	// Fokus ke dalam area ketik CKEditor menggunakan API CKEditor 5
+	if (editorContainer._editor) {
+	editorContainer._editor.editing.view.focus();
+	}
 	} else {
-	// Fallback: Jika validasi manual sudah lolos tapi masih dianggap invalid
-	// (misalnya ada validasi custom), scroll ke atas container
+	// Fallback untuk input standar (teks biasa, select, dll) yang tidak di-hidden
+	invalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	invalidElement.focus();
+	}
+
+	} else {
+	// Fallback: Jika tidak ditemukan input kosong 
 	container.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
 	}, 200); // 200ms sudah cukup responsif tanpa terasa delay
@@ -888,12 +1171,26 @@
 	// 3. Trigger @invalid.prevent agar Alpine menjalankan isInvalid = true
 	invalidElement.dispatchEvent(new Event('invalid', { bubbles: true }));
 
-	// 4. Scroll dan Focus
+	// 4. Cek apakah elemen ini disembunyikan (seperti textarea CKEditor)
+	if (invalidElement.classList.contains('hidden')) {
+	// Ambil parent element (div) tempat kita menyimpan instance editor
+	const editorContainer = invalidElement.parentElement;
+
+	// Scroll ke container editor
+	editorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+	// Fokus ke dalam area ketik CKEditor menggunakan API CKEditor 5
+	if (editorContainer._editor) {
+	editorContainer._editor.editing.view.focus();
+	}
+	} else {
+	// Fallback untuk input standar (teks biasa, select, dll) yang tidak di-hidden
 	invalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	invalidElement.focus();
+	}
+
 	} else {
-	// Fallback: Jika tidak ditemukan input kosong (mungkin error di validasi custom), 
-	// scroll saja ke atas tab agar user sadar
+	// Fallback: Jika tidak ditemukan input kosong 
 	container.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
 	}, 500);
@@ -915,7 +1212,6 @@
 	this.isSubmitting = true;
 
 	sessionStorage.setItem('flash_msg', 'Berhasil!');
-	sessionStorage.setItem('flash_type', 'success');
 	window.location.href = `/incident/edit/${incidentID}`;
 	} else {
 	form.dataset.submitting = 'false';
@@ -1017,7 +1313,8 @@
 {{ define "slot" }}
 
 <div  class="w-full mx-auto">
-	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab1">
+
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300 mb-2" x-ref="tab1">
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 1" @change="activeTab = 1" />
 		<div class="collapse-title font-semibold">
 			<h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian1" }}</h3>
@@ -1082,10 +1379,10 @@
 					<div class="flex flex-col md:flex-row items-center gap-2 ">
 						<fieldset class="w-full">
 							<input id="draft" class="peer/draft" type="radio" value="department" name="work_type" x-model="work_type" checked />
-							<label for="draft" class="peer-checked/draft:text-sky-500 text-sm font-semibold text-base-content opacity-60 mb-1 ">{{ index .Tr "Department" }}</label>
+							<label for="draft" class="peer-checked/draft:text-info text-sm font-semibold text-base-content opacity-60 mb-1 ">{{ index .Tr "Department" }}</label>
 
 							<input id="published" class="peer/published" type="radio" name="work_type" value="contractor" x-model="work_type" />
-							<label for="published" class="peer-checked/published:text-sky-500 text-sm font-semibold mb-1 text-base-content opacity-60">{{ index .Tr "Contractor" }}</label>
+							<label for="published" class="peer-checked/published:text-info text-sm font-semibold mb-1 text-base-content opacity-60">{{ index .Tr "Contractor" }}</label>
 
 							<div class="hidden peer-checked/draft:block relative" @change="syncData('department_id', $event.detail)">
 								{{ template "select-search" (dict "Label" ""
@@ -1143,6 +1440,7 @@
 							{{ template "select_input" (dict "Label" "Consequences" "Name" "consequence_id" "Model" "consequence_id" "Placeholder" "Pilih Consequences" "Class" "max-w-sm" "Options" .Consequences "Required" true) }}
 							<div x-show="consequence_id" x-transition>
 								<textarea class="textarea textarea-bordered w-full" x-text="getConsequenceDesc()" readonly></textarea>
+
 							</div>
 
 							{{ template "select_input" (dict "Label" "Likelihood" "Name" "likelihood_id" "Model" "likelihood_id" "Placeholder" "Pilih Likelihood" "Class" "max-w-sm" "Options" .Likelihoods "Required" true) }}
@@ -1178,7 +1476,7 @@
 												<td class="border border-base-300 text-center font-bold text-base-content uppercase shadow-inner cursor-pointer hover:opacity-80 hover:scale-[1.02] transition-all"
 													:class="risk_matrix_id == '{{ $mID }}' ? 'ring-2 ring-black ring-inset scale-105 z-10 '  : ''"
 													style="background-color: {{ getMatrixColor $.Matrices $c.ID $l.ID }};"
-													@click="if('{{ $mID }}' !== '0') { openEdit('{{ $mID }}', '{{ $c.ID }}', '{{ $l.ID }}', '{{ $aID }}') }">
+													@click="if('{{ $mID }}' !== '0') { getDataMatrix('{{ $mID }}', '{{ $c.ID }}', '{{ $l.ID }}', '{{ $aID }}') }">
 													{{ firstChar (getMatrixName $.Matrices $c.ID $l.ID) }}
 													<input type="hidden" name="risk_matrix_id" x-model="risk_matrix_id">
 												</td>
@@ -1216,7 +1514,7 @@
 			</div>
 		</div>
 	</div>
-	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab2">
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300 mb-2" x-ref="tab2">
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 2" @change="activeTab = 2" />
 		<div class="collapse-title font-semibold">
 			<h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian2" }}</h3>
@@ -1230,7 +1528,7 @@
 				</div>
 			</template>
 
-			<div class="overflow-visible w-full bg-white rounded-lg border border-slate-200">
+			<div class="overflow-y-scroll w-full bg-white rounded-lg border border-slate-200">
 				<table class="table table-compact w-full text-sm">
 					<thead class="bg-slate-100 text-slate-700">
 						<tr>
@@ -1390,11 +1688,11 @@
 
 		</div>
 	</div>
-	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab3">
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300 mb-2" x-ref="tab3">
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 3" @change="activeTab = 3" />
 		<div class="collapse-title font-semibold"><h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian3" }}</h3></div>
 		<div class="collapse-content">
-			<div class="overflow-visible w-full bg-white rounded-lg border border-slate-200">
+			<div class="overflow-y-scroll w-full bg-white rounded-lg border border-slate-200">
 				<table class="table table-xs w-full">
 					<thead>
 						<tr class="bg-base-200">
@@ -1407,7 +1705,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						<template x-for="(inv, index) in investigators" :key="index">
+						<template x-for="(inv, index) in investigators" :key="inv.id_existing || index">
 							<tr class="hover:bg-slate-50 transition-colors focus-within:relative focus-within:z-50">
 								<td>
 									<select x-model="inv.role" class="select select-bordered select-xs w-full
@@ -1522,11 +1820,11 @@
 			</div>
 		</div>
 	</div>
-	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab4">
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300 mb-2" x-ref="tab4">
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 4" @change="activeTab = 4" />
 		<div class="collapse-title font-semibold"><h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian4" }}</h3></div>
 		<div class="collapse-content text-sm">
-			<div class="overflow-auto w-full bg-white rounded-lg border border-slate-200">
+			<div class="overflow-y-scroll w-full bg-white rounded-lg border border-slate-200">
 				<table class="table table-xs w-full">
 					<thead>
 						<tr class="bg-base-200">
@@ -1585,7 +1883,7 @@
 
 		</div>
 	</div>
-	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab5">
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300 mb-2" x-ref="tab5">
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 5" @change="activeTab = 5" />
 		<div class="collapse-title font-semibold">
 			<h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian5" }}</h3>
@@ -1594,7 +1892,7 @@
 		<div class="collapse-content text-sm">
 			<div class="space-y-6">
 				<template x-for="(item, tIndex) in timelines" :key="tIndex">
-					<div class="p-4 bg-slate-50 border border-slate-200 rounded-lg shadow-sm overflow-y-auto">
+					<div class="p-4 bg-slate-50 border border-slate-200 rounded-lg shadow-sm ">
 
 						<div class="mb-4 ">
 							<div role="alert" class="alert alert-vertical sm:alert-horizontal border-l-4 border-info">
@@ -1611,7 +1909,7 @@
 
 						<div class="space-y-3 ">
 							<template x-for="(why, wIndex) in item.whys" :key="wIndex">
-								<div class="relative pl-4">
+								<div class="relative pl-4 overflow-y-scroll">
 									<div class="flex gap-2 items-start">
 										<span class="mt-2 font-bold text-primary">
 											{{ index .Tr "Why" }} <span x-text="wIndex + 1"></span> ? :
@@ -1673,12 +1971,11 @@
 			</div>
 		</div>
 	</div>
-	<div class="collapse collapse-arrow bg-base-100 border border-base-300" x-ref="tab6">
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300 mb-2" x-ref="tab6">
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 6" @change="activeTab = 6" />
 		<div class="collapse-title font-semibold">
 			<h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian6" }}</h3>
 		</div>
-
 		<div class="collapse-content text-sm">
 			<div class="space-y-8"> 
 				<div class="p-4 border border-error/40 rounded-md">
@@ -1691,7 +1988,6 @@
 							<div class="card card-xs bg-base-200 shadow-sm p-2">
 								<div class="card-body">
 									<h4 class="card-title font-bold text-slate-600 mb-3" x-text="label"></h4>
-
 									<template x-for="(item, index) in causes[key]" :key="index">
 										<div class="flex gap-4 hover:bg-base-300 items-center mb-2">
 											<div class="flex-1 ">
@@ -1700,11 +1996,10 @@
 														"Model" "item.scat_option_id"
 														"Placeholder" "Pilih"
 														"Required" true
-														"Class" "w-64"
+														"Class" "w-96"
 														"Slot" "<template x-for='opt in getScatOptions(key)' :key='opt.ID'><option :value='opt.ID' :selected='opt.ID == item.scat_option_id' x-text='opt.Code + \" - \" + opt.Name'></option></template>"
 														)
 													}}
-
 													{{ template "textarea" (dict
 														"Label" ""
 														"Name" "description_cause"
@@ -1739,8 +2034,7 @@
 						</template>
 					</div>
 				</div>
-
-				<div class="px-4 border border-warning rounded-md">
+				<div class="p-4 border border-warning rounded-md">
 					<h3 class="text-base font-bold mb-2 border-b border-base-300 pb-2 text-warning">Penyebab Dasar</h3>
 					<div class="space-y-4">
 						<template x-for="(label, key) in {
@@ -1751,7 +2045,6 @@
 							<div class="card card-xs bg-base-200 shadow-sm p-2">
 								<div class="card-body">
 									<h4 class="card-title  font-bold text-slate-600 mb-3" x-text="label"></h4>
-
 									<template x-for="(item, index) in causes[key]" :key="index">
 										<div class="flex gap-4 hover:bg-base-300 items-center mb-2">
 											<div class="flex-1 ">
@@ -1760,11 +2053,10 @@
 														"Model" "item.scat_option_id"
 														"Placeholder" "Pilih"
 														"Required" true
-														"Class" "w-64"
+														"Class" "w-96"
 														"Slot" "<template x-for='opt in getScatOptions(key)' :key='opt.ID'><option :value='opt.ID' :selected='opt.ID == item.scat_option_id' x-text='opt.Code + \" - \" + opt.Name'></option></template>"
 														)
 													}}
-
 													{{ template "textarea" (dict
 														"Label" ""
 														"Name" "description_cause"
@@ -1799,10 +2091,162 @@
 						</template>
 					</div>
 				</div>
-
 			</div>
 		</div>
 	</div>
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300 mb-2" x-ref="tab7">
+		<input type="radio" name="my-accordion-1" :checked="activeTab === 7" @change="activeTab = 7" />
+		<div class="collapse-title font-semibold"><h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian7" }}</h3></div>
+		<div class="collapse-content ">
+			<template x-for="(item, index) in corrective_actions" :key="item.key_id || index">
+				<div class="card bg-base-100 border border-base-200 shadow-sm hover:shadow-md transition-shadow">
+					<div class="card-body p-4 gap-4 overflow-y-scroll">
+						<div class="flex justify-between items-start">
+							<h3 class="font-bold text-sm opacity-60">Action #<span x-text="index + 1"></span></h3>
+							<button type="button" @click="removeCorrectiveAction(index)" class="btn btn-ghost btn-xs text-error">
+								{{ lucide "trash-2" (dict "class" "size-4") }} Hapus
+							</button>
+						</div>
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+							<div class="md:col-span-2">
+								{{ template "textarea" (dict
+									"Label" ""
+									"Name" "description_cause"
+									"Placeholder" "Action..."
+									"Required" true
+									"Attr" " x-model='item.action'"
+									)
+								}}
+							</div>
+							<div>
+								{{ template "textarea" (dict
+									"Label" ""
+									"Name" "description_cause"
+									"Placeholder" "Control Hierarchy..."
+									"Required" true
+									"Attr" " x-model='item.control_hierarchy'"
+									)
+								}}
+							</div>
+						</div>
+						<div class="flex gap-4 items-end">
+							<div class="flex-1">
+
+
+								{{ template "select-user-search_model" (dict
+									"Label" ""
+									"Name" "user_id"
+									"Options" .Users
+									"Model" "item.user_id"
+									"DefaultText" (index .Tr "InputPIC")
+									"Required" true
+									)
+								}}
+							</div>
+							<div class="w-48">
+								{{ template "input-tanggal" (dict
+									"Label" ""
+									"Name" "due_date"
+									"Id" ""
+									"Value" ""
+									"Static" "false"
+									"Type" "date"
+									"Placeholder" (index .Tr "InputDateObservation")
+									"Required" true
+									"RequiredBinding" ""
+									"Attr" "x-model='item.due_date' :id=\"'due_date_' + index\" :name=\"'corrective_actions['+index+'][due_date]'\""
+									)
+								}}
+							</div>
+						</div>
+					</div>
+				</div>
+			</template>
+			<div class="mt-2">
+				<button 
+					type="button" 
+					class="btn btn-accent btn-soft btn-sm"
+					@click="addCorrectiveAction()">
+					{{ lucide "plus" (dict "class" "size-4") }} {{ index .Tr "TambahBaris" }}
+				</button>
+			</div>
+		</div>
+	</div>
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300 mb-2" x-ref="tab8">
+		<input type="radio" name="my-accordion-1" :checked="activeTab === 8" @change="activeTab = 8" />
+		<div class="collapse-title font-semibold">
+			<h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian8" }}</h3>
+			<p class="text-xs text-slate-500">{{ index .Tr "SubBagian8" }}</p>
+		</div>
+		<div class="collapse-content ">
+			{{ template "ckeditor" dict "ID" "KeyLearning" "Label" "" "Name" "tugas_dijalankan" "Model" "KeyLearning" "Value" .Incident.KeyLearning "Required" true "Attr" "" }}
+		</div>
+	</div>
+	<div class="collapse collapse-arrow bg-base-100 border border-base-300 mb-2" x-ref="tab9">
+		<input type="radio" name="my-accordion-1" :checked="activeTab === 9" @change="activeTab = 9" />
+		<div class="collapse-title font-semibold">
+			<h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian9" }}</h3>
+		</div>
+		<div class="collapse-content ">
+			<template x-for="(reviewer, index) in reviewerConfigs" :key="reviewer.key">
+				<div class="border border-base-300 rounded-lg overflow-hidden bg-base-100 shadow-sm" x-show="isReviewVisible(reviewer.key)">
+
+					<div class="bg-base-200/60 px-4 py-2 border-b border-base-300">
+						<span class="font-bold text-sm text-base-content/80" x-text="reviewer.title"></span>
+					</div>
+
+					<div class="p-4 flex flex-col gap-4">
+						{{ template "ckeditor-loop" (dict
+							"Label" "Komentar"
+							"Name" "reviewer.key + '_comment'"
+							"ID" "`reviews_${index}`"
+							"AlpineVar" "reviews[reviewer.key].comment"
+							"RequiredBinding" "isReviewVisible(reviewer.key)"
+							)
+						}}
+
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+
+							{{ template "select-user-search_model" (dict
+								"Label" "Nama Peninjau"
+								"Name" "reviewer.key + '_user_id'"
+								"Options" .Users
+								"Model" "reviews[reviewer.key].user_id"
+								"DefaultText" (index .Tr "InputPeninjauan")
+								"Required" true
+								)
+							}}
+
+
+							<div class="form-control w-full">
+								<label class="label pb-1 pt-0">
+									<span class="text-xs font-bold text-base-content opacity-60">Tanda Tangan:</span>
+								</label>
+								<div class="h-8 flex items-end pb-1 border-b-2 border-dashed border-base-300">
+									<span x-show="reviews[reviewer.key].accepted !== null" class="text-success text-xs font-bold" x-cloak>
+										✓ Ditandatangani Digital
+									</span>
+									<span x-show="reviews[reviewer.key].accepted === null" class="text-base-content/40 text-xs italic">
+										Menunggu Persetujuan...
+									</span>
+								</div>
+							</div>
+
+							{{ template "radio_group" (dict
+								"Label" "Penerimaan"
+								"Name" "reviewer.key + '_accepted'"
+								"Model" "reviews[reviewer.key].accepted"
+								"Required" true
+								)
+							}}
+
+						</div>
+					</div>
+				</div>
+			</template>
+		</div>
+	</div>
+
 </div>
 
 {{ end }}

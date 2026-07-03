@@ -238,7 +238,6 @@ func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fmt.Printf("DEBUG: Jumlah data parties yang akan disimpan: %d\n", len(finalParties))
 	for i, p := range finalParties {
 		fmt.Printf("DEBUG: Party[%d] - Manual: %s, UserID: %v\n", i, p.ReporterManual, p.UserID)
 	}
@@ -313,7 +312,6 @@ func (ic *IncidentController) Edit(w http.ResponseWriter, r *http.Request) {
 
 	// Kelompokkan berdasarkan CategoryType
 	for _, cause := range editData.Incident.Causes {
-		fmt.Printf("DEBUG: Memproses Cause ID: %d | Type: '%s'\n", cause.ID, cause.CategoryType) // <--- TAMBAHKAN INI
 
 		if _, exists := groupedCauses[cause.CategoryType]; exists {
 			groupedCauses[cause.CategoryType] = append(groupedCauses[cause.CategoryType], cause)
@@ -360,8 +358,6 @@ func (ic *IncidentController) Edit(w http.ResponseWriter, r *http.Request) {
 // Update memproses form submit via JSON Fetch Multipart
 func (ic *IncidentController) Update(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("--- CONTROLLER UPDATE DIPANGGIL ---")
-	fmt.Printf("DEBUG - URL Request: %s\n", r.URL.Path)
-	fmt.Printf("DEBUG - ID yang tertangkap: '%s'\n", r.PathValue("id"))
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -401,6 +397,8 @@ func (ic *IncidentController) Update(w http.ResponseWriter, r *http.Request) {
 		PeepoFactors              []models.PeepoFactor              `json:"PeepoFactors"`
 		Timelines                 []models.Timeline                 `json:"Timelines"`
 		Causes                    []models.IncidentCause            `json:"IncidentCauses"`
+		CorrectiveActionIncidents []models.CorrectiveActionIncident `json:"CorrectiveActionIncidents"`
+		Reviews                   *models.IncidentReview            `json:"Reviews"`
 	}
 
 	// 3. UNMARSHAL string JSON tersebut ke struct req
@@ -423,10 +421,10 @@ func (ic *IncidentController) Update(w http.ResponseWriter, r *http.Request) {
 	// -------------------------------------------------
 
 	// 4. PANGGIL SERVICE dengan menyertakan 'r' untuk memproses file dokumentasi
-	partiesUpdated, err := ic.ServiceIncident.UpdateIncident(uint(id), userID.ID, &req.Incident, req.InvolvedParties, req.InvestigationParticipants, req.PeepoFactors, req.Timelines, req.Causes, r)
+	partiesUpdated, err := ic.ServiceIncident.UpdateIncident(uint(id), userID.ID, &req.Incident, req.InvolvedParties, req.InvestigationParticipants, req.PeepoFactors, req.Timelines, req.Causes, req.CorrectiveActionIncidents, req.Reviews, r)
 
 	if err != nil {
-		fmt.Printf("DEBUG - Service Error: %v\n", err)
+
 		http.Error(w, "Gagal mengupdate data: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -59,6 +59,7 @@ type IncidentReport struct {
 	TindakanLangsung       string `gorm:"type:text" json:"tindakan_langsung"`
 	PekerjaanBerhenti      bool   `gorm:"default:false" json:"pekerjaan_berhenti"` // true = Berhenti, false = Lanjut
 	DetilKerusakanKerugian string `gorm:"type:text" json:"detil_kerusakan_kerugian"`
+	KeyLearning            string `gorm:"type:text" json:"key_learning"`
 
 	// Relasi Pelapor (User yang menginput data ke sistem)
 	ReportByID *uint `json:"report_by_id"`
@@ -75,6 +76,8 @@ type IncidentReport struct {
 	PeepoFactors              []PeepoFactor              `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"peepo_factors"`
 
 	// Relasi One-to-Many ke BAGIAN 3 (Timeline)
-	Timelines []Timeline      `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"timelines"`
-	Causes    []IncidentCause `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"causes"`
+	Timelines                 []Timeline                 `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"timelines"`
+	Causes                    []IncidentCause            `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"causes"`
+	CorrectiveActionIncidents []CorrectiveActionIncident `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"corrective_action_incidents"`
+	Reviews                   []IncidentReview           `gorm:"foreignKey:IncidentReportID;constraint:OnDelete:CASCADE;" json:"reviews"`
 }

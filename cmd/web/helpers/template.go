@@ -89,9 +89,11 @@ func RenderTemplate(
 		// =========================
 		"views/partials/fild/input-floating.gohtml",
 		"views/partials/fild/input.gohtml",
+		"views/partials/fild/radio_group.gohtml",
 		"views/partials/fild/textarea.gohtml",
 		"views/partials/fild/input-file.gohtml",
 		"views/partials/fild/input-date.gohtml",
+		"views/partials/fild/input-tanggal-free.gohtml",
 		"views/partials/fild/input-flatpickr.gohtml",
 		"views/partials/fild/input-flatpickr-range.gohtml",
 		"views/partials/fild/select-search.gohtml",
