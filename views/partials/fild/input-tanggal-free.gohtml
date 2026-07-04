@@ -83,7 +83,7 @@
 	altFormat: {{ if eq .Type "date" }}'j F, Y'{{ else }}'j F, Y H:i'{{ end }},
 	dateFormat: {{ if eq .Type "date" }}'Y-m-d'{{ else }}'Y-m-d H:i'{{ end }},
 	time_24hr: true,
-	disableMobile: false,
+	disableMobile: true,
 	static: {{ if eq .Static "false" }}false{{ else }}true{{ end }},
 	minuteIncrement: 1,
 	altInputClass: 'input input-bordered input-xs w-full focus:outline-none focus:border-info focus:ring-info'

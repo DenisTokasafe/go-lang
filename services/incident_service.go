@@ -260,6 +260,96 @@ func (s *incidentService) GetEditData(id uint, currentUserID uint, page int) (*I
 	result.Incident = incident
 
 	// ==========================================
+	// ⬇️ LETAKKAN BLOK KODE DI SINI ⬇️
+	// ==========================================
+	deptIDsMap := make(map[uint64]bool)
+	contIDsMap := make(map[uint64]bool)
+	userIDsMap := make(map[uint64]bool)
+
+	// Dari Insiden Utama
+	if incident.DepartmentID != nil && *incident.DepartmentID != 0 {
+		deptIDsMap[uint64(*incident.DepartmentID)] = true
+	}
+	if incident.ContractorID != nil && *incident.ContractorID != 0 {
+		contIDsMap[uint64(*incident.ContractorID)] = true
+	}
+	if incident.PicID != nil && *incident.PicID != 0 {
+		userIDsMap[uint64(*incident.PicID)] = true
+	}
+	if incident.ReportByID != nil && *incident.ReportByID != 0 {
+		userIDsMap[uint64(*incident.ReportByID)] = true
+	}
+
+	// Dari Involved Parties
+	for _, party := range incident.InvolvedParties {
+		if party.DepartmentID != nil && *party.DepartmentID != 0 {
+			deptIDsMap[uint64(*party.DepartmentID)] = true
+		}
+		if party.ContractorID != nil && *party.ContractorID != 0 {
+			contIDsMap[uint64(*party.ContractorID)] = true
+		}
+		if party.UserID != nil && *party.UserID != 0 {
+			userIDsMap[uint64(*party.UserID)] = true
+		}
+	}
+
+	// TAMBAHAN: Jika Anda juga ingin mencakup InvestigationParticipants
+	for _, inv := range incident.InvestigationParticipants {
+		if inv.DepartmentID != nil && *inv.DepartmentID != 0 {
+			deptIDsMap[uint64(*inv.DepartmentID)] = true
+		}
+		if inv.ContractorID != nil && *inv.ContractorID != 0 {
+			contIDsMap[uint64(*inv.ContractorID)] = true
+		}
+		if inv.EmployeID != nil && *inv.EmployeID != 0 {
+			userIDsMap[uint64(*inv.EmployeID)] = true
+		}
+	}
+
+	for _, cai := range incident.CorrectiveActionIncidents {
+		if cai.UserID != nil && *cai.UserID != 0 {
+			userIDsMap[uint64(*cai.UserID)] = true
+		}
+	}
+	for _, rev := range incident.Reviews {
+		if rev.PMUserID != nil && *rev.PMUserID != 0 {
+			userIDsMap[uint64(*rev.PMUserID)] = true
+		}
+		if rev.DeptUserID != nil && *rev.DeptUserID != 0 {
+			userIDsMap[uint64(*rev.DeptUserID)] = true
+		}
+		if rev.OHSUserID != nil && *rev.OHSUserID != 0 {
+			userIDsMap[uint64(*rev.OHSUserID)] = true
+		}
+		if rev.DirOpsUserID != nil && *rev.DirOpsUserID != 0 {
+			userIDsMap[uint64(*rev.DirOpsUserID)] = true
+		}
+		if rev.KTTUserID != nil && *rev.KTTUserID != 0 {
+			userIDsMap[uint64(*rev.KTTUserID)] = true
+		}
+
+	}
+
+	// Konversi map ke slice untuk query
+	var activeDeptIDs []uint64
+	for id := range deptIDsMap {
+		activeDeptIDs = append(activeDeptIDs, id)
+	}
+
+	var activeContIDs []uint64
+	for id := range contIDsMap {
+		activeContIDs = append(activeContIDs, id)
+	}
+
+	var activeUserIDs []uint64
+	for id := range userIDsMap {
+		activeUserIDs = append(activeUserIDs, id)
+	}
+	// ==========================================
+	// ⬆️ SELESAI PENEMPATAN ⬆️
+	// ==========================================
+
+	// ==========================================
 	// 2. CHECK PERMISSION & POLICY GUARD (IDOR PROTECTION)
 	// ==========================================
 	var currentUser models.User
@@ -272,7 +362,7 @@ func (s *incidentService) GetEditData(id uint, currentUserID uint, page int) (*I
 	canAccess := false
 
 	// A. Cek jika user adalah PIC
-	if currentUser.ID == incident.PicID {
+	if currentUser.ID == *incident.PicID {
 		result.CanReopen = true
 		canAccess = true
 	}
@@ -345,39 +435,65 @@ func (s *incidentService) GetEditData(id uint, currentUserID uint, page int) (*I
 		locIDStr := strconv.FormatUint(uint64(incident.LocationID), 10)
 		s.db.Where("id = ? OR id NOT IN (?)", incident.LocationID, incident.LocationID).
 			Order("CASE WHEN id = " + locIDStr + " THEN 0 ELSE 1 END, name asc").
-			Limit(50).Find(&result.Locations)
+			Limit(20).Find(&result.Locations)
 	} else {
-		s.db.Order("name asc").Limit(50).Find(&result.Locations)
+		s.db.Order("name asc").Limit(20).Find(&result.Locations)
 	}
 
 	// Department
-	if incident.DepartmentID != nil && *incident.DepartmentID != 0 {
-		deptIDStr := strconv.FormatUint(uint64(*incident.DepartmentID), 10)
-		s.db.Where("id = ? OR id NOT IN (?)", *incident.DepartmentID, *incident.DepartmentID).
-			Order("CASE WHEN id = " + deptIDStr + " THEN 0 ELSE 1 END, name asc").
-			Limit(50).Find(&result.Departments)
+	// Query Department dengan ID yang aktif dipaksa masuk
+	if len(activeDeptIDs) > 0 {
+		// Ambil departemen yang terpilih dulu
+		var selectedDepts []models.Department
+		s.db.Where("id IN ?", activeDeptIDs).Find(&selectedDepts)
+
+		// Ambil sisa departemen (exclude yang sudah terpilih) untuk melengkapi limit
+		var otherDepts []models.Department
+		s.db.Where("id NOT IN ?", activeDeptIDs).
+			Order("name asc").
+			Limit(20 - len(selectedDepts)). // Sisa kuota
+			Find(&otherDepts)
+
+		result.Departments = append(selectedDepts, otherDepts...)
 	} else {
-		s.db.Order("name asc").Limit(50).Find(&result.Departments)
+		// Jika tidak ada departemen terpilih, ambil 20 teratas biasa
+		s.db.Order("name asc").Limit(20).Find(&result.Departments)
 	}
 
-	// Contractor
-	if incident.ContractorID != nil && *incident.ContractorID != 0 {
-		contIDStr := strconv.FormatUint(uint64(*incident.ContractorID), 10)
-		s.db.Where("id = ? OR id NOT IN (?)", *incident.ContractorID, *incident.ContractorID).
-			Order("CASE WHEN id = " + contIDStr + " THEN 0 ELSE 1 END, name asc").
-			Limit(50).Find(&result.Contractors)
-	} else {
-		s.db.Order("name asc").Limit(50).Find(&result.Contractors)
-	}
+	if len(activeContIDs) > 0 {
+		// Ambil contractor yang terpilih dulu
+		var selectedConts []models.Contractor
+		s.db.Where("id IN ?", activeContIDs).Find(&selectedConts)
 
+		// Ambil sisa contractor (exclude yang sudah terpilih) untuk melengkapi limit
+		var otherConts []models.Contractor
+		s.db.Where("id NOT IN ?", activeContIDs).
+			Order("name asc").
+			Limit(20 - len(selectedConts)). // Sisa kuota
+			Find(&otherConts)
+
+		result.Contractors = append(selectedConts, otherConts...)
+	} else {
+		// Jika tidak ada contractor terpilih, ambil 20 teratas biasa
+		s.db.Order("name asc").Limit(20).Find(&result.Contractors)
+	}
 	// Users / ReportBy
-	if incident.ReportByID != nil && *incident.ReportByID != 0 {
-		userIDStr := strconv.FormatUint(uint64(*incident.ReportByID), 10)
-		s.db.Where("id = ? OR id NOT IN (?)", *incident.ReportByID, *incident.ReportByID).
-			Order("CASE WHEN id = " + userIDStr + " THEN 0 ELSE 1 END, name asc").
-			Limit(50).Find(&result.Users)
+	if len(activeUserIDs) > 0 {
+		// Ambil user yang terpilih dulu
+		var selectedUsers []models.User
+		s.db.Where("id IN ?", activeUserIDs).Find(&selectedUsers)
+
+		// Ambil sisa user (exclude yang sudah terpilih) untuk melengkapi limit
+		var otherUsers []models.User
+		s.db.Where("id NOT IN ?", activeUserIDs).
+			Order("name asc").
+			Limit(20 - len(selectedUsers)). // Sisa kuota
+			Find(&otherUsers)
+
+		result.Users = append(selectedUsers, otherUsers...)
 	} else {
-		s.db.Order("name asc").Limit(50).Find(&result.Users)
+		// Jika tidak ada user terpilih, ambil 20 teratas biasa
+		s.db.Order("name asc").Limit(20).Find(&result.Users)
 	}
 
 	s.db.Where("type IN ?", []string{"unsafe_act", "personal_factor"}).

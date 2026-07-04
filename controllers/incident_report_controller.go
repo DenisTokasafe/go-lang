@@ -133,7 +133,7 @@ func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
 		LocationSpecific: r.FormValue("location_specific"),
 
 		// PIC & Penanggung Jawab
-		PicID:        parseUint(r.FormValue("pic_id")),           // Wajib ada (Non-Pointer)
+		PicID:        parseUintPtr(r.FormValue("pic_id")),        // Wajib ada (Non-Pointer)
 		DepartmentID: parseUintPtr(r.FormValue("department_id")), // Pointer (Bisa NULL)
 		ContractorID: parseUintPtr(r.FormValue("contractor_id")), // Pointer (Bisa NULL)
 
@@ -550,7 +550,7 @@ func (ic *IncidentController) SyncField(w http.ResponseWriter, r *http.Request) 
 					true,
 				).
 				Order("name asc").
-				Limit(50).
+				Limit(20).
 				Find(&pics)
 
 		}
@@ -572,7 +572,7 @@ func (ic *IncidentController) SyncField(w http.ResponseWriter, r *http.Request) 
 					true,
 				).
 				Order("name asc").
-				Limit(50).
+				Limit(20).
 				Find(&pics_terkait)
 
 		}
@@ -595,7 +595,7 @@ func (ic *IncidentController) SyncField(w http.ResponseWriter, r *http.Request) 
 					true,
 				).
 				Order("name asc").
-				Limit(50).
+				Limit(20).
 				Find(&pics)
 
 		}
@@ -617,7 +617,7 @@ func (ic *IncidentController) SyncField(w http.ResponseWriter, r *http.Request) 
 					true,
 				).
 				Order("name asc").
-				Limit(50).
+				Limit(20).
 				Find(&pics_terkait)
 
 		}

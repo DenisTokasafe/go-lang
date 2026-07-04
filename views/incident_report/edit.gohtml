@@ -368,12 +368,50 @@
 	},
 
 	// =========================
-	// INIT
+	// INIT (OPTIMIZED FOR PERFORMANCE)
 	// =========================
 	async init() {
+	// -----------------------------------------------------------------
+	// BAGIAN 1: PRIORITAS UTAMA (Langsung dieksekusi agar UI awal segera muncul)
+	// -----------------------------------------------------------------
 	this.checkFlash();
 	this.initTimelines();
-	// Mapping: Kunci di Alpine (Kiri) -> Kunci dari Server Go (Kanan)
+
+	this.event_category_id = this.incident.EventCategory ? String(this.incident.EventCategory.parent_id) : '';
+	this.event_type_id = this.incident.event_category_id ? String(this.incident.event_category_id) : '';
+	this.scat_option_id = this.incident.scat_option_id;
+	this.location_id = this.incident.location_id;
+	this.location_specific = this.incident.location_specific;
+	this.department_id = this.incident.department_id;
+	this.contractor_id = this.incident.contractor_id;
+	this.event_date = this.incident.tanggal_waktu;
+	this.consequence_id = this.incident.RiskMatrix.risk_consequence_id;
+	this.likelihood_id = this.incident.RiskMatrix.risk_likelihood_id;
+	this.assessment_id = this.incident.RiskMatrix.risk_assessment_id;
+	this.risk_matrix_id = this.incident.risk_matrix_id;
+
+	this.pic_id = this.incident.pic_id;
+	this.IncidentDescription = this.incident.deskripsi || '';
+	this.TaskPerformed = this.incident.tugas_dijalankan || '';
+	this.ImmediateAction = this.incident.tindakan_langsung || '';
+	this.DamageDetail = this.incident.detil_kerusakan_kerugian || '';
+	this.KeyLearning = this.incident.key_learining || '';
+
+	// Watch matrix dependency & work type
+	this.$watch('consequence_id', () => this.findMatrix());
+	this.$watch('likelihood_id', () => this.findMatrix());
+
+	this.handleWorkTypeChange(this.work_type);
+	this.$watch('work_type', (value) => {
+	this.handleWorkTypeChange(value);
+	});
+
+	// Memicu browser melakukan render UI dasar pertama kali (Mengurangi TBT)
+	await new Promise(resolve => setTimeout(resolve, 0));
+
+	// -----------------------------------------------------------------
+	// BAGIAN 2: PROSES DATA PENYEBAB (CAUSES) & SYNC EVENT
+	// -----------------------------------------------------------------
 	const keyMap = {
 	'unsafe_condition': 'unsafe_condition',
 	'unsafe_act': 'unsafe_act',
@@ -384,18 +422,14 @@
 
 	Object.keys(this.causes).forEach(key => {
 	const serverKey = keyMap[key];
-
-	// Memastikan data diproses dengan konsisten
 	if (this.server_causes[serverKey] && this.server_causes[serverKey].length > 0) {
 	this.causes[key] = this.server_causes[serverKey].map(item => {
 	return {
 	...item,
-	// Paksa jadi angka jika ada, jika tidak kosongkan
 	scat_option_id: item.scat_option_id ? Number(item.scat_option_id) : ''
 	};
 	});
 	} else {
-	// Jika data server tidak ada, inisialisasi sebagai baris kosong
 	this.causes[key] = [{ 
 	category_type: key, 
 	scat_option_id: '', 
@@ -403,39 +437,7 @@
 	}];
 	}
 	});
-	this.event_category_id = this.incident.EventCategory ? String(this.incident.EventCategory.parent_id) : '';
-	this.event_type_id = this.incident.event_category_id ? String(this.incident.event_category_id) : '';
-	this.scat_option_id= this.incident.scat_option_id ;
-	this.location_id = this.incident.location_id;
-	this.location_specific = this.incident.location_specific;
-	this.department_id = this.incident.department_id;
-	this.contractor_id = this.incident.contractor_id;
-	this.event_date = this.incident.tanggal_waktu;
-	this.consequence_id= this.incident.RiskMatrix.risk_consequence_id;
-	this.likelihood_id= this.incident.RiskMatrix.risk_likelihood_id;
-	this.assessment_id= this.incident.RiskMatrix.risk_assessment_id;
-	this.risk_matrix_id= this.incident.risk_matrix_id;
 
-	this.pic_id = this.incident.pic_id;
-	this.IncidentDescription = this.incident.deskripsi || '';
-	this.TaskPerformed = this.incident.tugas_dijalankan || '';
-	this.ImmediateAction = this.incident.tindakan_langsung || '';
-	this.DamageDetail = this.incident.detil_kerusakan_kerugian || '';
-	this.KeyLearning = this.incident.key_learining || '';
-
-	// Watch matrix dependency
-	this.$watch('consequence_id', () => this.findMatrix());
-	this.$watch('likelihood_id', () => this.findMatrix());
-
-	// Watch work type
-	this.handleWorkTypeChange(this.work_type);
-	this.$watch('work_type', (value) => {
-	this.handleWorkTypeChange(value);
-	});
-
-	// =========================
-	// LOAD EVENT TYPES
-	// =========================
 	if (this.event_category_id) {
 	await this.syncData('event_category_id', this.event_category_id, true);
 	const syncedType = this.all_types.find(item => String(item.ID) === String(this.event_type_id));
@@ -444,18 +446,18 @@
 	}
 	}
 
-	// =========================
-	// RESET TYPE WHEN CATEGORY CHANGES
-	// =========================
 	this.$watch('event_category_id', (value, oldValue) => {
 	if (oldValue && value !== oldValue) {
 	this.event_type_id = '';
 	}
 	});
 
-	// =========================
-	// LOAD PICS
-	// =========================
+	// Istirahat sejenak untuk memotong Long Task JS berikutnya
+	await new Promise(resolve => setTimeout(resolve, 0));
+
+	// -----------------------------------------------------------------
+	// BAGIAN 3: PROSES DATA PERSONEL (PICS) & KARYAWAN
+	// -----------------------------------------------------------------
 	this.all_pics = {{ json .AllPics }};
 	const match = this.all_pics.find(item => String(item.ID) === String(this.incident.pic_id));
 
@@ -471,7 +473,12 @@
 	this.pic_id = String(match.ID);
 	}
 
-	// Cek apakah data insiden memiliki pihak_terlibat (saat mode Edit)
+	// Istirahat sejenak sebelum memproses array pemetaan yang besar
+	await new Promise(resolve => setTimeout(resolve, 0));
+
+	// -----------------------------------------------------------------
+	// BAGIAN 4: PROSES PIHAK TERLIBAT & INVESTIGATOR
+	// -----------------------------------------------------------------
 	if (this.incident && this.incident.pihak_terlibat && this.incident.pihak_terlibat.length > 0) {
 	this.involved_parties = this.incident.pihak_terlibat.map(party => {
 	let currentWorkType = '';
@@ -509,20 +516,16 @@
 	]; 
 	}
 
-	// =================================================================
-	// INIT PARTISIPAN INVESTIGASI (Edit Mode)
-	// =================================================================
 	if (this.incident && this.incident.investigation_participants && this.incident.investigation_participants.length > 0) {
 	this.investigators = this.incident.investigation_participants.map((inv, idx) => {
 	let currentWorkType = 'department'; 
-
 	if (inv.contractor_id !== null && inv.contractor_id > 0) {
 	currentWorkType = 'contractor';
 	}
 	return {
 	id_existing: 'existing-' + idx,
 	role: inv.role || '',
-	employee_id: inv.employee_id || '', // Pastikan ini null/kosong untuk data baru
+	employee_id: inv.employee_id || '',
 	jabatan: inv.jabatan || '',
 	work_type: currentWorkType, 
 	department_id: inv.department_id || '',
@@ -530,32 +533,33 @@
 	};
 	});
 	} else {
-	// Jika mode Create (Data Baru), sediakan 3 baris default kosong
 	this.investigators = [
 	{
 	id_existing: 'new-' + Date.now(),
 	role: '',
 	employee_id: null,
 	jabatan: '',
-	work_type: 'department', // 'department' atau 'contractor'
+	work_type: 'department',
 	department_id: '',
 	contractor_id: ''
 	}
 	];
 	}
 
+	// Istirahat terakhir untuk sisa pemetaan form belakang
+	await new Promise(resolve => setTimeout(resolve, 0));
+
+	// -----------------------------------------------------------------
+	// BAGIAN 5: PROSES PEEPO FACTORS, CORRECTIVE ACTIONS & REVIEWS
+	// -----------------------------------------------------------------
 	if (this.incident.peepo_factors && this.incident.peepo_factors.length > 0) {
 	this.peepo_factors = this.incident.peepo_factors;
 	}
 
-	// =================================================================
-	// INIT corrective_action_incidents
-	// =================================================================
 	if (this.incident && this.incident.corrective_action_incidents && this.incident.corrective_action_incidents.length > 0) {
 	this.corrective_actions = this.incident.corrective_action_incidents.map((act, idx) => {
-	console.log(act.due_date);
 	return {
-	key_id: 'existing-' + idx, // Key unik untuk act dari DB
+	key_id: 'existing-' + idx,
 	action: act.action,
 	control_hierarchy: act.control_hierarchy,
 	user_id: act.user_id || null, 
@@ -565,7 +569,7 @@
 	} else {
 	this.corrective_actions = [
 	{
-	key_id: 'new-' + Date.now(), // Key unik untuk item baru
+	key_id: 'new-' + Date.now(),
 	action: '',
 	control_hierarchy: '',
 	user_id: null, 
@@ -573,15 +577,12 @@
 	}
 	];
 	}
-	// =================================================================
-	// INIT REVIEWS (Bagian 9) - PERBAIKAN RADIO BINDING
-	// =================================================================
+
 	if (this.incident && this.incident.reviews && this.incident.reviews.length > 0) {
 	const dbRev = this.incident.reviews[0];
 
 	this.reviews.pm.comment = dbRev.pm_comment || '';
 	this.reviews.pm.user_id = dbRev.pm_user_id || '';
-
 	this.reviews.pm.accepted = dbRev.pm_accepted !== null && dbRev.pm_accepted !== undefined ? String(dbRev.pm_accepted) : '';
 
 	this.reviews.dept.comment = dbRev.dept_comment || '';
@@ -600,7 +601,6 @@
 	this.reviews.ktt.user_id = dbRev.ktt_user_id || '';
 	this.reviews.ktt.accepted = dbRev.ktt_accepted !== null && dbRev.ktt_accepted !== undefined ? String(dbRev.ktt_accepted) : '';
 	}
-
 	}, // CLOSED INIT
 
 	// =========================
@@ -1006,16 +1006,12 @@
 
 
 	focusInvalidField(tabId) {
-
 	// Kita gunakan setTimeout agar menunggu DOM benar-benar siap 
-	// (misalnya animasi transisi tab selesai)
 	setTimeout(() => {
 	const container = this.$refs['tab' + tabId];
 	if (!container) return;
 
 	// 1. Cari semua input/textarea/select yang 'required'
-
-	// ke input tersembunyi yang bisa menyebabkan error di browser
 	const allInputs = container.querySelectorAll('input[required]:not([type=\'hidden\']), select[required], textarea[required]');
 	let invalidElement = null;
 
@@ -1023,8 +1019,7 @@
 	for (let input of allInputs) {
 	// Cek apakah nilai kosong atau hanya berisi spasi
 	if (!input.value || input.value.trim() === '') {
-	invalidElement.dispatchEvent(new Event('invalid', { bubbles: true }));
-	invalidElement = input;
+	invalidElement = input; // HANYA TUGASKAN VARIABELNYA DI SINI
 	break; // Berhenti di elemen pertama yang kosong
 	}
 	}
@@ -1056,7 +1051,7 @@
 	// Fallback: Jika tidak ditemukan input kosong 
 	container.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
-	}, 200); // 200ms sudah cukup responsif tanpa terasa delay
+	}, 200); 
 	},
 
 	// ==========================================
@@ -1321,196 +1316,199 @@
 			<p class="text-xs text-slate-500">{{ index .Tr "Subbagian1" }}</p>
 		</div>
 		<div class="collapse-content">
+			<div>
+				<template x-if="activeTab === 1">
+					<div class="bg-base-100 rounded-md border border-base-200 p-2">
+						<div class="grid grid-cols-1 md:grid-cols-4 gap-2 ">
+							<div class="relative " @change="syncData('event_category_id', $event.detail)">
+								{{ template "select-search" (dict
+									"Label" (index .Tr "ReportType")
+									"Name" "event_category_id"
+									"ModelName" "event_category_id"
+									"Value" .Incident.EventCategory.ParentID
+									"Options" .EventCategories
+									"Required" true
+									"DefaultText" "-- Pilih Tipe Bahaya --"
+									"Placeholder" "Cari tipe bahaya..."
+									)
+								}}
+							</div>
+							{{ template "select-dynamic" (dict "Label" (index .Tr "HazardType") "Name" "event_type_id" "Value" .Incident.EventCategoryID "Model" "event_type_id" "OptionsArray" "all_types" "ShowCondition" "event_category_id" "DefaultText" (index .Tr "SelectHazardType") "Required" true) }}
+							{{ template "select_input" (dict "Label" (index .Tr "HazardCategory") "Name" "scat_option_id" "ShowType" true "Model" "scat_option_id" "Placeholder" (index .Tr "SelectHazardCategory") "Options" .ScatOptions "Required" true) }}
 
-			<div class="bg-base-100 rounded-md border border-base-200 p-2">
-				<div class="grid grid-cols-1 md:grid-cols-4 gap-2 ">
-					<div class="relative " @change="syncData('event_category_id', $event.detail)">
-						{{ template "select-search" (dict
-							"Label" (index .Tr "ReportType")
-							"Name" "event_category_id"
-							"ModelName" "event_category_id"
-							"Value" .Incident.EventCategory.ParentID
-							"Options" .EventCategories
-							"Required" true
-							"DefaultText" "-- Pilih Tipe Bahaya --"
-							"Placeholder" "Cari tipe bahaya..."
-							)
-						}}
-					</div>
-					{{ template "select-dynamic" (dict "Label" (index .Tr "HazardType") "Name" "event_type_id" "Value" .Incident.EventCategoryID "Model" "event_type_id" "OptionsArray" "all_types" "ShowCondition" "event_category_id" "DefaultText" (index .Tr "SelectHazardType") "Required" true) }}
-					{{ template "select_input" (dict "Label" (index .Tr "HazardCategory") "Name" "scat_option_id" "ShowType" true "Model" "scat_option_id" "Placeholder" (index .Tr "SelectHazardCategory") "Options" .ScatOptions "Required" true) }}
-
-					<div class="relative my-select-field" @change="location_id = $event.detail">
-						{{ template "select-search" (dict
-							"Label" (index .Tr "Location")
-							"Name" "location_id"
-							"Value" .Incident.LocationID
-							"Options" .Locations
-							"Required" true
-							"DefaultText" (index .Tr "SelectLocation")
-							"Attr" "x-model='location_id'"
-							"SearchURL" "/incident/locations/search"
-							"Placeholder" "Cari nama lokasi..."
-							)
-						}}
-					</div>
-
-					{{ template "input" (dict "Label" (index .Tr "LocationSpecific") "Name" "location_specific" "Placeholder" (index .Tr "InputLocationSpecific") "ShowCondition" "location_id" "Required" true "Attr" "x-model='location_specific'") }}
-
-					<div class="relative ">
-						{{ template "select-user-search" (dict "Label" (index .Tr "ReporterName") "Options" .Users "Value" .AuthUser.ID "SelectedLabel" .AuthUser.Name "DefaultValue" .AuthUser.ID "DefaultText" (index .Tr "SelectReporterName") "Attr" "x-model='reporter_id'" "Required" true) }}
-					</div>
-
-					{{ template "input-flatpickr" dict
-						"Label" (index .Tr "DateTimeObservation")
-						"Name" "event_date"
-						"Id" "event_date"
-						"Value" (.Incident.TanggalWaktu.Format "2006-01-02 15:04")
-						"Type" "date-time"
-						"Placeholder" (index .Tr "InputDateObservation")
-						"Required" true
-						"RequiredBinding" ""
-						"Attr" "x-model=event_date"
-					}}
-				</div>
-
-				<fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border px-2 mt-4">
-					<legend class="fieldset-legend">{{ index .Tr "ResponsibleParty" }}</legend>
-					<div class="flex flex-col md:flex-row items-center gap-2 ">
-						<fieldset class="w-full">
-							<input id="draft" class="peer/draft" type="radio" value="department" name="work_type" x-model="work_type" checked />
-							<label for="draft" class="peer-checked/draft:text-info text-sm font-semibold text-base-content opacity-60 mb-1 ">{{ index .Tr "Department" }}</label>
-
-							<input id="published" class="peer/published" type="radio" name="work_type" value="contractor" x-model="work_type" />
-							<label for="published" class="peer-checked/published:text-info text-sm font-semibold mb-1 text-base-content opacity-60">{{ index .Tr "Contractor" }}</label>
-
-							<div class="hidden peer-checked/draft:block relative" @change="syncData('department_id', $event.detail)">
-								{{ template "select-search" (dict "Label" ""
-									"Name" "department_id"
-									"Value" .Incident.DepartmentID
-									"ModelName" "department_id"
-									"Options" .Departments
-									"SearchURL" "/incident/departments/search"
-									"DefaultText" (index .Tr "SelectDepartment")
-									"Attr" "x-model='department_id' aria-label='Pilih Department'"
-									"RequiredBinding" "work_type === 'department'"
+							<div class="relative my-select-field" @change="location_id = $event.detail">
+								{{ template "select-search" (dict
+									"Label" (index .Tr "Location")
+									"Name" "location_id"
+									"Value" .Incident.LocationID
+									"Options" .Locations
+									"Required" true
+									"DefaultText" (index .Tr "SelectLocation")
+									"Attr" "x-model='location_id'"
+									"SearchURL" "/incident/locations/search"
+									"Placeholder" "Cari nama lokasi..."
 									)
 								}}
 							</div>
 
-							<div class="hidden peer-checked/published:block relative" @change="syncData('contractor_id', $event.detail)">
-								{{ template "select-search" (dict
-									"Label" ""
-									"Name" "contractor_id"
-									"ModelName" "contractor_id"
-									"Value" .Incident.ContractorID
-									"Options" .Contractors
-									"SearchURL" "/incident/contractors/search"
-									"DefaultText" (index .Tr "SelectContractor")
-									"Attr" "x-model='contractor_id' aria-label='Pilih Kontraktor'"
-									"RequiredBinding" "work_type === 'contractor'"
+							{{ template "input" (dict "Label" (index .Tr "LocationSpecific") "Name" "location_specific" "Placeholder" (index .Tr "InputLocationSpecific") "ShowCondition" "location_id" "Required" true "Attr" "x-model='location_specific'") }}
+
+							<div class="relative ">
+								{{ template "select-user-search" (dict "Label" (index .Tr "ReporterName") "Options" .Users "Value" .AuthUser.ID "SelectedLabel" .AuthUser.Name "DefaultValue" .AuthUser.ID "DefaultText" (index .Tr "SelectReporterName") "Attr" "x-model='reporter_id'" "Required" true) }}
+							</div>
+
+							{{ template "input-flatpickr" dict
+								"Label" (index .Tr "DateTimeObservation")
+								"Name" "event_date"
+								"Id" "event_date"
+								"Value" (.Incident.TanggalWaktu.Format "2006-01-02 15:04")
+								"Type" "date-time"
+								"Placeholder" (index .Tr "InputDateObservation")
+								"Required" true
+								"RequiredBinding" ""
+								"Attr" "x-model=event_date"
+							}}
+						</div>
+
+						<fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border px-2 mt-4">
+							<legend class="fieldset-legend">{{ index .Tr "ResponsibleParty" }}</legend>
+							<div class="flex flex-col md:flex-row items-center gap-2 ">
+								<fieldset class="w-full">
+									<input id="draft" class="peer/draft" type="radio" value="department" name="work_type" x-model="work_type" checked />
+									<label for="draft" class="peer-checked/draft:text-info text-sm font-semibold text-base-content opacity-60 mb-1 ">{{ index .Tr "Department" }}</label>
+
+									<input id="published" class="peer/published" type="radio" name="work_type" value="contractor" x-model="work_type" />
+									<label for="published" class="peer-checked/published:text-info text-sm font-semibold mb-1 text-base-content opacity-60">{{ index .Tr "Contractor" }}</label>
+
+									<div class="hidden peer-checked/draft:block relative" @change="syncData('department_id', $event.detail)">
+										{{ template "select-search" (dict "Label" ""
+											"Name" "department_id"
+											"Value" .Incident.DepartmentID
+											"ModelName" "department_id"
+											"Options" .Departments
+											"SearchURL" "/incident/departments/search"
+											"DefaultText" (index .Tr "SelectDepartment")
+											"Attr" "x-model='department_id' aria-label='Pilih Department'"
+											"RequiredBinding" "work_type === 'department'"
+											)
+										}}
+									</div>
+
+									<div class="hidden peer-checked/published:block relative" @change="syncData('contractor_id', $event.detail)">
+										{{ template "select-search" (dict
+											"Label" ""
+											"Name" "contractor_id"
+											"ModelName" "contractor_id"
+											"Value" .Incident.ContractorID
+											"Options" .Contractors
+											"SearchURL" "/incident/contractors/search"
+											"DefaultText" (index .Tr "SelectContractor")
+											"Attr" "x-model='contractor_id' aria-label='Pilih Kontraktor'"
+											"RequiredBinding" "work_type === 'contractor'"
+											)
+										}}
+									</div>
+								</fieldset>
+								{{ template "select-dynamic" (dict
+									"Label" (index .Tr "PIC")
+									"Name" "pic_id"
+									"Model" "pic_id"
+									"OptionsArray" "all_pics"
+									"ShowCondition" "work_type"
+									"DefaultText" (index .Tr "SelectPIC")
+									"Required" true
 									)
 								}}
 							</div>
 						</fieldset>
-						{{ template "select-dynamic" (dict
-							"Label" (index .Tr "PIC")
-							"Name" "pic_id"
-							"Model" "pic_id"
-							"OptionsArray" "all_pics"
-							"ShowCondition" "work_type"
-							"DefaultText" (index .Tr "SelectPIC")
-							"Required" true
-							)
-						}}
-					</div>
-				</fieldset>
 
-				{{ template "ckeditor" dict "ID" "TaskPerformed" "Label" (index .Tr "TaskPerformed") "Name" "tugas_dijalankan" "Model" "TaskPerformed" "Value" .Incident.TugasDijalankan "Required" true "Attr" "" }}
-				{{ template "ckeditor" dict "ID" "IncidentDescription" "Label" (index .Tr "IncidentDescription") "Placeholder" (index .Tr "IncidentDescriptionPlaceholder") "Name" "deskripsi" "Model" "IncidentDescription" "Value" .Incident.Deskripsi "Required" true }}
+						{{ template "ckeditor" dict "ID" "TaskPerformed" "Label" (index .Tr "TaskPerformed") "Name" "tugas_dijalankan" "Model" "TaskPerformed" "Value" .Incident.TugasDijalankan "Required" true "Attr" "" }}
+						{{ template "ckeditor" dict "ID" "IncidentDescription" "Label" (index .Tr "IncidentDescription") "Placeholder" (index .Tr "IncidentDescriptionPlaceholder") "Name" "deskripsi" "Model" "IncidentDescription" "Value" .Incident.Deskripsi "Required" true }}
 
-				{{ template "input-file" (dict "Label" (index .Tr "UploadDocument") "DragDropUpload" (index .Tr "DragDropUpload") "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "ExistingFiles" .Docs "Attr" "") }}
+						{{ template "input-file" (dict "Label" (index .Tr "UploadDocument") "DragDropUpload" (index .Tr "DragDropUpload") "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "ExistingFiles" .Docs "Attr" "") }}
 
-				{{ template "ckeditor" dict "ID" "ImmediateAction" "Label" (index .Tr "ImmediateAction") "Placeholder" (index .Tr "WorkStatus") "Name" "tindakan_langsung" "Model" "ImmediateAction" "Value" .Incident.TindakanLangsung "Required" true }}
-				{{ template "ckeditor" dict "ID" "DamageDetail" "Label" (index .Tr "DamageDetail") "Placeholder" (index .Tr "UnplannedOutcome") "Name" "detil_kerusakan_kerugian" "Model" "DamageDetail" "Value" .Incident.DetilKerusakanKerugian "Required" true }}
+						{{ template "ckeditor" dict "ID" "ImmediateAction" "Label" (index .Tr "ImmediateAction") "Placeholder" (index .Tr "WorkStatus") "Name" "tindakan_langsung" "Model" "ImmediateAction" "Value" .Incident.TindakanLangsung "Required" true }}
+						{{ template "ckeditor" dict "ID" "DamageDetail" "Label" (index .Tr "DamageDetail") "Placeholder" (index .Tr "UnplannedOutcome") "Name" "detil_kerusakan_kerugian" "Model" "DamageDetail" "Value" .Incident.DetilKerusakanKerugian "Required" true }}
 
-				<div class="flex flex-col md:flex-row gap-2 mt-4">
-					<div class="col-span-2 md:grow">
-						<div class="flex-col">
-							{{ template "select_input" (dict "Label" "Consequences" "Name" "consequence_id" "Model" "consequence_id" "Placeholder" "Pilih Consequences" "Class" "max-w-sm" "Options" .Consequences "Required" true) }}
-							<div x-show="consequence_id" x-transition>
-								<textarea class="textarea textarea-bordered w-full" x-text="getConsequenceDesc()" readonly></textarea>
+						<div class="flex flex-col md:flex-row gap-2 mt-4">
+							<div class="col-span-2 md:grow">
+								<div class="flex-col">
+									{{ template "select_input" (dict "Label" "Consequences" "Name" "consequence_id" "Model" "consequence_id" "Placeholder" "Pilih Consequences" "Class" "max-w-sm" "Options" .Consequences "Required" true) }}
+									<div x-show="consequence_id" x-transition>
+										<textarea class="textarea textarea-bordered w-full" x-text="getConsequenceDesc()" readonly></textarea>
 
+									</div>
+
+									{{ template "select_input" (dict "Label" "Likelihood" "Name" "likelihood_id" "Model" "likelihood_id" "Placeholder" "Pilih Likelihood" "Class" "max-w-sm" "Options" .Likelihoods "Required" true) }}
+									<div x-show="likelihood_id" x-transition>
+										<textarea class="textarea textarea-bordered w-full" x-text="getLikelihoodNotes()" readonly></textarea>
+									</div>
+								</div>
 							</div>
 
-							{{ template "select_input" (dict "Label" "Likelihood" "Name" "likelihood_id" "Model" "likelihood_id" "Placeholder" "Pilih Likelihood" "Class" "max-w-sm" "Options" .Likelihoods "Required" true) }}
-							<div x-show="likelihood_id" x-transition>
-								<textarea class="textarea textarea-bordered w-full" x-text="getLikelihoodNotes()" readonly></textarea>
+							<div class="md:flex-none">
+								<div class="flex flex-col items-center max-w-md">
+									<table class="border-collapse border border-base-300 text-[10px]">
+										<caption class="caption-top font-bold text-center bg-base-200 border border-base-300">RISK MATRIX GRID</caption>
+										<thead>
+											<tr>
+												<th rowspan="2" colspan="2" class="border border-base-300 p-2 bg-base-200 italic">Likelihood</th>
+												<th colspan="5" class="border border-base-300 p-1 bg-base-200">Consequence</th>
+											</tr>
+											<tr class="bg-base-200 text-center">
+												{{ range $c := $.Consequences }}
+													<th class="border border-base-300 p-1 w-24">{{ $c.Name }}</th>
+												{{ end }}
+											</tr>
+										</thead>
+										<tbody>
+											{{ range $l := .Likelihoods }}
+												<tr>
+													<td class="border border-base-300 bg-base-200 p-2 font-bold">{{ $l.Sequence }}</td>
+													<td class="border border-base-300 bg-base-200 p-2 font-medium w-full max-w-xs">{{ $l.Name }}</td>
+													{{ range $c := $.Consequences }}
+														{{ $mID := getMatrixID $.Matrices $c.ID $l.ID }}
+														{{ $aID := getMatrixAssessmentID $.Matrices $c.ID $l.ID }}
+														<td class="border border-base-300 text-center font-bold text-base-content uppercase shadow-inner cursor-pointer hover:opacity-80 hover:scale-[1.02] transition-all"
+															:class="risk_matrix_id == '{{ $mID }}' ? 'ring-2 ring-black ring-inset scale-105 z-10 '  : ''"
+															style="background-color: {{ getMatrixColor $.Matrices $c.ID $l.ID }};"
+															@click="if('{{ $mID }}' !== '0') { getDataMatrix('{{ $mID }}', '{{ $c.ID }}', '{{ $l.ID }}', '{{ $aID }}') }">
+															{{ firstChar (getMatrixName $.Matrices $c.ID $l.ID) }}
+															<input type="hidden" name="risk_matrix_id" x-model="risk_matrix_id">
+														</td>
+													{{ end }}
+												</tr>
+											{{ end }}
+										</tbody>
+									</table>
+								</div>
 							</div>
 						</div>
-					</div>
 
-					<div class="md:flex-none">
-						<div class="flex flex-col items-center max-w-md">
-							<table class="border-collapse border border-base-300 text-[10px]">
-								<caption class="caption-top font-bold text-center bg-base-200 border border-base-300">RISK MATRIX GRID</caption>
-								<thead>
-									<tr>
-										<th rowspan="2" colspan="2" class="border border-base-300 p-2 bg-base-200 italic">Likelihood</th>
-										<th colspan="5" class="border border-base-300 p-1 bg-base-200">Consequence</th>
-									</tr>
-									<tr class="bg-base-200 text-center">
-										{{ range $c := $.Consequences }}
-											<th class="border border-base-300 p-1 w-24">{{ $c.Name }}</th>
-										{{ end }}
-									</tr>
-								</thead>
+						<div x-show="assessment_id" x-transition class="my-3 overflow-x-auto">
+							<table class="table table-xs table-zebra w-full border border-base-300 rounded-box">
 								<tbody>
-									{{ range $l := .Likelihoods }}
-										<tr>
-											<td class="border border-base-300 bg-base-200 p-2 font-bold">{{ $l.Sequence }}</td>
-											<td class="border border-base-300 bg-base-200 p-2 font-medium w-full max-w-xs">{{ $l.Name }}</td>
-											{{ range $c := $.Consequences }}
-												{{ $mID := getMatrixID $.Matrices $c.ID $l.ID }}
-												{{ $aID := getMatrixAssessmentID $.Matrices $c.ID $l.ID }}
-												<td class="border border-base-300 text-center font-bold text-base-content uppercase shadow-inner cursor-pointer hover:opacity-80 hover:scale-[1.02] transition-all"
-													:class="risk_matrix_id == '{{ $mID }}' ? 'ring-2 ring-black ring-inset scale-105 z-10 '  : ''"
-													style="background-color: {{ getMatrixColor $.Matrices $c.ID $l.ID }};"
-													@click="if('{{ $mID }}' !== '0') { getDataMatrix('{{ $mID }}', '{{ $c.ID }}', '{{ $l.ID }}', '{{ $aID }}') }">
-													{{ firstChar (getMatrixName $.Matrices $c.ID $l.ID) }}
-													<input type="hidden" name="risk_matrix_id" x-model="risk_matrix_id">
-												</td>
-											{{ end }}
-										</tr>
-									{{ end }}
+									<tr>
+										<td class="font-semibold w-40">Assessment</td>
+										<td><span class="font-bold" x-text="getAssessment().name || '-'"></span></td>
+									</tr>
+									<tr>
+										<td class="font-semibold">Notes</td>
+										<td><div class="whitespace-pre-line text-sm" x-text="getAssessment().notes || '-'"></div></td>
+									</tr>
+									<tr>
+										<td class="font-semibold">Investigation Required</td>
+										<td><div class="whitespace-pre-line text-sm" x-text="getAssessment().investigation_reqd || '-'"></div></td>
+									</tr>
+									<tr>
+										<td class="font-semibold">Reporting Obligation</td>
+										<td><span x-text="getAssessment().reporting_obligation || '-'"></span></td>
+									</tr>
 								</tbody>
 							</table>
 						</div>
 					</div>
-				</div>
-
-				<div x-show="assessment_id" x-transition class="my-3 overflow-x-auto">
-					<table class="table table-xs table-zebra w-full border border-base-300 rounded-box">
-						<tbody>
-							<tr>
-								<td class="font-semibold w-40">Assessment</td>
-								<td><span class="font-bold" x-text="getAssessment().name || '-'"></span></td>
-							</tr>
-							<tr>
-								<td class="font-semibold">Notes</td>
-								<td><div class="whitespace-pre-line text-sm" x-text="getAssessment().notes || '-'"></div></td>
-							</tr>
-							<tr>
-								<td class="font-semibold">Investigation Required</td>
-								<td><div class="whitespace-pre-line text-sm" x-text="getAssessment().investigation_reqd || '-'"></div></td>
-							</tr>
-							<tr>
-								<td class="font-semibold">Reporting Obligation</td>
-								<td><span x-text="getAssessment().reporting_obligation || '-'"></span></td>
-							</tr>
-						</tbody>
-					</table>
-				</div>
+				</template>	
 			</div>
 		</div>
 	</div>
@@ -1522,160 +1520,163 @@
 		</div>
 		<div class="collapse-content">
 
-			<template x-if="involved_error">
-				<div class="alert alert-error my-2 py-2 text-sm text-white">
-					<span>Gagal Submit! Harap masukkan minimal 1 personil terlibat langsung dengan data lengkap.</span>
-				</div>
-			</template>
+			<div>
+				<template x-if="activeTab === 2">
+					<div class="overflow-y-scroll w-full bg-white rounded-lg border border-slate-200">
+						<table class="table table-compact w-full text-sm">
+							<thead class="bg-slate-100 text-slate-700">
+								<tr>
+									<th class="w-10">No</th>
+									<th class="w-64">Nama Personil</th>
+									<th class="w-48">Perusahaan / Dept</th>
+									<th class="w-32">Jabatan</th>
+									<th class="w-24">Roster</th>
+									<th class="w-24">Shift</th>
+									<th class="w-40">Keterlibatan</th>
+									<th class="w-20">Pengalaman (Thn)</th>
+									<th class="w-12 text-center">Aksi</th>
+								</tr>
+							</thead>
+							<tbody>
+								<template x-for="(party, index) in involved_parties" :key="index">
+									<tr class="hover:bg-slate-50 transition-colors focus-within:relative focus-within:z-50">
+										<td class="font-bold text-center align-middle" x-text="index + 1"></td>
 
-			<div class="overflow-y-scroll w-full bg-white rounded-lg border border-slate-200">
-				<table class="table table-compact w-full text-sm">
-					<thead class="bg-slate-100 text-slate-700">
-						<tr>
-							<th class="w-10">No</th>
-							<th class="w-64">Nama Personil</th>
-							<th class="w-48">Perusahaan / Dept</th>
-							<th class="w-32">Jabatan</th>
-							<th class="w-24">Roster</th>
-							<th class="w-24">Shift</th>
-							<th class="w-40">Keterlibatan</th>
-							<th class="w-20">Pengalaman (Thn)</th>
-							<th class="w-12 text-center">Aksi</th>
-						</tr>
-					</thead>
-					<tbody>
-						<template x-for="(party, index) in involved_parties" :key="index">
-							<tr class="hover:bg-slate-50 transition-colors focus-within:relative focus-within:z-50">
-								<td class="font-bold text-center align-middle" x-text="index + 1"></td>
+										<td class="align-middle">
+											{{ template "select-user-search_model" (dict
+												"Label" ""
+												"Options" .Users
+												"Model" "party.user_id"
+												"DefaultText" "-- Pilih Personil --"
+												"Required" true
+												)
+											}}
 
-								<td class="align-middle">
-									{{ template "select-user-search_model" (dict
-										"Label" ""
-										"Options" .Users
-										"Model" "party.user_id"
-										"DefaultText" "-- Pilih Personil --"
-										"Required" true
-										)
-									}}
+										</td>
 
-								</td>
-
-								<td>
-									<div class="flex flex-col gap-1">
-										{{ template "select_input" (dict
-											"Label" ""
-											"Name" "work_type"
-											"Model" "party.work_type"
-											"Placeholder" "Pilih Tipe"
-											"Required" true
-											"Slot" "<option value='department'>Internal Dept</option><option value='contractor'>Kontraktor</option>"
-											)
-										}}
-
-										<template x-if="party.work_type === 'department'">
-											<div>
+										<td>
+											<div class="flex flex-col gap-1">
 												{{ template "select_input" (dict
 													"Label" ""
-													"Name" "department_id"
-													"Model" "party.department_id"
-													"Placeholder" "Pilih Dept"
+													"Name" "work_type"
+													"Model" "party.work_type"
+													"Placeholder" "Pilih Tipe"
 													"Required" true
-													"Options" .Departments
+													"Slot" "<option value='department'>Internal Dept</option><option value='contractor'>Kontraktor</option>"
 													)
 												}}
+
+												<template x-if="party.work_type === 'department'">
+													<div>
+														{{ template "select-search-loop" (dict
+															"Name" "department_id[]"
+															"Placeholder" (index .Tr "SearchDept")
+															"DefaultText" (index .Tr "SelectDepartment")
+															"AlpineVar" "party.department_id"
+															"Options" $.Departments
+															"SearchURL" "/incident/departments/search"
+															"RequiredBinding" "party.department_id != null"
+															)
+														}}
+
+													</div>
+												</template>
+
+												<template x-if="party.work_type === 'contractor'">
+													<div>
+														{{ template "select-search-loop" (dict
+															"Name" "contractor_id[]"
+															"Placeholder" (index .Tr "SearchContractor")
+															"DefaultText" (index .Tr "SelectContractor")
+															"AlpineVar" "party.contractor_id"
+															"Options" $.Contractors
+															"SearchURL" "/incident/contractors/search"
+															"RequiredBinding" "party.contractor_id != null"
+															)
+														}}
+
+													</div>
+												</template>
 											</div>
-										</template>
+										</td>
+										<td >
+											{{ template "input" (dict
+												"Label" ""
+												"Name" "jabatan"
+												"Placeholder" "Jabatan"
+												"Required" true
+												"Attr" "x-model='party.jabatan'"
+												)
+											}}
 
-										<template x-if="party.work_type === 'contractor'">
-											<div>
-												{{ template "select_input" (dict
-													"Label" ""
-													"Name" "contractor_id"
-													"Model" "party.contractor_id"
-													"Placeholder" "Pilih Kontraktor"
-													"Required" true
-													"Options" .Contractors
-													)
-												}}
-											</div>
-										</template>
-									</div>
-								</td>
-								<td >
-									{{ template "input" (dict
-										"Label" ""
-										"Name" "jabatan"
-										"Placeholder" "Jabatan"
-										"Required" true
-										"Attr" "x-model='party.jabatan'"
-										)
-									}}
+										</td>
+										<td >
+											{{ template "input" (dict
+												"Label" ""
+												"Name" "roster"
+												"Placeholder" "Roster"
+												"Required" true
+												"Attr" "x-model='party.roster'"
+												)
+											}}
+										</td>
+										<td>
+											{{ template "select_input" (dict
+												"Label" ""
+												"Name" "Sift"
+												"Model" "party.shift"
+												"Placeholder" "Pilih Sift"
+												"Required" true
+												"Slot" "<option value='Day'>Day</option><option value='Night'>Night</option>"
+												)
+											}}
 
-								</td>
-								<td >
-									{{ template "input" (dict
-										"Label" ""
-										"Name" "roster"
-										"Placeholder" "Roster"
-										"Required" true
-										"Attr" "x-model='party.roster'"
-										)
-									}}
-								</td>
-								<td>
-									{{ template "select_input" (dict
-										"Label" ""
-										"Name" "Sift"
-										"Model" "party.shift"
-										"Placeholder" "Pilih Sift"
-										"Required" true
-										"Slot" "<option value='Day'>Day</option><option value='Night'>Night</option>"
-										)
-									}}
+										</td>
+										<td>
+											{{ template "select_input" (dict
+												"Label" ""
+												"Name" "Keterlibatan"
+												"Model" "party.keterlibatan"
+												"Placeholder" "Pilih"
+												"Required" true
+												"Slot" "<option value='Saksi'>Saksi</option><option value='Korban Cedera'>Korban Cedera</option><option value='Operator Unit'>Operator Unit</option><option value='Pengawas Lapangan'>Pengawas Lapangan</option>"
+												)
+											}}
 
-								</td>
-								<td>
-									{{ template "select_input" (dict
-										"Label" ""
-										"Name" "Keterlibatan"
-										"Model" "party.keterlibatan"
-										"Placeholder" "Pilih"
-										"Required" true
-										"Slot" "<option value='Saksi'>Saksi</option><option value='Korban Cedera'>Korban Cedera</option><option value='Operator Unit'>Operator Unit</option><option value='Pengawas Lapangan'>Pengawas Lapangan</option>"
-										)
-									}}
+										</td>
+										<td>
+											{{ template "input" (dict
+												"Label" ""
+												"Type" "number"
+												"Name" "pengalaman"
+												"Placeholder" "Pengalaman"
+												"Required" true
+												"Attr" "x-model='party.pengalaman'"
+												)
+											}}
+										</td>
 
-								</td>
-								<td>
-									{{ template "input" (dict
-										"Label" ""
-										"Type" "number"
-										"Name" "pengalaman"
-										"Placeholder" "Pengalaman"
-										"Required" true
-										"Attr" "x-model='party.pengalaman'"
-										)
-									}}
-								</td>
-
-								<td class="text-center align-middle">
-									<template x-if="index >= 0">
-										<button type="button" 
-											@click="removeInvolvedParty(index)" 
-											class="btn btn-xs btn-error text-white flex items-center gap-1 mx-auto"
-											title="Hapus baris ini">
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-											</svg>
-											<span>Hapus</span>
-										</button>
-									</template>
-								</td>
-							</tr>
-						</template>
-					</tbody>
-				</table>
+										<td class="text-center align-middle">
+											<template x-if="index >= 0">
+												<button type="button" 
+													@click="removeInvolvedParty(index)" 
+													class="btn btn-xs btn-error text-white flex items-center gap-1 mx-auto"
+													title="Hapus baris ini">
+													<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+													</svg>
+													<span>Hapus</span>
+												</button>
+											</template>
+										</td>
+									</tr>
+								</template>
+							</tbody>
+						</table>
+					</div>
+				</template>
 			</div>
+
 			<div class="mt-2">
 				<button 
 					type="button" 
@@ -1692,109 +1693,116 @@
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 3" @change="activeTab = 3" />
 		<div class="collapse-title font-semibold"><h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian3" }}</h3></div>
 		<div class="collapse-content">
-			<div class="overflow-y-scroll w-full bg-white rounded-lg border border-slate-200">
-				<table class="table table-xs w-full">
-					<thead>
-						<tr class="bg-base-200">
-							<th>Peran</th>
-							<th>Nama Personil</th>
-							<th>Jabatan</th>
-							<th>Tipe Dept/Perusahaan</th>
-							<th>Nama Dept/Perusahaan</th>
-							<th>Aksi</th>
-						</tr>
-					</thead>
-					<tbody>
-						<template x-for="(inv, index) in investigators" :key="inv.id_existing || index">
-							<tr class="hover:bg-slate-50 transition-colors focus-within:relative focus-within:z-50">
-								<td>
-									<select x-model="inv.role" class="select select-bordered select-xs w-full
-										focus:outline-none focus:border-info
-										leading-normal focus:ring-info
-										appearance-none">
-										<option value="Pemimpin Investigasi">Pemimpin Investigasi</option>
-										<option value="Facilitator">Facilitator</option>
-										<option value="Anggota">Anggota</option>
-									</select>
-								</td>
+			<div>
+				<template x-if="activeTab === 3">
+					<div class="overflow-y-scroll w-full bg-white rounded-lg border border-slate-200">
+						<table class="table table-xs w-full">
+							<thead>
+								<tr class="bg-base-200">
+									<th>Peran</th>
+									<th>Nama Personil</th>
+									<th>Jabatan</th>
+									<th>Tipe Dept/Perusahaan</th>
+									<th>Nama Dept/Perusahaan</th>
+									<th>Aksi</th>
+								</tr>
+							</thead>
+							<tbody>
+								<template x-for="(inv, index) in investigators" :key="inv.id_existing || index">
+									<tr class="hover:bg-slate-50 transition-colors focus-within:relative focus-within:z-50">
+										<td>
+											<select x-model="inv.role" class="select select-bordered select-xs w-full
+												focus:outline-none focus:border-info
+												leading-normal focus:ring-info
+												appearance-none">
+												<option value="Pemimpin Investigasi">Pemimpin Investigasi</option>
+												<option value="Facilitator">Facilitator</option>
+												<option value="Anggota">Anggota</option>
+											</select>
+										</td>
 
-								<td>
-									{{ template "select-user-search_model" (dict
-										"Label" ""
-										"Name" "employee_id"
-										"Options" .Users
-										"Model" "inv.employee_id"
-										"DefaultText" "-- Pilih Personil --"
-										"Required" true
-										)
-									}}
+										<td>
+											{{ template "select-user-search_model" (dict
+												"Label" ""
+												"Name" "employee_id"
+												"Options" .Users
+												"Model" "inv.employee_id"
+												"DefaultText" "-- Pilih Personil --"
+												"Required" true
+												)
+											}}
 
-								</td>
+										</td>
 
-								<td>
+										<td>
 
 
-									{{ template "input" (dict
-										"Label" ""
-										"Name" ""
-										"Placeholder" "Jabatan"
-										"Required" true
-										"Attr" "x-model='inv.jabatan'"
-										)
-									}}
-								</td>
+											{{ template "input" (dict
+												"Label" ""
+												"Name" ""
+												"Placeholder" "Jabatan"
+												"Required" true
+												"Attr" "x-model='inv.jabatan'"
+												)
+											}}
+										</td>
 
-								<td>
-									<select x-model="inv.work_type" @change="inv.department_id = ''; inv.contractor_id = ''" class="select select-bordered select-xs w-full
-										focus:outline-none focus:border-info
-										leading-normal focus:ring-info
-										appearance-none">
-										<option value="department">Internal (Department)</option>
-										<option value="contractor">Eksternal (Contractor)</option>
-									</select>
-								</td>
+										<td>
+											<select x-model="inv.work_type" @change="inv.department_id = ''; inv.contractor_id = ''" class="select select-bordered select-xs w-full
+												focus:outline-none focus:border-info
+												leading-normal focus:ring-info
+												appearance-none">
+												<option value="department">Internal (Department)</option>
+												<option value="contractor">Eksternal (Contractor)</option>
+											</select>
+										</td>
 
-								<td>
+										<td>
 
-									<template x-if="inv.work_type === 'department'">
+											<template x-if="inv.work_type === 'department'">
 
-										{{ template "select_input" (dict
-											"Label" ""
-											"Name" "department_id"
-											"Model" "inv.department_id"
-											"Placeholder" "Pilih Dept"
-											"Required" true
-											"Options" .Departments
-											)
-										}}
+												{{ template "select-search-loop" (dict
+													"Name" "department_id[]"
+													"Placeholder" (index .Tr "SearchDept")
+													"DefaultText" (index .Tr "SelectDepartment")
+													"AlpineVar" "inv.department_id"
+													"Options" $.Departments
+													"SearchURL" "/incident/departments/search"
+													"RequiredBinding" "inv.department_id != null"
+													"Attr" "@change=\"syncData('department_id', inv.department_id, index)\""
+													)
+												}}
+											</template>
 
-									</template>
+											<template x-if="inv.work_type === 'contractor'">
+												{{ template "select-search-loop" (dict
+													"Name" "contractor_id[]"
+													"Placeholder" (index .Tr "SearchDept")
+													"DefaultText" (index .Tr "SelectContractor")
+													"AlpineVar" "inv.contractor_id"
+													"Options" $.Contractors
+													"SearchURL" "/incident/contractors/search"
+													"RequiredBinding" "inv.contractor_id != null"
+													"Attr" "@change=\"syncData('contractor_id', inv.contractor_id, index)\""
+													)
+												}}
 
-									<template x-if="inv.work_type === 'contractor'">
 
-										{{ template "select_input" (dict
-											"Label" ""
-											"Name" "contractor_id"
-											"Model" "inv.contractor_id"
-											"Placeholder" "Pilih Kontraktor"
-											"Required" true
-											"Options" .Contractors
-											)
-										}}
+											</template>
 
-									</template>
+										</td>
 
-								</td>
-
-								<td>
-									<button type="button" @click="removeInvestigator(index)" class="btn btn-error btn-xs btn-square text-white">
-										✕
-									</button>
-								</td>
-							</tr>
-						</template>
-					</tbody>
-				</table>
+										<td>
+											<button type="button" @click="removeInvestigator(index)" class="btn btn-error btn-xs btn-square text-white">
+												✕
+											</button>
+										</td>
+									</tr>
+								</template>
+							</tbody>
+						</table>
+					</div>
+				</template>
 			</div>
 
 			<div class="mt-4 flex gap-2">
@@ -1824,58 +1832,62 @@
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 4" @change="activeTab = 4" />
 		<div class="collapse-title font-semibold"><h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian4" }}</h3></div>
 		<div class="collapse-content text-sm">
-			<div class="overflow-y-scroll w-full bg-white rounded-lg border border-slate-200">
-				<table class="table table-xs w-full">
-					<thead>
-						<tr class="bg-base-200">
-							<th>Faktor</th>
-							<th>Temuan</th>
-							<th>Deskripsi</th>
-							<th class="w-16">Aksi</th>
-						</tr>
-					</thead>
-					<tbody>
-						<template x-for="(item, index) in peepo_factors" :key="index">
-							<tr class="hover:bg-slate-50 transition-colors focus-within:relative focus-within:z-50">
-								<td>
-									<select x-model="item.factor" class="select select-bordered select-xs w-full
-										focus:outline-none focus:border-info
-										leading-normal focus:ring-info
-										appearance-none">
-										<option value="Orang">Orang</option>
-										<option value="Peralatan">Peralatan</option>
-										<option value="Lingkungan">Lingkungan</option>
-										<option value="Prosedur">Prosedur</option>
-										<option value="Organisasi">Organisasi</option>
-									</select>
-								</td>
-								<td>
-									{{ template "textarea" (dict
-										"Label" ""
-										"Name" "finding"
-										"Placeholder" "Sebutkan poin utama temuan atau masalah yang ditemukan..."
-										"Required" true
-										"Attr" " x-model='item.findings'"
-										)
-									}}
-								</td>
-								<td>
-									{{ template "textarea" (dict
-										"Label" ""
-										"Name" "description"
-										"Placeholder" "Berikan penjelasan detail, konteks, atau kronologi kejadian..."
-										"Required" true
-										"Attr" " x-model='item.description'"
-										)
-									}}
-								</td>
-								<td>
-									<button type="button" @click="removeFactor(index)" class="btn btn-error btn-xs btn-square text-white">x</button>
-								</td>
-							</tr>
-						</template>
-					</tbody>
-				</table>
+			<div>
+				<template x-if="activeTab === 4">
+					<div class="overflow-y-scroll w-full bg-white rounded-lg border border-slate-200">
+						<table class="table table-xs w-full">
+							<thead>
+								<tr class="bg-base-200">
+									<th>Faktor</th>
+									<th>Temuan</th>
+									<th>Deskripsi</th>
+									<th class="w-16">Aksi</th>
+								</tr>
+							</thead>
+							<tbody>
+								<template x-for="(item, index) in peepo_factors" :key="index">
+									<tr class="hover:bg-slate-50 transition-colors focus-within:relative focus-within:z-50">
+										<td>
+											<select x-model="item.factor" class="select select-bordered select-xs w-full
+												focus:outline-none focus:border-info
+												leading-normal focus:ring-info
+												appearance-none">
+												<option value="Orang">Orang</option>
+												<option value="Peralatan">Peralatan</option>
+												<option value="Lingkungan">Lingkungan</option>
+												<option value="Prosedur">Prosedur</option>
+												<option value="Organisasi">Organisasi</option>
+											</select>
+										</td>
+										<td>
+											{{ template "textarea" (dict
+												"Label" ""
+												"Name" "finding"
+												"Placeholder" "Sebutkan poin utama temuan atau masalah yang ditemukan..."
+												"Required" true
+												"Attr" " x-model='item.findings'"
+												)
+											}}
+										</td>
+										<td>
+											{{ template "textarea" (dict
+												"Label" ""
+												"Name" "description"
+												"Placeholder" "Berikan penjelasan detail, konteks, atau kronologi kejadian..."
+												"Required" true
+												"Attr" " x-model='item.description'"
+												)
+											}}
+										</td>
+										<td>
+											<button type="button" @click="removeFactor(index)" class="btn btn-error btn-xs btn-square text-white">x</button>
+										</td>
+									</tr>
+								</template>
+							</tbody>
+						</table>
+					</div>
+				</template>
 			</div>
 			<button type="button" @click="addFactor()" class="mt-2 btn btn-outline btn-xs">
 				+ Tambah Faktor
@@ -1890,82 +1902,86 @@
 		</div>
 
 		<div class="collapse-content text-sm">
-			<div class="space-y-6">
-				<template x-for="(item, tIndex) in timelines" :key="tIndex">
-					<div class="p-4 bg-slate-50 border border-slate-200 rounded-lg shadow-sm ">
+			<div>
+				<template x-if="activeTab === 5">
+					<div class="space-y-6">
+						<template x-for="(item, tIndex) in timelines" :key="tIndex">
+							<div class="p-4 bg-slate-50 border border-slate-200 rounded-lg shadow-sm ">
 
-						<div class="mb-4 ">
-							<div role="alert" class="alert alert-vertical sm:alert-horizontal border-l-4 border-info">
-								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current text-info h-6 w-6 shrink-0">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-								</svg>
-								<div class="">
-									<h3 class="font-bold">Kejadian / Kronologi</h3>
-									<div class="text-xs prose" x-html="item.event"></div>	
+								<div class="mb-4 ">
+									<div role="alert" class="alert alert-vertical sm:alert-horizontal border-l-4 border-info">
+										<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current text-info h-6 w-6 shrink-0">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+										</svg>
+										<div class="">
+											<h3 class="font-bold">Kejadian / Kronologi</h3>
+											<div class="text-xs prose" x-html="item.event"></div>	
+										</div>
+
+									</div>
 								</div>
 
-							</div>
-						</div>
-
-						<div class="space-y-3 ">
-							<template x-for="(why, wIndex) in item.whys" :key="wIndex">
-								<div class="relative pl-4 overflow-y-scroll">
-									<div class="flex gap-2 items-start">
-										<span class="mt-2 font-bold text-primary">
-											{{ index .Tr "Why" }} <span x-text="wIndex + 1"></span> ? :
-										</span>
-										<div class="flex-grow">
-											{{ template "textarea" (dict
-												"Label" ""
-												"Name" "why"
-												"Placeholder" "Mengapa hal ini terjadi?..."
-												"Required" true
-												"Attr" " x-model='why.text'"
-												)
-											}}
-										</div>
-										<div class="tooltip " data-tip="tambah sub why">
-											<button type="button" @click="addChildWhy(tIndex, wIndex)" class="btn btn-xs btn-square btn-soft btn-info ">
-												{{ lucide "plus" (dict "class" "size-4") }}
-											</button>
-										</div>
-										<div class="tooltip " data-tip="hapus why">
-											<button type="button" @click="removeWhy(tIndex, wIndex)" class="btn btn-xs btn-square btn-soft btn-error ">
-												{{ lucide "circle-x" (dict "class" "size-4") }}
-											</button>
-										</div>
-									</div>
-
-									<div class="mt-2 ml-8 border-l-2 border-slate-300 pl-4 space-y-2">
-										<template x-for="(child, cIndex) in why.children" :key="cIndex">
+								<div class="space-y-3 ">
+									<template x-for="(why, wIndex) in item.whys" :key="wIndex">
+										<div class="relative pl-4 overflow-y-scroll">
 											<div class="flex gap-2 items-start">
-												<span class="mt-2 text-xs text-slate-400">Sub:</span>
+												<span class="mt-2 font-bold text-primary">
+													{{ index .Tr "Why" }} <span x-text="wIndex + 1"></span> ? :
+												</span>
 												<div class="flex-grow">
 													{{ template "textarea" (dict
 														"Label" ""
-														"Name" "child_why"
-														"Placeholder" "Sub-alasan..."
+														"Name" "why"
+														"Placeholder" "Mengapa hal ini terjadi?..."
 														"Required" true
-														"Attr" " x-model='child.text'"
+														"Attr" " x-model='why.text'"
 														)
 													}}
 												</div>
-
-												<div class="tooltip " data-tip="hapus Sub Why">
-													<button type="button" @click="removeChildWhy(tIndex, wIndex, cIndex)"  class="btn btn-xs btn-square btn-soft btn-error ">
+												<div class="tooltip " data-tip="tambah sub why">
+													<button type="button" @click="addChildWhy(tIndex, wIndex)" class="btn btn-xs btn-square btn-soft btn-info ">
+														{{ lucide "plus" (dict "class" "size-4") }}
+													</button>
+												</div>
+												<div class="tooltip " data-tip="hapus why">
+													<button type="button" @click="removeWhy(tIndex, wIndex)" class="btn btn-xs btn-square btn-soft btn-error ">
 														{{ lucide "circle-x" (dict "class" "size-4") }}
 													</button>
 												</div>
 											</div>
-										</template>
-									</div>
-								</div>
-							</template>
-						</div>
 
-						<button type="button" @click="addWhy(tIndex)" class="mt-4 btn btn-primary btn-xs">
-							+ Tambah Why Utama
-						</button>
+											<div class="mt-2 ml-8 border-l-2 border-slate-300 pl-4 space-y-2">
+												<template x-for="(child, cIndex) in why.children" :key="cIndex">
+													<div class="flex gap-2 items-start">
+														<span class="mt-2 text-xs text-slate-400">Sub:</span>
+														<div class="flex-grow">
+															{{ template "textarea" (dict
+																"Label" ""
+																"Name" "child_why"
+																"Placeholder" "Sub-alasan..."
+																"Required" true
+																"Attr" " x-model='child.text'"
+																)
+															}}
+														</div>
+
+														<div class="tooltip " data-tip="hapus Sub Why">
+															<button type="button" @click="removeChildWhy(tIndex, wIndex, cIndex)"  class="btn btn-xs btn-square btn-soft btn-error ">
+																{{ lucide "circle-x" (dict "class" "size-4") }}
+															</button>
+														</div>
+													</div>
+												</template>
+											</div>
+										</div>
+									</template>
+								</div>
+
+								<button type="button" @click="addWhy(tIndex)" class="mt-4 btn btn-primary btn-xs">
+									+ Tambah Why Utama
+								</button>
+							</div>
+						</template>
 					</div>
 				</template>
 			</div>
@@ -1977,120 +1993,124 @@
 			<h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian6" }}</h3>
 		</div>
 		<div class="collapse-content text-sm">
-			<div class="space-y-8"> 
-				<div class="p-4 border border-error/40 rounded-md">
-					<h3 class="text-base font-bold mb-2 border-b border-base-300 pb-2 text-error">Penyebab Langsung</h3>
-					<div class="space-y-4">
-						<template x-for="(label, key) in {
-							'unsafe_condition': 'Unsafe Condition',
-							'unsafe_act': 'Unsafe Act'
-							}" :key="key">
-							<div class="card card-xs bg-base-200 shadow-sm p-2">
-								<div class="card-body">
-									<h4 class="card-title font-bold text-slate-600 mb-3" x-text="label"></h4>
-									<template x-for="(item, index) in causes[key]" :key="index">
-										<div class="flex gap-4 hover:bg-base-300 items-center mb-2">
-											<div class="flex-1 ">
-												<div class="flex flex-col">
-													{{ template "select_input" (dict
-														"Model" "item.scat_option_id"
-														"Placeholder" "Pilih"
-														"Required" true
-														"Class" "w-96"
-														"Slot" "<template x-for='opt in getScatOptions(key)' :key='opt.ID'><option :value='opt.ID' :selected='opt.ID == item.scat_option_id' x-text='opt.Code + \" - \" + opt.Name'></option></template>"
-														)
-													}}
-													{{ template "textarea" (dict
-														"Label" ""
-														"Name" "description_cause"
-														"Placeholder" "Sub-alasan..."
-														"Required" true
-														"Attr" " x-model='item.description'"
-														)
-													}}
-												</div>
-											</div>
-											<div class="w-14 flex-none">
-												<div class="w-14 flex-none">
-													<div class="tooltip" :data-tip="'Hapus ' + label">
-														<button type="button" @click="causes[key].splice(index, 1)"  class="btn btn-xs btn-square btn-soft btn-error ">
-															{{ lucide "circle-x" (dict "class" "size-4") }} 
-														</button>
+			<div>
+				<template x-if="activeTab === 6">
+					<div class="space-y-8"> 
+						<div class="p-4 border border-error/40 rounded-md">
+							<h3 class="text-base font-bold mb-2 border-b border-base-300 pb-2 text-error">Penyebab Langsung</h3>
+							<div class="space-y-4">
+								<template x-for="(label, key) in {
+									'unsafe_condition': 'Unsafe Condition',
+									'unsafe_act': 'Unsafe Act'
+									}" :key="key">
+									<div class="card card-xs bg-base-200 shadow-sm p-2">
+										<div class="card-body">
+											<h4 class="card-title font-bold text-slate-600 mb-3" x-text="label"></h4>
+											<template x-for="(item, index) in causes[key]" :key="index">
+												<div class="flex gap-4 hover:bg-base-300 items-center mb-2">
+													<div class="flex-1 ">
+														<div class="flex flex-col">
+															{{ template "select_input" (dict
+																"Model" "item.scat_option_id"
+																"Placeholder" "Pilih"
+																"Required" true
+																"Class" "w-96"
+																"Slot" "<template x-for='opt in getScatOptions(key)' :key='opt.ID'><option :value='opt.ID' :selected='opt.ID == item.scat_option_id' x-text='opt.Code + \" - \" + opt.Name'></option></template>"
+																)
+															}}
+															{{ template "textarea" (dict
+																"Label" ""
+																"Name" "description_cause"
+																"Placeholder" "Sub-alasan..."
+																"Required" true
+																"Attr" " x-model='item.description'"
+																)
+															}}
+														</div>
+													</div>
+													<div class="w-14 flex-none">
+														<div class="w-14 flex-none">
+															<div class="tooltip" :data-tip="'Hapus ' + label">
+																<button type="button" @click="causes[key].splice(index, 1)"  class="btn btn-xs btn-square btn-soft btn-error ">
+																	{{ lucide "circle-x" (dict "class" "size-4") }} 
+																</button>
+															</div>
+														</div>
 													</div>
 												</div>
+											</template>
+											<div class="justify-end card-actions">
+												<button 
+													type="button" 
+													class="btn btn-accent  btn-dash btn-xs mt-2"
+													@click="causes[key].push({category_type: key, scat_option_id: '', description: ''})" >
+													{{ lucide "plus" (dict "class" "size-4") }} {{ index .Tr "TambahBaris" }} <span x-text="label"></span>
+												</button>
 											</div>
 										</div>
-									</template>
-									<div class="justify-end card-actions">
-										<button 
-											type="button" 
-											class="btn btn-accent  btn-dash btn-xs mt-2"
-											@click="causes[key].push({category_type: key, scat_option_id: '', description: ''})" >
-											{{ lucide "plus" (dict "class" "size-4") }} {{ index .Tr "TambahBaris" }} <span x-text="label"></span>
-										</button>
 									</div>
-								</div>
+								</template>
 							</div>
-						</template>
-					</div>
-				</div>
-				<div class="p-4 border border-warning rounded-md">
-					<h3 class="text-base font-bold mb-2 border-b border-base-300 pb-2 text-warning">Penyebab Dasar</h3>
-					<div class="space-y-4">
-						<template x-for="(label, key) in {
-							'personal_factor': 'Personal Factor',
-							'job_factor': 'Job Factor',
-							'control_system': 'Control Weakness'
-							}" :key="key">
-							<div class="card card-xs bg-base-200 shadow-sm p-2">
-								<div class="card-body">
-									<h4 class="card-title  font-bold text-slate-600 mb-3" x-text="label"></h4>
-									<template x-for="(item, index) in causes[key]" :key="index">
-										<div class="flex gap-4 hover:bg-base-300 items-center mb-2">
-											<div class="flex-1 ">
-												<div class="flex flex-col">
-													{{ template "select_input" (dict
-														"Model" "item.scat_option_id"
-														"Placeholder" "Pilih"
-														"Required" true
-														"Class" "w-96"
-														"Slot" "<template x-for='opt in getScatOptions(key)' :key='opt.ID'><option :value='opt.ID' :selected='opt.ID == item.scat_option_id' x-text='opt.Code + \" - \" + opt.Name'></option></template>"
-														)
-													}}
-													{{ template "textarea" (dict
-														"Label" ""
-														"Name" "description_cause"
-														"Placeholder" "Sub-alasan..."
-														"Required" true
-														"Attr" " x-model='item.description'"
-														)
-													}}
-												</div>
-											</div>
-											<div class="w-14 flex-none">
-												<div class="w-14 flex-none">
-													<div class="tooltip" :data-tip="'Hapus ' + label">
-														<button type="button" @click="causes[key].splice(index, 1)"  class="btn btn-xs btn-square btn-soft btn-error ">
-															{{ lucide "circle-x" (dict "class" "size-4") }} 
-														</button>
+						</div>
+						<div class="p-4 border border-warning rounded-md">
+							<h3 class="text-base font-bold mb-2 border-b border-base-300 pb-2 text-warning">Penyebab Dasar</h3>
+							<div class="space-y-4">
+								<template x-for="(label, key) in {
+									'personal_factor': 'Personal Factor',
+									'job_factor': 'Job Factor',
+									'control_system': 'Control Weakness'
+									}" :key="key">
+									<div class="card card-xs bg-base-200 shadow-sm p-2">
+										<div class="card-body">
+											<h4 class="card-title  font-bold text-slate-600 mb-3" x-text="label"></h4>
+											<template x-for="(item, index) in causes[key]" :key="index">
+												<div class="flex gap-4 hover:bg-base-300 items-center mb-2">
+													<div class="flex-1 ">
+														<div class="flex flex-col">
+															{{ template "select_input" (dict
+																"Model" "item.scat_option_id"
+																"Placeholder" "Pilih"
+																"Required" true
+																"Class" "w-96"
+																"Slot" "<template x-for='opt in getScatOptions(key)' :key='opt.ID'><option :value='opt.ID' :selected='opt.ID == item.scat_option_id' x-text='opt.Code + \" - \" + opt.Name'></option></template>"
+																)
+															}}
+															{{ template "textarea" (dict
+																"Label" ""
+																"Name" "description_cause"
+																"Placeholder" "Sub-alasan..."
+																"Required" true
+																"Attr" " x-model='item.description'"
+																)
+															}}
+														</div>
+													</div>
+													<div class="w-14 flex-none">
+														<div class="w-14 flex-none">
+															<div class="tooltip" :data-tip="'Hapus ' + label">
+																<button type="button" @click="causes[key].splice(index, 1)"  class="btn btn-xs btn-square btn-soft btn-error ">
+																	{{ lucide "circle-x" (dict "class" "size-4") }} 
+																</button>
+															</div>
+														</div>
 													</div>
 												</div>
+											</template>
+											<div class="justify-end card-actions">
+												<button 
+													type="button" 
+													class="btn btn-accent btn-dash btn-xs mt-2"
+													@click="causes[key].push({category_type: key, scat_option_id: '', description: ''})" >
+													{{ lucide "plus" (dict "class" "size-4") }} {{ index .Tr "TambahBaris" }} <span x-text="label"></span>
+												</button>
 											</div>
 										</div>
-									</template>
-									<div class="justify-end card-actions">
-										<button 
-											type="button" 
-											class="btn btn-accent btn-dash btn-xs mt-2"
-											@click="causes[key].push({category_type: key, scat_option_id: '', description: ''})" >
-											{{ lucide "plus" (dict "class" "size-4") }} {{ index .Tr "TambahBaris" }} <span x-text="label"></span>
-										</button>
 									</div>
-								</div>
+								</template>
 							</div>
-						</template>
+						</div>
 					</div>
-				</div>
+				</template>
 			</div>
 		</div>
 	</div>
@@ -2098,70 +2118,74 @@
 		<input type="radio" name="my-accordion-1" :checked="activeTab === 7" @change="activeTab = 7" />
 		<div class="collapse-title font-semibold"><h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian7" }}</h3></div>
 		<div class="collapse-content ">
-			<template x-for="(item, index) in corrective_actions" :key="item.key_id || index">
-				<div class="card bg-base-100 border border-base-200 shadow-sm hover:shadow-md transition-shadow">
-					<div class="card-body p-4 gap-4 overflow-y-scroll">
-						<div class="flex justify-between items-start">
-							<h3 class="font-bold text-sm opacity-60">Action #<span x-text="index + 1"></span></h3>
-							<button type="button" @click="removeCorrectiveAction(index)" class="btn btn-ghost btn-xs text-error">
-								{{ lucide "trash-2" (dict "class" "size-4") }} Hapus
-							</button>
-						</div>
-						<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-							<div class="md:col-span-2">
-								{{ template "textarea" (dict
-									"Label" ""
-									"Name" "description_cause"
-									"Placeholder" "Action..."
-									"Required" true
-									"Attr" " x-model='item.action'"
-									)
-								}}
-							</div>
-							<div>
-								{{ template "textarea" (dict
-									"Label" ""
-									"Name" "description_cause"
-									"Placeholder" "Control Hierarchy..."
-									"Required" true
-									"Attr" " x-model='item.control_hierarchy'"
-									)
-								}}
-							</div>
-						</div>
-						<div class="flex gap-4 items-end">
-							<div class="flex-1">
+			<div>
+				<template x-if="activeTab === 7">
+					<template x-for="(item, index) in corrective_actions" :key="item.key_id || index">
+						<div class="card bg-base-100 border border-base-200 shadow-sm hover:shadow-md transition-shadow">
+							<div class="card-body p-4 gap-4 overflow-y-scroll">
+								<div class="flex justify-between items-start">
+									<h3 class="font-bold text-sm opacity-60">Action #<span x-text="index + 1"></span></h3>
+									<button type="button" @click="removeCorrectiveAction(index)" class="btn btn-ghost btn-xs text-error">
+										{{ lucide "trash-2" (dict "class" "size-4") }} Hapus
+									</button>
+								</div>
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+									<div class="md:col-span-2">
+										{{ template "textarea" (dict
+											"Label" ""
+											"Name" "description_cause"
+											"Placeholder" "Action..."
+											"Required" true
+											"Attr" " x-model='item.action'"
+											)
+										}}
+									</div>
+									<div>
+										{{ template "textarea" (dict
+											"Label" ""
+											"Name" "description_cause"
+											"Placeholder" "Control Hierarchy..."
+											"Required" true
+											"Attr" " x-model='item.control_hierarchy'"
+											)
+										}}
+									</div>
+								</div>
+								<div class="flex gap-4 items-end">
+									<div class="flex-1">
 
 
-								{{ template "select-user-search_model" (dict
-									"Label" ""
-									"Name" "user_id"
-									"Options" .Users
-									"Model" "item.user_id"
-									"DefaultText" (index .Tr "InputPIC")
-									"Required" true
-									)
-								}}
-							</div>
-							<div class="w-48">
-								{{ template "input-tanggal" (dict
-									"Label" ""
-									"Name" "due_date"
-									"Id" ""
-									"Value" ""
-									"Static" "false"
-									"Type" "date"
-									"Placeholder" (index .Tr "InputDateObservation")
-									"Required" true
-									"RequiredBinding" ""
-									"Attr" "x-model='item.due_date' :id=\"'due_date_' + index\" :name=\"'corrective_actions['+index+'][due_date]'\""
-									)
-								}}
+										{{ template "select-user-search_model" (dict
+											"Label" ""
+											"Name" "user_id"
+											"Options" .Users
+											"Model" "item.user_id"
+											"DefaultText" (index .Tr "InputPIC")
+											"Required" true
+											)
+										}}
+									</div>
+									<div class="w-48">
+										{{ template "input-tanggal" (dict
+											"Label" ""
+											"Name" "due_date"
+											"Id" ""
+											"Value" ""
+											"Static" "false"
+											"Type" "date"
+											"Placeholder" (index .Tr "InputDateObservation")
+											"Required" true
+											"RequiredBinding" ""
+											"Attr" "x-model='item.due_date' :id=\"'due_date_' + index\" :name=\"'corrective_actions['+index+'][due_date]'\""
+											)
+										}}
+									</div>
+								</div>
 							</div>
 						</div>
-					</div>
-				</div>
-			</template>
+					</template>
+				</template>
+			</div>
 			<div class="mt-2">
 				<button 
 					type="button" 
@@ -2179,7 +2203,11 @@
 			<p class="text-xs text-slate-500">{{ index .Tr "SubBagian8" }}</p>
 		</div>
 		<div class="collapse-content ">
-			{{ template "ckeditor" dict "ID" "KeyLearning" "Label" "" "Name" "tugas_dijalankan" "Model" "KeyLearning" "Value" .Incident.KeyLearning "Required" true "Attr" "" }}
+			<div>
+				<template x-if="activeTab === 8">
+					{{ template "ckeditor" dict "ID" "KeyLearning" "Label" "" "Name" "tugas_dijalankan" "Model" "KeyLearning" "Value" .Incident.KeyLearning "Required" true "Attr" "" }}
+				</template>
+			</div>
 		</div>
 	</div>
 	<div class="collapse collapse-arrow bg-base-100 border border-base-300 mb-2" x-ref="tab9">
@@ -2188,62 +2216,66 @@
 			<h3 class="text-lg font-bold text-slate-700">{{ index .Tr "Bagian9" }}</h3>
 		</div>
 		<div class="collapse-content ">
-			<template x-for="(reviewer, index) in reviewerConfigs" :key="reviewer.key">
-				<div class="border border-base-300 rounded-lg overflow-hidden bg-base-100 shadow-sm" x-show="isReviewVisible(reviewer.key)">
+			<div>
+				<template x-if="activeTab === 9">
+					<template x-for="(reviewer, index) in reviewerConfigs" :key="reviewer.key">
+						<div class="border border-base-300 rounded-lg overflow-hidden bg-base-100 shadow-sm" x-show="isReviewVisible(reviewer.key)">
 
-					<div class="bg-base-200/60 px-4 py-2 border-b border-base-300">
-						<span class="font-bold text-sm text-base-content/80" x-text="reviewer.title"></span>
-					</div>
-
-					<div class="p-4 flex flex-col gap-4">
-						{{ template "ckeditor-loop" (dict
-							"Label" "Komentar"
-							"Name" "reviewer.key + '_comment'"
-							"ID" "`reviews_${index}`"
-							"AlpineVar" "reviews[reviewer.key].comment"
-							"RequiredBinding" "isReviewVisible(reviewer.key)"
-							)
-						}}
-
-						<div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-
-							{{ template "select-user-search_model" (dict
-								"Label" "Nama Peninjau"
-								"Name" "reviewer.key + '_user_id'"
-								"Options" .Users
-								"Model" "reviews[reviewer.key].user_id"
-								"DefaultText" (index .Tr "InputPeninjauan")
-								"Required" true
-								)
-							}}
-
-
-							<div class="form-control w-full">
-								<label class="label pb-1 pt-0">
-									<span class="text-xs font-bold text-base-content opacity-60">Tanda Tangan:</span>
-								</label>
-								<div class="h-8 flex items-end pb-1 border-b-2 border-dashed border-base-300">
-									<span x-show="reviews[reviewer.key].accepted !== null" class="text-success text-xs font-bold" x-cloak>
-										✓ Ditandatangani Digital
-									</span>
-									<span x-show="reviews[reviewer.key].accepted === null" class="text-base-content/40 text-xs italic">
-										Menunggu Persetujuan...
-									</span>
-								</div>
+							<div class="bg-base-200/60 px-4 py-2 border-b border-base-300">
+								<span class="font-bold text-sm text-base-content/80" x-text="reviewer.title"></span>
 							</div>
 
-							{{ template "radio_group" (dict
-								"Label" "Penerimaan"
-								"Name" "reviewer.key + '_accepted'"
-								"Model" "reviews[reviewer.key].accepted"
-								"Required" true
-								)
-							}}
+							<div class="p-4 flex flex-col gap-4">
+								{{ template "ckeditor-loop" (dict
+									"Label" "Komentar"
+									"Name" "reviewer.key + '_comment'"
+									"ID" "`reviews_${index}`"
+									"AlpineVar" "reviews[reviewer.key].comment"
+									"RequiredBinding" "isReviewVisible(reviewer.key)"
+									)
+								}}
 
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+
+									{{ template "select-user-search_model" (dict
+										"Label" "Nama Peninjau"
+										"Name" "reviewer.key + '_user_id'"
+										"Options" .Users
+										"Model" "reviews[reviewer.key].user_id"
+										"DefaultText" (index .Tr "InputPeninjauan")
+										"Required" true
+										)
+									}}
+
+
+									<div class="form-control w-full">
+										<label class="label pb-1 pt-0">
+											<span class="text-xs font-bold text-base-content opacity-60">Tanda Tangan:</span>
+										</label>
+										<div class="h-8 flex items-end pb-1 border-b-2 border-dashed border-base-300">
+											<span x-show="reviews[reviewer.key].accepted !== null" class="text-success text-xs font-bold" x-cloak>
+												✓ Ditandatangani Digital
+											</span>
+											<span x-show="reviews[reviewer.key].accepted === null" class="text-base-content/40 text-xs italic">
+												Menunggu Persetujuan...
+											</span>
+										</div>
+									</div>
+
+									{{ template "radio_group" (dict
+										"Label" "Penerimaan"
+										"Name" "reviewer.key + '_accepted'"
+										"Model" "reviews[reviewer.key].accepted"
+										"Required" true
+										)
+									}}
+
+								</div>
+							</div>
 						</div>
-					</div>
-				</div>
-			</template>
+					</template>
+				</template>
+			</div>
 		</div>
 	</div>
 

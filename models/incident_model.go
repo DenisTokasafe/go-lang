@@ -47,8 +47,8 @@ type IncidentReport struct {
 	Contractor   *Contractor `gorm:"foreignKey:ContractorID"`
 
 	// PIC (Berdasarkan relasi User ke Dept/Cont)
-	PicID uint `gorm:"not null" json:"pic_id"`
-	PIC   User `gorm:"foreignKey:PicID"` // Nama Manajer Penanggung Jawab (Manual/Text)
+	PicID *uint `gorm:"not null" json:"pic_id"`
+	PIC   User  `gorm:"foreignKey:PicID"` // Nama Manajer Penanggung Jawab (Manual/Text)
 	// Lokasi Kejadian
 	LocationID       uint     `json:"location_id"`
 	Location         Location `gorm:"foreignKey:LocationID"`
