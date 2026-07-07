@@ -1,20 +1,33 @@
 {{ define "radio_group" }}
 <fieldset class="fieldset" 
-	x-data="{ isInvalid: false }" 
-	x-init="
-	// Cek saat halaman pertama di-load
-	isInvalid = ({{ .Model }} === null);
-	// Pantau perubahan saat diklik
-	$watch('{{ .Model }}', value => isInvalid = (value === null));
-	"
+	x-data="{
+	// 1. Getter untuk mengecek apakah radio ini wajib diisi (Dinamis / Statis)
+	get isRequiredField() {
+{{ if .RequiredBinding }}
+	return {{ .RequiredBinding }};
+{{ else if .Required }}
+	return true;
+{{ else }}
+	return false;
+{{ end }}
+	},
+
+	// 2. Getter untuk menentukan status invalid
+	get isInvalid() {
+	// Invalid HANYA JIKA field ini wajib diisi, TAPI nilainya masih null
+	return this.isRequiredField && ({{ .Model }} === null);
+	}
+	}" 
+
+{{/* Opsional: Tambahkan atribut ini agar fitur auto-scroll goNext() Anda bekerja */}}
+	:data-invalid="isInvalid"
 >
 	{{ if .Label }}
 		<label class="label">
 			<span class="text-xs font-bold text-base-content opacity-60">
 				{{ .Label }}
-				{{ if .Required }}
-					<span class="text-error font-bold ml-0.5">*</span>
-				{{ end }}
+
+				<span x-show="isRequiredField" class="text-error font-bold ml-0.5" x-cloak>*</span>
 			</span>
 		</label>
 	{{ end }}
@@ -23,12 +36,14 @@
 		<label class="cursor-pointer flex items-center gap-2">
 			<input 
 				type="radio" 
-				:name="{{ .Name }}" 
+				:name="'{{ .Name }}'" 
 				value="true" 
 				x-model="{{ .Model }}" 
 				class="radio radio-sm checked:bg-info"
 				:class="isInvalid ? 'radio-error' : ''"
 				{{ if .DisabledBinding }}:disabled="{{ .DisabledBinding }}"{{ end }}
+
+				:required="isRequiredField"
 			/> 
 			<span class="text-sm font-medium">Ya</span>
 		</label>
@@ -36,7 +51,7 @@
 		<label class="cursor-pointer flex items-center gap-2">
 			<input 
 				type="radio" 
-				:name="{{ .Name }}" 
+				:name="'{{ .Name }}'" 
 				value="false" 
 				x-model="{{ .Model }}" 
 				class="radio radio-sm checked:bg-error" 
@@ -47,10 +62,12 @@
 		</label>
 	</div>
 
-	<template x-if="isInvalid">
-		<p class="text-error text-[9px] font-semibold leading-none mt-1">
-			{{ .Label }} wajib dipilih.
-		</p>
-	</template>
+	<div class="min-h-[1.25rem]">
+		<template x-if="isInvalid">
+			<p class="text-error text-[9px] font-semibold leading-none mt-1 animate-in fade-in slide-in-from-top-1">
+				{{ .Label }} wajib dipilih.
+			</p>
+		</template>
+	</div>
 </fieldset>
 {{ end }}

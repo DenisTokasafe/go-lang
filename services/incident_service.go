@@ -159,16 +159,10 @@ func (s *incidentService) GetByID(id uint) (*models.IncidentReport, error) {
 		Preload("PIC").
 		// Pihak terlibat
 		Preload("InvolvedParties").
-		Preload("InvolvedParties.Department").
-		Preload("InvolvedParties.Contractor").
-		Preload("InvolvedParties.ReportBy").
 		// =================================================================
 		// BARU: Preload Partisipan Investigasi & Sub-Relasinya
 		// =================================================================
 		Preload("InvestigationParticipants").
-		Preload("InvestigationParticipants.Department").
-		Preload("InvestigationParticipants.Contractor").
-		Preload("InvestigationParticipants.ReportBy"). // Sesuai nama field di struct Anda
 		// =================================================================
 		Preload("PeepoFactors").
 		Preload("Timelines").
@@ -234,16 +228,10 @@ func (s *incidentService) GetEditData(id uint, currentUserID uint, page int) (*I
 		Preload("Contractor").
 		Preload("PIC").
 		Preload("InvolvedParties").
-		Preload("InvolvedParties.Department").
-		Preload("InvolvedParties.Contractor").
-		Preload("InvolvedParties.ReportBy").
 		// =================================================================
 		// BARU: Preload Partisipan Investigasi di halaman Edit
 		// =================================================================
 		Preload("InvestigationParticipants").
-		Preload("InvestigationParticipants.Department").
-		Preload("InvestigationParticipants.Contractor").
-		Preload("InvestigationParticipants.ReportBy").
 		// =================================================================
 		Preload("Timelines").
 		Preload("Causes").
@@ -746,7 +734,7 @@ func (s *incidentService) UpdateIncident(id uint, userID uint,
 			if reviews.KTTUserID != nil && *reviews.KTTUserID == 0 {
 				reviews.KTTUserID = nil
 			}
-			fmt.Printf("DEBUG: Data yang akan di-save: %+v\n", reviews)
+
 			// 3. Insert 1 row reviews baru ke database
 			if err := tx.Create(reviews).Error; err != nil {
 				return err

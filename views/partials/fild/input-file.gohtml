@@ -1,59 +1,60 @@
 {{ define "input-file" }}
 
 <fieldset
-	class="fieldset"
+	class="fieldset w-full"
 	x-data="fileDropzone({
 	existingFiles: {{ if .ExistingFiles }}{{ .ExistingFiles }}{{ else }}[]{{ end }},
 	required: {{ if .Required }}true{{ else }}false{{ end }},
-	disabled: {{ if .DisabledBinding }}{{ .DisabledBinding }}{{ else }}false{{ end }}
+	disabled: {{ if .DisabledBinding }}{{ .DisabledBinding }}{{ else }}false{{ end }},
+	accept: '{{ if .Accept }}{{ .Accept }}{{ end }}'
 	})"
 	x-init="init()">
 
-	<!-- LABEL -->
 	{{ if .Label }}
 		<label class="label">
-			<span class="text-xs font-bold text-base-content opacity-60 ">
+			<span class="text-xs font-bold text-base-content opacity-60">
 				{{ .Label }}
-
 				{{ if .Required }}
 					<span class="text-error font-bold ml-0.5">*</span>
 				{{ end }}
 			</span>
 		</label>
 	{{ end }}
-	<!-- DROPZONE -->
+
 	<div
-		class="border-dashed rounded-md p-2 transition-all duration-300 select-none"
-		:class="[
-		getBorderClass(),
-		disabled
-		? 'opacity-50 cursor-not-allowed bg-base-200'
-		: 'cursor-pointer'
-		]"
+		class="border-2 border-dashed rounded-xl p-2 transition-all duration-300 select-none flex flex-col items-center justify-center gap-3 relative"
+		:class="getBorderClass()"
 		@click="!disabled && $refs.fileInput.click()"
-
 		@dragover.prevent="if (!disabled) isDragging = true"
-
 		@dragleave.prevent="if (!disabled) isDragging = false"
+		@drop.prevent="if (!disabled) { isDragging = false; handleDrop($event) }">
 
-		@drop.prevent="if (!disabled) handleDrop($event)">
-
-		<div class="text-center text-xs text-base-content/60">
-
-			<template x-if="!disabled">
-				<span>
-					{{ if .DragDropUpload }}
-						{{ .DragDropUpload }}
-					{{ end }}
-				</span>
-			</template>
-			<template x-if="disabled">
-				<span>
-					Upload dinonaktifkan
-				</span>
-			</template>
+		<div class="text-primary opacity-70 transition-transform" :class="isDragging ? 'scale-110' : ''">
+			{{ lucide "upload-cloud" (dict "class" "size-10") }}
 		</div>
 
+		<div class="text-center">
+			<template x-if="!disabled">
+				<div class="space-y-1">
+					<p class="text-sm font-semibold text-base-content">
+						{{ if .DragDropUpload }}
+							{{ .DragDropUpload }}
+						{{ end }}
+					</p>
+					<p class="text-xs text-base-content/50">
+						{{ if .SubDragDropUpload }}
+							{{ .SubDragDropUpload }}
+						{{ end }}
+					</p>
+				</div>
+			</template>
+
+			<template x-if="disabled">
+				<p class="text-sm font-medium text-base-content/50 italic">
+					Upload dinonaktifkan
+				</p>
+			</template>
+		</div>
 		<input
 			x-ref="fileInput"
 			type="file"
@@ -61,122 +62,90 @@
 			name="{{ .Name }}"
 			id="{{ .Id }}"
 			class="hidden"
-
-			{{ if .DisabledBinding }}
-				:disabled="{{ .DisabledBinding }}"
-			{{ end }}
-
+			{{ if .Accept }}accept="{{ .Accept }}"{{ end }}
+			{{ if .DisabledBinding }} :disabled="{{ .DisabledBinding }}" {{ end }}
 			@change="handleFiles($event)"
 			@input="touched = true" />
 	</div>
 
-	<!-- DELETED IDS -->
 	<template x-for="id in deletedExistingFiles" :key="'deleted-'+id">
 		<input type="hidden" name="deleted_files[]" :value="id">
 	</template>
 
-	<!-- EXISTING FILES -->
 	<div
 		class="mt-2 grid gap-2"
 		x-show="existingFiles.length > 0"
 		x-cloak>
 
 		<template x-for="(file, index) in existingFiles" :key="'old-'+index">
-
 			<div class="p-2 border border-base-300 rounded-md flex items-center justify-between gap-2 text-xs">
-
 				<div class="flex items-center gap-2 overflow-hidden">
-
 					<template x-if="file.is_image">
 						<img :src="file.url" class="size-8 object-cover rounded" />
 					</template>
-
 					<template x-if="!file.is_image">
 						<div class="size-8 bg-base-200 flex items-center justify-center rounded text-primary">
 							📄
 						</div>
 					</template>
-
 					<a
 						:href="file.url"
 						target="_blank"
 						class="truncate hover:underline"
 						x-text="file.name">
 					</a>
-
 				</div>
-
 				<button
 					type="button"
 					class="btn btn-xs btn-circle btn-ghost text-error"
-
 					x-show="!disabled"
-
 					@click="removeExistingFile(index)">
-
 					✕
-
 				</button>
-
 			</div>
-
 		</template>
-
 	</div>
 
-	<!-- NEW FILES -->
-	<div
-		class="mt-2 grid gap-2"
-		x-show="files.length > 0"
-		x-cloak>
+	<div class="mt-2 grid gap-2" x-show="files.length > 0 || isUploading" x-cloak>
 
-		<template x-for="(file, index) in files" :key="index">
-
-			<div class="p-2 border border-base-300 rounded-md flex items-center justify-between gap-2 text-xs">
-
-				<div class="flex items-center gap-2 overflow-hidden">
-
-					<template x-if="file.type.startsWith('image/')">
-						<img :src="getPreview(file)" class="size-8 object-cover rounded" />
-					</template>
-
-					<template x-if="!file.type.startsWith('image/')">
-						<div class="size-8 bg-base-200 flex items-center justify-center rounded text-primary">
-							📄
-						</div>
-					</template>
-
-					<span class="truncate" x-text="file.name"></span>
-
+		<template x-if="isUploading">
+			<template x-for="i in 3"> 
+				<div class="p-2 border border-base-300 rounded-md flex items-center justify-between gap-2">
+					<div class="flex items-center gap-2 w-full">
+						<div class="skeleton size-8 rounded"></div> 
+						<div class="skeleton h-4 w-32"></div>       
+					</div>
 				</div>
-
-				<button
-					type="button"
-					class="btn btn-xs btn-circle btn-ghost text-error"
-
-					x-show="!disabled"
-
-					@click="removeFile(index)">
-
-					✕
-
-				</button>
-
-			</div>
-
+			</template>
 		</template>
 
+		<template x-if="!isUploading">
+			<template x-for="(file, index) in files" :key="index">
+				<div class="p-2 border border-base-300 rounded-md flex items-center justify-between gap-2 text-xs">
+					<div class="flex items-center gap-2 overflow-hidden">
+						<template x-if="file.type.startsWith('image/')">
+							<img :src="getPreview(file)" class="size-8 object-cover rounded" />
+						</template>
+						<template x-if="!file.type.startsWith('image/')">
+							<div class="size-8 bg-base-200 flex items-center justify-center rounded text-primary">📄</div>
+						</template>
+						<span class="truncate" x-text="file.name"></span>
+					</div>
+					<button type="button" class="btn btn-xs btn-circle btn-ghost text-error" x-show="!disabled" @click="removeFile(index)">
+						✕
+					</button>
+				</div>
+			</template>
+		</template>
 	</div>
 
-	<!-- VALIDATION -->
-	<div class=" mt-1">
-
+	<div class="mt-2 min-h-[1.5rem]">
 		<template x-if="isInvalid">
-			<p class="text-error text-[9px] font-semibold leading-none">
-				Minimal satu dokumen wajib diupload.
+			<p class="text-error text-[11px] font-semibold flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+				<span class="text-xs">⚠️</span>
+				<span x-text="errorMessage"></span>
 			</p>
 		</template>
-
 	</div>
 
 </fieldset>
@@ -184,7 +153,6 @@
 <script>
     function fileDropzone(config) {
         return {
-
             // =========================
             // STATE
             // =========================
@@ -194,11 +162,15 @@
 
             required: config.required || false,
             disabled: config.disabled || false,
+            accept: config.accept || '', 
 
             isInvalid: false,
+            errorMessage: '',
+            
             isDragging: false,
             touched: false,
-
+            isUploading: false,
+            
             // =========================
             // INIT
             // =========================
@@ -206,12 +178,11 @@
                 this.validate()
 
                 this.$watch('disabled', (val) => {
-
                     if (val) {
                         this.isDragging = false
                         this.isInvalid = false
+                        this.errorMessage = ''
                     }
-
                 })
             },
 
@@ -219,44 +190,64 @@
             // HANDLE DROP
             // =========================
             handleDrop(e) {
-
                 if (this.disabled) return
-
                 this.isDragging = false
                 this.touched = true
 
-                this.setFiles(
-                    Array.from(e.dataTransfer.files)
-                )
+                this.setFiles(Array.from(e.dataTransfer.files))
             },
 
             // =========================
             // HANDLE INPUT FILE
             // =========================
             handleFiles(e) {
-
                 if (this.disabled) return
-
                 this.touched = true
+                
+                // Aktifkan Skeleton
+                this.isUploading = true 
 
-                this.setFiles(
-                    Array.from(e.target.files)
-                )
+                this.setFiles(Array.from(e.target.files))
+
+                // Simulasi delay skeleton (ganti/hapus saat pakai upload asli)
+                setTimeout(() => {
+                    this.isUploading = false 
+                }, 800) 
             },
 
             // =========================
-            // SET FILES
+            // SET FILES (FILTER & VALIDASI FORMAT)
             // =========================
             setFiles(files) {
-
                 if (this.disabled) return
 
-                this.files = files
+                let validFiles = []
+                let hasTypeError = false
+
+                if (this.accept) {
+                    const acceptedTypes = this.accept.split(',').map(t => t.trim())
+                    
+                    validFiles = files.filter(file => {
+                        const isMatch = acceptedTypes.some(type => {
+                            if (type.endsWith('/*')) {
+                                return file.type.startsWith(type.replace('/*', ''))
+                            }
+                            return file.type === type || file.name.toLowerCase().endsWith(type.toLowerCase())
+                        })
+                        
+                        if (!isMatch) hasTypeError = true
+                        return isMatch
+                    })
+                } else {
+                    validFiles = files
+                }
+
+                this.files = validFiles
+                this.isInvalid = hasTypeError
+                this.errorMessage = hasTypeError ? 'Format file tidak didukung. Harap pilih file yang valid.' : ''
 
                 const dt = new DataTransfer()
-
-                files.forEach(f => dt.items.add(f))
-
+                validFiles.forEach(f => dt.items.add(f))
                 this.$refs.fileInput.files = dt.files
 
                 this.validate()
@@ -266,22 +257,18 @@
             // REMOVE NEW FILE
             // =========================
             removeFile(index) {
-
                 if (this.disabled) return
 
                 const dt = new DataTransfer()
                 const input = this.$refs.fileInput
 
                 for (let i = 0; i < input.files.length; i++) {
-
                     if (i !== index) {
                         dt.items.add(input.files[i])
                     }
-
                 }
 
                 input.files = dt.files
-
                 this.files = Array.from(dt.files)
 
                 this.validate()
@@ -291,15 +278,12 @@
             // REMOVE EXISTING FILE
             // =========================
             removeExistingFile(index) {
-
                 if (this.disabled) return
 
                 const file = this.existingFiles[index]
-
                 if (file?.id) {
                     this.deletedExistingFiles.push(file.id)
                 }
-
                 this.existingFiles.splice(index, 1)
 
                 this.validate()
@@ -316,50 +300,45 @@
             // VALIDATION
             // =========================
             validate() {
-
                 if (this.disabled) {
                     this.isInvalid = false
+                    this.errorMessage = ''
                     return
                 }
 
-                if (!this.touched) {
-                    this.isInvalid = false
+                if (!this.touched) return
+
+                // Jika sudah ada error format file dari setFiles, jangan ditimpa
+                if (this.errorMessage === 'Format file tidak didukung. Harap pilih file yang valid.') {
+                    this.isInvalid = true
                     return
                 }
 
-                this.isInvalid =
-                    this.required &&
-                    this.files.length === 0 &&
-                    this.existingFiles.length === 0
+                const isEmpty = this.required && this.files.length === 0 && this.existingFiles.length === 0
+                
+                this.isInvalid = isEmpty
+                this.errorMessage = isEmpty ? 'Minimal satu dokumen wajib diunggah.' : ''
             },
 
             // =========================
-            // BORDER STYLE
+            // BORDER STYLE (Untuk Dropzone)
             // =========================
             getBorderClass() {
-			if (this.disabled) {
-				return 'border border-base-300'
-			}
+                if (this.disabled) {
+                    return 'opacity-50 cursor-not-allowed bg-base-200 border-base-200'
+                }
 
-			// ==========================================
-			// INI YANG MEMICU EFEK SAAT FILE DI-DRAG
-			// ==========================================
-			if (this.isDragging) {
-				// Border menjadi 2px, warna primary, dan (opsional) background sedikit gelap/berwarna agar lebih interaktif
-				return 'border-2 border-primary bg-primary/5 scale-[1.02]' 
-			}
+                if (this.isDragging) {
+                    return 'border-primary bg-primary/10 scale-[1.01] cursor-pointer'
+                }
 
-			if (this.isInvalid) {
-				return 'border border-error'
-			}
+                if (this.isInvalid) {
+                    return 'border-error hover:bg-error/5 cursor-pointer'
+                }
 
-			// ==========================================
-			// KONDISI NORMAL & HOVER BIASA
-			// ==========================================
-			// Tetap 1px (border), hanya ganti warna saat di-hover
-			return 'border border-base-300 hover:border-primary'
-		}
-				}
+                return 'border-base-300 hover:border-primary hover:bg-base-200/50 cursor-pointer'
+            }
+        }
     }
 </script>
 

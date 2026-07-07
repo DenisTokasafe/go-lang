@@ -45,7 +45,8 @@ SelectReportType: "-- Pilih Tipe Bahaya --"
 SelectReporterName: "-- Pilih atau Ketik Nama --"
 
 # Status & Upload
-DragDropUpload: "Drag & Drop file di sini atau klik untuk upload"
+DragDropUpload: "Drag & Drop file di sini"
+SubDragDropUpload: "atau klik untuk upload"
 CurrentAreaStatus: "Status Area Saat Ini?"
 FullySecured: "Sudah Aman Total"
 ResolvedOnSite: "Masalah selesai di tempat"

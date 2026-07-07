@@ -31,7 +31,7 @@ func GlobalSearch(db *gorm.DB, w http.ResponseWriter, r *http.Request, model int
 			Select("id, "+searchColumn).
 			Where("LOWER("+searchColumn+") LIKE ?", "%"+strings.ToLower(q)+"%").
 			Order(searchColumn + " asc").
-			Limit(100).
+			Limit(200).
 			Find(&rows).Error
 
 		// Jika tidak ada error dan data ditemukan

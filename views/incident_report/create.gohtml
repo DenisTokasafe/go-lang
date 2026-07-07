@@ -424,8 +424,18 @@
 		{{ template "ckeditor" dict "ID" "TaskPerformed" "Label" (index .Tr "TaskPerformed") "Name" "tugas_dijalankan" "Model" "TaskPerformed" "Value" "" "Required" true }}
 		{{ template "ckeditor" dict "ID" "IncidentDescription" "Label" (index .Tr "IncidentDescription") "Placeholder" (index .Tr "IncidentDescriptionPlaceholder") "Name" "deskripsi" "Model" "IncidentDescription" "Value" "" "Required" true }}
 
-		{{ template "input-file" (dict "Label" (index .Tr "UploadDocument") "DragDropUpload" (index .Tr "DragDropUpload") "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "Attr" "") }}
-
+		{{ template "input-file" (dict
+			"Id" "dokumentasi_desc"
+			"Name" "dokumentasi_desc"
+			"Label" (index .Tr "UploadDocument")
+			"Required" true
+			"Accept" "image/*, application/pdf"
+			"DragDropUpload" (index .Tr "DragDropUpload")
+			"SubDragDropUpload" (index .Tr "SubDragDropUpload")
+			"DisabledBinding" "false"
+			"Attr" ""
+			)
+		}}
 		{{ template "ckeditor" dict "ID" "ImmediateAction" "Label" (index .Tr "ImmediateAction") "Placeholder" (index .Tr "WorkStatus") "Name" "tindakan_langsung" "Model" "ImmediateAction" "Value" "" "Required" true }}
 		{{ template "ckeditor" dict "ID" "DamageDetail" "Label" (index .Tr "DamageDetail") "Placeholder" (index .Tr "UnplannedOutcome") "Name" "detil_kerusakan_kerugian" "Model" "DamageDetail" "Value" "" "Required" true }}
 

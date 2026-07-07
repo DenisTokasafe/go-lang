@@ -357,7 +357,6 @@ func (ic *IncidentController) Edit(w http.ResponseWriter, r *http.Request) {
 // Update memproses form submit
 // Update memproses form submit via JSON Fetch Multipart
 func (ic *IncidentController) Update(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("--- CONTROLLER UPDATE DIPANGGIL ---")
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -440,13 +439,13 @@ func (ic *IncidentController) Update(w http.ResponseWriter, r *http.Request) {
 			w, message, "success",
 		)
 	}
-	redirectURL := fmt.Sprintf("/incident/edit/%s", idStr)
+	// redirectURL := fmt.Sprintf("/incident/edit/%s", idStr)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":       "success",
-		"message":      message,
-		"redirect_url": redirectURL,
-	})
+	// json.NewEncoder(w).Encode(map[string]string{
+	// 	"status":       "success",
+	// 	"message":      message,
+	// 	"redirect_url": redirectURL,
+	// })
 	// Note: http.Redirect dihapus di sini karena redirect sudah ditangani oleh window.location di JS frontend Anda.
 }
 

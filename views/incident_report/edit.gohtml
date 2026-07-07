@@ -367,6 +367,81 @@
 	ktt: { comment: '', user_id: '', accepted: null }
 	},
 
+	// ... state Alpine Anda yang lain (reviewerConfigs, reviews, dll)
+	isReviewVisible(key) {
+	// Skenario 1: Jika contractor_id null, sembunyikan 'pm'
+	if (key === 'pm' && (!this.incident.contractor_id || this.incident.contractor_id === '')) {
+	return false;
+	}
+
+	// Skenario 2: Jika consequence level < 3, sembunyikan 'dirops' dan 'ktt'
+	if ((key === 'dirops' || key === 'ktt') && this.getConsequenceLevel() < 3) {
+	return false;
+	}
+
+	// Default: Tampilkan semua step lainnya
+	return true;
+	},
+	// 1. Fungsi untuk mengecek apakah satu blok reviewer sudah diisi lengkap
+	isReviewComplete(key) {
+	const review = this.reviews[key];
+	// Jika user_id ada dan status accepted sudah dipilih (bukan null), 
+	// artinya data sudah tersimpan di database.
+	return (review.user_id !== '' && review.user_id !== null) && (review.accepted !== null);
+	},
+	isDataInDatabase(key) {
+	// Pastikan review ada, dan memiliki user_id (atau field lain yang menandakan data sudah masuk)
+	const review = this.reviews[key];
+	return review && review.user_id !== '' && review.user_id !== null && review.accepted !== null;
+	},
+	isSavedInDatabase(key) {
+	const review = this.reviews[key];
+	// Sesuaikan kondisi ini dengan field unik di database Anda.
+	// Contoh: jika ada ID, berarti sudah tersimpan.
+	return review && review.id !== null && review.id !== undefined && review.id > 0;
+	},
+
+	// 2. Fungsi untuk menentukan apakah blok saat ini boleh dibuka
+	isReviewUnblocked(currentIndex) {
+	// 1. PM (index 0) selalu terbuka
+	if (currentIndex === 0) return true;
+
+	// 2. Ambil key sebelumnya
+	const prevKey = this.reviewerConfigs[currentIndex - 1].key;
+
+	// 3. LOGIKA TAMBAHAN: 
+	// Jika langkah sebelumnya disembunyikan (skipped), 
+	// maka langkah ini otomatis terbuka (tidak perlu menunggu yang sebelumnya)
+	if (!this.isReviewVisible(prevKey)) {
+	return true;
+	}
+
+	// 4. Jika langkah sebelumnya muncul, maka WAJIB menunggu data tersimpan
+	return this.isDataInDatabase(prevKey);
+	},
+	// Fungsi penentu apakah form di dalam blok ini WAJIB diisi saat ini
+	isReviewRequired(key) {
+	// 0. Jika blok tidak terlihat, abaikan (otomatis skip blok yang tidak relevan)
+	if (!this.isReviewVisible(key)) return false;
+
+	// 1. TENTUKAN SIAPA YANG SEDANG BERTUGAS (Aktif)
+	// Cari blok pertama yang BELUM TERSIMPAN di database
+	// dan dipastikan blok tersebut memang VISIBLE (terlihat).
+	const activeReviewer = this.reviewerConfigs.find(r => 
+	this.isReviewVisible(r.key) && !this.isSavedInDatabase(r.key)
+	);
+
+	// 2. Jika blok yang sedang dicek adalah blok yang sedang bertugas (active),
+	// maka WAJIB diisi.
+	if (activeReviewer && activeReviewer.key === key) {
+	return true;
+	}
+
+	// 3. Jika blok sudah tersimpan (selesai) atau belum gilirannya, 
+	// kembalikan FALSE (Tidak wajib).
+	return false;
+	},
+
 	// =========================
 	// INIT (OPTIMIZED FOR PERFORMANCE)
 	// =========================
@@ -583,23 +658,23 @@
 
 	this.reviews.pm.comment = dbRev.pm_comment || '';
 	this.reviews.pm.user_id = dbRev.pm_user_id || '';
-	this.reviews.pm.accepted = dbRev.pm_accepted !== null && dbRev.pm_accepted !== undefined ? String(dbRev.pm_accepted) : '';
+	this.reviews.pm.accepted = dbRev.pm_accepted !== null && dbRev.pm_accepted !== undefined ? String(dbRev.pm_accepted) : null;
 
 	this.reviews.dept.comment = dbRev.dept_comment || '';
 	this.reviews.dept.user_id = dbRev.dept_user_id || '';
-	this.reviews.dept.accepted = dbRev.dept_accepted !== null && dbRev.dept_accepted !== undefined ? String(dbRev.dept_accepted) : '';
+	this.reviews.dept.accepted = dbRev.dept_accepted !== null && dbRev.dept_accepted !== undefined ? String(dbRev.dept_accepted) : null;
 
 	this.reviews.ohs.comment = dbRev.ohs_comment || '';
 	this.reviews.ohs.user_id = dbRev.ohs_user_id || '';
-	this.reviews.ohs.accepted = dbRev.ohs_accepted !== null && dbRev.ohs_accepted !== undefined ? String(dbRev.ohs_accepted) : '';
+	this.reviews.ohs.accepted = dbRev.ohs_accepted !== null && dbRev.ohs_accepted !== undefined ? String(dbRev.ohs_accepted) : null;
 
 	this.reviews.dirops.comment = dbRev.dirops_comment || '';
 	this.reviews.dirops.user_id = dbRev.dirops_user_id || '';
-	this.reviews.dirops.accepted = dbRev.dirops_accepted !== null && dbRev.dirops_accepted !== undefined ? String(dbRev.dirops_accepted) : '';
+	this.reviews.dirops.accepted = dbRev.dirops_accepted !== null && dbRev.dirops_accepted !== undefined ? String(dbRev.dirops_accepted) : null;
 
 	this.reviews.ktt.comment = dbRev.ktt_comment || '';
 	this.reviews.ktt.user_id = dbRev.ktt_user_id || '';
-	this.reviews.ktt.accepted = dbRev.ktt_accepted !== null && dbRev.ktt_accepted !== undefined ? String(dbRev.ktt_accepted) : '';
+	this.reviews.ktt.accepted = dbRev.ktt_accepted !== null && dbRev.ktt_accepted !== undefined ? String(dbRev.ktt_accepted) : null;
 	}
 	}, // CLOSED INIT
 
@@ -810,31 +885,19 @@
 	}
 	return true;
 	},
-	isReviewVisible(key) {
-	// 1. Logika untuk Dirops & KTT (Hanya level 3, 4, 5)
-	const level = parseInt(this.getConsequenceLevel());
-	if ((key === 'dirops' || key === 'ktt') && level < 3) {
-	return false;
-	}
 
-	// 2. Logika untuk PM (Hanya jika ada contractor_id)
-	// Pastikan this.contractor_id memiliki nilai (tidak null/undefined/0)
-	if (key === 'pm' && (!this.contractor_id || this.contractor_id == 0)) {
-	return false;
-	}
-
-	return true;
-	},
 
 	validateReviews() {
 	for (let config of this.reviewerConfigs) {
-	// SKIP validasi jika section disembunyikan
+	// 1. Cek apakah blok disembunyikan
 	const isVisible = this.isReviewVisible(config.key);
-	console.log(`Key: ${config.key}, IsVisible: ${isVisible}, Level: ${this.getConsequenceLevel()}, ContractorID: ${this.contractor_id}`);
-	// --------------------------------------
 
-	// SKIP validasi jika section disembunyikan
-	if (!isVisible) continue;
+	// 2. CEK APAKAH BLOK INI WAJIB DIISI SAAT INI (Panggilan ke fungsi pintar kita)
+	const isRequired = this.isReviewRequired(config.key);
+
+	// Jika blok tidak terlihat ATAU tidak wajib diisi (misal ini blok Dept tapi baru giliran PM)
+	// Maka LEWATI validasi untuk blok ini!
+	if (!isVisible || !isRequired) continue;
 
 	let r = this.reviews[config.key];
 
@@ -1010,6 +1073,7 @@
 	setTimeout(() => {
 	const container = this.$refs['tab' + tabId];
 	if (!container) return;
+
 
 	// 1. Cari semua input/textarea/select yang 'required'
 	const allInputs = container.querySelectorAll('input[required]:not([type=\'hidden\']), select[required], textarea[required]');
@@ -1425,8 +1489,19 @@
 						{{ template "ckeditor" dict "ID" "TaskPerformed" "Label" (index .Tr "TaskPerformed") "Name" "tugas_dijalankan" "Model" "TaskPerformed" "Value" .Incident.TugasDijalankan "Required" true "Attr" "" }}
 						{{ template "ckeditor" dict "ID" "IncidentDescription" "Label" (index .Tr "IncidentDescription") "Placeholder" (index .Tr "IncidentDescriptionPlaceholder") "Name" "deskripsi" "Model" "IncidentDescription" "Value" .Incident.Deskripsi "Required" true }}
 
-						{{ template "input-file" (dict "Label" (index .Tr "UploadDocument") "DragDropUpload" (index .Tr "DragDropUpload") "Name" "dokumentasi_desc" "Id" "dokumentasi_desc" "Required" true "ExistingFiles" .Docs "Attr" "") }}
-
+						{{ template "input-file" (dict
+							"Id" "dokumentasi_desc"
+							"Name" "dokumentasi_desc"
+							"Label" (index .Tr "UploadDocument")
+							"Required" true
+							"Accept" "image/*, application/pdf"
+							"DragDropUpload" (index .Tr "DragDropUpload")
+							"SubDragDropUpload" (index .Tr "SubDragDropUpload")
+							"ExistingFiles" .Docs
+							"DisabledBinding" "false"
+							"Attr" ""
+							)
+						}}
 						{{ template "ckeditor" dict "ID" "ImmediateAction" "Label" (index .Tr "ImmediateAction") "Placeholder" (index .Tr "WorkStatus") "Name" "tindakan_langsung" "Model" "ImmediateAction" "Value" .Incident.TindakanLangsung "Required" true }}
 						{{ template "ckeditor" dict "ID" "DamageDetail" "Label" (index .Tr "DamageDetail") "Placeholder" (index .Tr "UnplannedOutcome") "Name" "detil_kerusakan_kerugian" "Model" "DamageDetail" "Value" .Incident.DetilKerusakanKerugian "Required" true }}
 
@@ -1923,53 +1998,59 @@
 
 								<div class="space-y-3 ">
 									<template x-for="(why, wIndex) in item.whys" :key="wIndex">
-										<div class="relative pl-4 overflow-y-scroll">
-											<div class="flex gap-2 items-start">
-												<span class="mt-2 font-bold text-primary">
-													{{ index .Tr "Why" }} <span x-text="wIndex + 1"></span> ? :
-												</span>
-												<div class="flex-grow">
-													{{ template "textarea" (dict
-														"Label" ""
-														"Name" "why"
-														"Placeholder" "Mengapa hal ini terjadi?..."
-														"Required" true
-														"Attr" " x-model='why.text'"
-														)
-													}}
-												</div>
-												<div class="tooltip " data-tip="tambah sub why">
-													<button type="button" @click="addChildWhy(tIndex, wIndex)" class="btn btn-xs btn-square btn-soft btn-info ">
-														{{ lucide "plus" (dict "class" "size-4") }}
-													</button>
-												</div>
-												<div class="tooltip " data-tip="hapus why">
-													<button type="button" @click="removeWhy(tIndex, wIndex)" class="btn btn-xs btn-square btn-soft btn-error ">
-														{{ lucide "circle-x" (dict "class" "size-4") }}
-													</button>
-												</div>
-											</div>
+										<div class="card bg-base-100 border border-base-200 shadow-sm mb-4">
+											<div class="card-body p-4 gap-4">
 
-											<div class="mt-2 ml-8 border-l-2 border-slate-300 pl-4 space-y-2">
-												<template x-for="(child, cIndex) in why.children" :key="cIndex">
-													<div class="flex gap-2 items-start">
-														<span class="mt-2 text-xs text-slate-400">Sub:</span>
-														<div class="flex-grow">
-															{{ template "textarea" (dict
-																"Label" ""
-																"Name" "child_why"
-																"Placeholder" "Sub-alasan..."
-																"Required" true
-																"Attr" " x-model='child.text'"
-																)
-															}}
-														</div>
+												<div class="flex gap-4 items-start">
+													<div class="flex-none pt-2">
+														<span class="badge badge-primary font-bold text-white px-3 py-3">
+															{{ index .Tr "Why" }} <span x-text="wIndex + 1"></span>
+														</span>
+													</div>
 
-														<div class="tooltip " data-tip="hapus Sub Why">
-															<button type="button" @click="removeChildWhy(tIndex, wIndex, cIndex)"  class="btn btn-xs btn-square btn-soft btn-error ">
-																{{ lucide "circle-x" (dict "class" "size-4") }}
-															</button>
-														</div>
+													<div class="flex-grow">
+														{{ template "textarea" (dict
+															"Label" ""
+															"Name" "why"
+															"Placeholder" "Mengapa hal ini terjadi?..."
+															"Required" true
+															"Attr" " x-model='why.text' class='w-full'"
+															)
+														}}
+													</div>
+
+													<div class="flex flex-col gap-1">
+														<button type="button" @click="addChildWhy(tIndex, wIndex)" class="btn btn-xs btn-outline btn-info tooltip" data-tip="Tambah Sub-Why">
+															{{ lucide "plus" (dict "class" "size-4") }}
+														</button>
+														<button type="button" @click="removeWhy(tIndex, wIndex)" class="btn btn-xs btn-outline btn-error tooltip" data-tip="Hapus Why">
+															{{ lucide "trash-2" (dict "class" "size-4") }}
+														</button>
+													</div>
+												</div>
+
+												<template x-if="why.children && why.children.length > 0">
+													<div class="pl-16 space-y-3">
+														<div class="divider text-xs text-slate-400 opacity-50 uppercase tracking-widest">Detail Pendukung</div>
+
+														<template x-for="(child, cIndex) in why.children" :key="cIndex">
+															<div class="flex gap-3 items-start p-3 bg-base-200/50 rounded-lg border border-base-200">
+																<span class="mt-2 text-xs font-mono text-slate-500">└─</span>
+																<div class="flex-grow">
+																	{{ template "textarea" (dict
+																		"Label" ""
+																		"Name" "child_why"
+																		"Placeholder" "Tambahkan detail/sub-alasan..."
+																		"Required" true
+																		"Attr" " x-model='child.text' class='w-full text-sm'"
+																		)
+																	}}
+																</div>
+																<button type="button" @click="removeChildWhy(tIndex, wIndex, cIndex)" class="btn btn-ghost btn-xs text-error">
+																	{{ lucide "circle-x" (dict "class" "size-4") }}
+																</button>
+															</div>
+														</template>
 													</div>
 												</template>
 											</div>
@@ -2219,57 +2300,85 @@
 			<div>
 				<template x-if="activeTab === 9">
 					<template x-for="(reviewer, index) in reviewerConfigs" :key="reviewer.key">
-						<div class="border border-base-300 rounded-lg overflow-hidden bg-base-100 shadow-sm" x-show="isReviewVisible(reviewer.key)">
+						<div class="border border-base-300 rounded-lg overflow-hidden bg-base-100 shadow-sm relative" 
+							x-show="isReviewVisible(reviewer.key)">
 
-							<div class="bg-base-200/60 px-4 py-2 border-b border-base-300">
-								<span class="font-bold text-sm text-base-content/80" x-text="reviewer.title"></span>
+							<div x-show="!isReviewUnblocked(index)" 
+								class="absolute inset-0 z-10 bg-base-100/40 backdrop-blur-[1px] flex items-center justify-center transition-all duration-300"
+								x-cloak>
+								<div class="bg-base-100 px-4 py-2 rounded-full shadow-md border border-base-300 text-xs font-semibold text-base-content/70 flex items-center gap-2">
+									<span>🔒</span> Menunggu giliran...
+								</div>
 							</div>
 
-							<div class="p-4 flex flex-col gap-4">
-								{{ template "ckeditor-loop" (dict
-									"Label" "Komentar"
-									"Name" "reviewer.key + '_comment'"
-									"ID" "`reviews_${index}`"
-									"AlpineVar" "reviews[reviewer.key].comment"
-									"RequiredBinding" "isReviewVisible(reviewer.key)"
-									)
-								}}
+							<div :class="!isReviewUnblocked(index) ? 'opacity-40 pointer-events-none select-none' : ''" class="transition-opacity duration-300">
 
-								<div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+								<div class="bg-base-200/60 px-4 py-2 border-b border-base-300 flex justify-between items-center">
+									<span class="font-bold text-sm text-base-content/80">
+										<span x-text="reviewer.title"></span>
+										<span class="text-error" x-text="isReviewRequired(reviewer.key) ? ' *' : ''"></span>
+									</span>
 
-									{{ template "select-user-search_model" (dict
-										"Label" "Nama Peninjau"
-										"Name" "reviewer.key + '_user_id'"
-										"Options" .Users
-										"Model" "reviews[reviewer.key].user_id"
-										"DefaultText" (index .Tr "InputPeninjauan")
-										"Required" true
-										)
-									}}
-
-
-									<div class="form-control w-full">
-										<label class="label pb-1 pt-0">
-											<span class="text-xs font-bold text-base-content opacity-60">Tanda Tangan:</span>
-										</label>
-										<div class="h-8 flex items-end pb-1 border-b-2 border-dashed border-base-300">
-											<span x-show="reviews[reviewer.key].accepted !== null" class="text-success text-xs font-bold" x-cloak>
-												✓ Ditandatangani Digital
-											</span>
-											<span x-show="reviews[reviewer.key].accepted === null" class="text-base-content/40 text-xs italic">
-												Menunggu Persetujuan...
-											</span>
-										</div>
+									<div>
+										<span x-show="isReviewComplete(reviewer.key)" class="badge badge-success badge-xs text-[10px] text-white">Selesai</span>
+										<span x-show="isReviewUnblocked(index) && !isReviewComplete(reviewer.key)" class="badge badge-info badge-xs text-[10px] text-white">Wajib Diisi</span>
 									</div>
+								</div>
 
-									{{ template "radio_group" (dict
-										"Label" "Penerimaan"
-										"Name" "reviewer.key + '_accepted'"
-										"Model" "reviews[reviewer.key].accepted"
-										"Required" true
+								<div class="p-4 flex flex-col gap-4">
+									{{ template "ckeditor-loop" (dict
+										"Label" "Komentar"
+										"Name" "reviewer.key + '_comment'"
+										"ID" "`reviews_${index}`"
+										"AlpineVar" "reviews[reviewer.key].comment"
+										"RequiredBinding" "isReviewRequired(reviewer.key)"
 										)
 									}}
 
+									<div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+										{{ template "select-user-search_model" (dict
+											"Label" "Nama Peninjau"
+											"Name" "reviewer.key + '_user_id'"
+											"Options" .Users
+											"Model" "reviews[reviewer.key].user_id"
+											"DefaultText" (index .Tr "InputPeninjauan")
+											"RequiredBinding" "isReviewRequired(reviewer.key)"
+											)
+										}}
+										<fieldset class="fieldset w-full">
+
+											<label class="label ">
+
+												<span class="text-xs font-bold text-base-content opacity-60">Tanda Tangan:</span>
+
+											</label>
+
+											<div class=" flex items-end  border-b-2 border-dashed border-base-300">
+
+												<span x-show="reviews[reviewer.key].accepted !== null" class="text-success text-xs font-bold" x-cloak>
+
+													✓ Ditandatangani Digital
+
+												</span>
+
+												<span x-show="reviews[reviewer.key].accepted === null" class="text-base-content/40 text-xs italic">
+
+													Menunggu Persetujuan...
+
+												</span>
+
+											</div>
+
+										</fieldset>
+
+										{{ template "radio_group" (dict
+											"Label" "Penerimaan"
+											"Name" "reviewer.key + '_accepted'"
+											"Model" "reviews[reviewer.key].accepted"
+											"RequiredBinding" "isReviewRequired(reviewer.key)"
+											)
+										}}
+									</div>
 								</div>
 							</div>
 						</div>
@@ -2278,7 +2387,6 @@
 			</div>
 		</div>
 	</div>
-
 </div>
 
 {{ end }}

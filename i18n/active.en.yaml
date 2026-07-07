@@ -44,7 +44,8 @@ SelectReportType: "-- Select Report Type --"
 SelectReporterName: "-- Select or Type Name --"
 
 # Status & Upload
-DragDropUpload: "Drag & drop file here or click to upload"
+DragDropUpload: "Drag & drop file here"
+SubDragDropUpload: "or click to upload"
 CurrentAreaStatus: "Current Area Status"
 FullySecured: "Fully Secured"
 ResolvedOnSite: "Issue resolved on-site"
