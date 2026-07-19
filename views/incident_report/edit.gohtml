@@ -1424,15 +1424,17 @@
 		</div>
 
 		<!-- Badge Status Dinamis -->
-		<div class="kbd kbd-lg">
-			<div class="badge font-bold uppercase text-xs px-3 py-2 text-white"
+		<div class="flex items-center gap-2">
+			<span class="font-semibold">Status :</span>
+			<div class="badge font-bold uppercase text-xs py-2 text-white transition-all duration-500 ease-out transform hover:scale-105"
 				:class="{
 				'badge-info': calculateStatus() === 'submit',
 				'badge-warning': calculateStatus() === 'in progress',
 				'badge-error': calculateStatus() === 'pending',
 				'badge-success': calculateStatus() === 'closed'
 				}">
-				<span x-text="calculateStatus()"></span>
+				<!-- Tambahkan key agar Alpine mendeteksi perubahan dan menjalankan animasi -->
+				<span x-text="calculateStatus()" :key="calculateStatus()" class="animate-in fade-in zoom-in duration-300"></span>
 			</div>
 		</div>
 	</div>
