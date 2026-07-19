@@ -553,7 +553,7 @@ func (s *incidentService) UpdateIncident(id uint, userID uint,
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// 1. Ambil data lama
 		var oldIncident models.IncidentReport
-		if err := tx.First(&oldIncident, id).Error; err != nil {
+		if err := tx.Preload("EventCategory").First(&oldIncident, id).Error; err != nil {
 			return err
 		}
 
@@ -561,6 +561,47 @@ func (s *incidentService) UpdateIncident(id uint, userID uint,
 		if err := tx.Model(&models.IncidentReport{}).Where("id = ?", id).Updates(updatedIncident).Error; err != nil {
 			return err
 		}
+		// =================================================================
+		// 2. CHECK PERMISSION & POLICY GUARD (IDOR PROTECTION)
+		// =================================================================
+		var currentUser models.User
+		// Gunakan variabel `userID` yang dikirim ke parameter UpdateIncident
+		if err := tx.Preload("ModeratedCategories").First(&currentUser, userID).Error; err != nil {
+			return fmt.Errorf("gagal memverifikasi data user: %w", err)
+		}
+
+		canAccess := false
+
+		// A. Cek jika user adalah PIC dari data LAMA (oldIncident)
+		if oldIncident.PicID != nil && currentUser.ID == *oldIncident.PicID {
+			canAccess = true
+		}
+
+		// B. Cek jika user adalah Pelapor dari data LAMA
+		if oldIncident.ReportByID != nil && currentUser.ID == *oldIncident.ReportByID {
+			canAccess = true
+		}
+
+		// C. Cek jika user adalah Moderator dari kategori data LAMA
+		for _, cat := range currentUser.ModeratedCategories {
+			if oldIncident.EventCategory.ParentID != nil && cat.ID == *oldIncident.EventCategory.ParentID {
+				canAccess = true
+				break
+			}
+			if cat.ID == oldIncident.EventCategoryID {
+				canAccess = true
+				break
+			}
+		}
+
+		// Jika kamu punya role Admin, kamu bisa menambahkannya di sini:
+		// if currentUser.Role == "Admin" { canAccess = true }
+
+		// TENDANG JIKA TIDAK PUNYA AKSES!
+		if !canAccess {
+			return fmt.Errorf("unauthorized: Anda tidak memiliki akses untuk mengedit laporan ini")
+		}
+		// =================================================================
 
 		// =================================================================
 		// 3. Update/Re-sync Involved Parties
@@ -883,7 +924,19 @@ func (s *incidentService) uploadFiles(r *http.Request, fieldName string) ([]mode
 			defer file.Close()
 
 			// Buat nama file unik (Timestamp Nanosecond + Index + Ekstensi)
-			ext := filepath.Ext(header.Filename)
+			// Di dalam loop uploadFiles (incident_service.go)
+			ext := strings.ToLower(filepath.Ext(header.Filename))
+
+			// 1. Buat daftar whitelist ekstensi yang diizinkan
+			allowedExts := map[string]bool{
+				".pdf": true, ".jpg": true, ".jpeg": true, ".png": true, ".doc": true, ".docx": true,
+			}
+
+			if !allowedExts[ext] {
+				return fmt.Errorf("ekstensi file %s tidak diizinkan", ext)
+			}
+
+			// Lanjut ke pembuatan safeName...
 			safeName := fmt.Sprintf("%d_%d%s", time.Now().UnixNano(), i, ext)
 			path := filepath.Join(folder, safeName)
 

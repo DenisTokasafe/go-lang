@@ -36,28 +36,27 @@
 		<label class="cursor-pointer flex items-center gap-2">
 			<input 
 				type="radio" 
-				:name="'{{ .Name }}'" 
-				value="true" 
+				:name="{{ .Name }}"
+				:value="true" 
 				x-model="{{ .Model }}" 
 				class="radio radio-sm checked:bg-info"
 				:class="isInvalid ? 'radio-error' : ''"
 				{{ if .DisabledBinding }}:disabled="{{ .DisabledBinding }}"{{ end }}
-
 				:required="isRequiredField"
-			/> 
+			/>
 			<span class="text-sm font-medium">Ya</span>
 		</label>
 
 		<label class="cursor-pointer flex items-center gap-2">
 			<input 
 				type="radio" 
-				:name="'{{ .Name }}'" 
-				value="false" 
+				:name="{{ .Name }}"
+				:value="false" 
 				x-model="{{ .Model }}" 
 				class="radio radio-sm checked:bg-error" 
 				:class="isInvalid ? 'radio-error' : ''"
 				{{ if .DisabledBinding }}:disabled="{{ .DisabledBinding }}"{{ end }}
-			/> 
+			/>
 			<span class="text-sm font-medium">Tidak</span>
 		</label>
 	</div>

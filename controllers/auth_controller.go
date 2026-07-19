@@ -1,11 +1,13 @@
 package controllers
 
 import (
+	"fmt"
 	"latihan1/models"
 	"latihan1/utils" // Pastikan fungsi HashPassword & CheckPasswordHash ada di sini
 	"net/http"
 	"time"
 
+	"github.com/gorilla/csrf"
 	"gorm.io/gorm"
 )
 
@@ -16,7 +18,12 @@ type AuthController struct {
 
 // ShowLogin menampilkan halaman login
 func (ac *AuthController) ShowLogin(w http.ResponseWriter, r *http.Request) {
-	ac.Render(w, r, "auth/login.html", nil)
+	fmt.Println("ISI TOKEN:", csrf.TemplateField(r))
+	data := map[string]interface{}{
+		// WAJIB DITAMBAHKAN: Kirim field CSRF ke template login
+		"csrfField": csrf.TemplateField(r),
+	}
+	ac.Render(w, r, "auth/login.html", data)
 }
 
 // Login memproses autentikasi user
@@ -67,7 +74,10 @@ func (ac *AuthController) Login(w http.ResponseWriter, r *http.Request) {
 
 // ShowRegister menampilkan halaman registrasi
 func (ac *AuthController) ShowRegister(w http.ResponseWriter, r *http.Request) {
-	ac.Render(w, r, "auth/register.html", nil)
+	data := map[string]interface{}{
+		"csrfField": csrf.TemplateField(r),
+	}
+	ac.Render(w, r, "auth/register.html", data)
 }
 
 // Register memproses pendaftaran user baru

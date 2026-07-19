@@ -385,9 +385,21 @@
 	// 1. Fungsi untuk mengecek apakah satu blok reviewer sudah diisi lengkap
 	isReviewComplete(key) {
 	const review = this.reviews[key];
-	// Jika user_id ada dan status accepted sudah dipilih (bukan null), 
-	// artinya data sudah tersimpan di database.
-	return (review.user_id !== '' && review.user_id !== null) && (review.accepted !== null);
+
+	// 1. Pastikan object review ada
+	if (!review) return false;
+
+	// 2. Cek apakah komentar sudah diisi (bukan string kosong / hanya spasi)
+	const isCommentValid = Boolean(review.comment && review.comment.trim() !== '');
+
+	// 3. Cek apakah peninjau (user_id) sudah dipilih
+	const isUserValid = review.user_id !== null && review.user_id !== '' && review.user_id !== 0;
+
+	// 4. Cek apakah status penerimaan sudah dipilih (harus boolean murni true atau false, bukan null)
+	const isAcceptedValid = review.accepted !== null && review.accepted !== '';
+
+	// Kembalikan true HANYA JIKA ketiganya sudah valid
+	return isCommentValid && isUserValid && isAcceptedValid;
 	},
 	isDataInDatabase(key) {
 	// Pastikan review ada, dan memiliki user_id (atau field lain yang menandakan data sudah masuk)
@@ -470,8 +482,7 @@
 	this.TaskPerformed = this.incident.tugas_dijalankan || '';
 	this.ImmediateAction = this.incident.tindakan_langsung || '';
 	this.DamageDetail = this.incident.detil_kerusakan_kerugian || '';
-	this.KeyLearning = this.incident.key_learining || '';
-
+	this.KeyLearning = this.incident.key_learning || '';
 	// Watch matrix dependency & work type
 	this.$watch('consequence_id', () => this.findMatrix());
 	this.$watch('likelihood_id', () => this.findMatrix());
@@ -676,6 +687,8 @@
 	this.reviews.ktt.user_id = dbRev.ktt_user_id || '';
 	this.reviews.ktt.accepted = dbRev.ktt_accepted !== null && dbRev.ktt_accepted !== undefined ? String(dbRev.ktt_accepted) : null;
 	}
+	console.log('Isi asli KeyLearning:', this.incident.key_learining, '| Tipe:', typeof this.KeyLearning);
+	console.log('Apakah ada key_learning (huruf kecil)?:', this.key_learning);
 	}, // CLOSED INIT
 
 	// =========================
@@ -742,6 +755,88 @@
 	) || {}
 	},
 
+	calculateStatus() {
+	// 1. Cek kelengkapan Tab 1 & Tab 2 (Laporan Awal)
+	const isTab1Filled = Boolean(
+	this.event_category_id && 
+	this.location_id && 
+	this.IncidentDescription && 
+	this.IncidentDescription.trim() !== ''
+	);
+
+	const isTab2Filled = this.involved_parties.length > 0 && 
+	this.involved_parties.every(p => p.user_id !== null && p.jabatan && p.jabatan.trim() !== '');
+
+	// Jika Tab 1 dan 2 belum lengkap, default status tetap 'submit'
+	if (!isTab1Filled || !isTab2Filled) {
+	return 'submit';
+	}
+
+	// 2. Cek kelengkapan Tab 3 sampai Tab 8 (Tahap Investigasi & Perbaikan)
+	const isTab3Filled = this.investigators.length > 0 && 
+	this.investigators.every(i => i.employee_id !== null && i.jabatan && i.jabatan.trim() !== '');
+
+	const isTab4Filled = this.peepo_factors.length > 0 && 
+	this.peepo_factors.some(f => f.findings && f.findings.trim() !== '');
+
+	const isTab5Filled = this.timelines.length > 0 && 
+	this.timelines[0].event && this.timelines[0].event.trim() !== '' && 
+	this.validateWhys(this.timelines[0].whys);
+
+	// Cek Tab 6: Apakah minimal ada 1 penyebab (Immediate/Basic cause) yang dipilih
+	const allCauses = [
+	...this.causes.unsafe_condition,
+	...this.causes.unsafe_act,
+	...this.causes.personal_factor,
+	...this.causes.job_factor,
+	...this.causes.control_system
+	];
+	const isTab6Filled = allCauses.some(c => c.scat_option_id !== '' && c.scat_option_id !== null);
+
+	const isTab7Filled = this.corrective_actions.length > 0 && 
+	this.corrective_actions.every(c => c.action && c.action.trim() !== '' && c.user_id !== null && c.due_date && c.due_date.trim() !== '');
+
+	const isTab8Filled = Boolean(this.KeyLearning && this.KeyLearning.trim() !== '');
+
+	// Evaluasi keseluruhan tahap investigasi (Tab 3-8)
+	const isInvestigationComplete = isTab3Filled && isTab4Filled && isTab5Filled && isTab6Filled && isTab7Filled && isTab8Filled;
+	const isInvestigationStarted = isTab3Filled || isTab4Filled || isTab5Filled || isTab6Filled || isTab7Filled || isTab8Filled;
+
+	// 3. Cek kelengkapan Tab 9 (Review & Persetujuan)
+	let isTab9Complete = true;
+	for (let config of this.reviewerConfigs) {
+	// Hanya cek reviewer yang aktif/visible
+	if (this.isReviewVisible(config.key)) {
+	// Jika belum lengkap, langsung gagalkan dan hentikan loop
+	if (!this.isReviewComplete(config.key)) {
+	isTab9Complete = false;
+	break;
+	}
+	}
+	}
+
+	// ==========================================
+	// PENENTUAN STATUS AKHIR (HIERARKIS)
+	// ==========================================
+	// Kondisi 1: Tab 1 - 9 selesai semua & disetujui
+	if (isInvestigationComplete && isTab9Complete) {
+	return 'closed';
+	}
+
+	// Kondisi 2: Tab 3 - 8 sudah lengkap, tapi Tab 9 (Review) belum selesai
+	if (isInvestigationComplete && !isTab9Complete) {
+	return 'pending';
+	}
+
+	// Kondisi 3: Tab 3 - 8 baru diisi sebagian / sedang berjalan
+	if (isInvestigationStarted) {
+	return 'in progress';
+	}
+
+	// Kondisi 4: Baru Tab 1 - 2 yang terisi
+	return 'submit';
+	},
+
 
 
 	// =========================
@@ -786,7 +881,7 @@
 	tindakan_langsung: this.ImmediateAction,
 	key_learning: this.KeyLearning,
 	detil_kerusakan_kerugian: this.DamageDetail,
-	status: 'submit',
+	status: this.calculateStatus(),
 	department_id: this.work_type === 'department' ? (parseInt(this.department_id) || null) : null,
 	contractor_id: this.work_type === 'contractor' ? (parseInt(this.contractor_id) || null) : null,
 	pic_id: parseInt(this.pic_id) || null,
@@ -955,7 +1050,7 @@
 	party.user_id = null;
 	if (window.showToast) window.showToast(`Karyawan Terlibat pada baris ke-${i + 1} wajib diisi!`, 'error');
 	return false;
-	}
+	}				
 	if (!party.jabatan.trim()) {
 	if (window.showToast) window.showToast('Lengkapi Jabatan pada baris ke-' + (i + 1) + '!', 'error');
 	return false;
@@ -1023,7 +1118,7 @@
 	}
 	}
 	}
-	if (step === 7) {
+	if (Number(step) === 7) {
 	// 1. Validasi minimal harus ada 1 baris tindakan perbaikan
 	if (!this.corrective_actions || this.corrective_actions.length === 0) {
 	if (window.showToast) window.showToast('Bagian 7 wajib diisi minimal 1 tindakan perbaikan!', 'error');
@@ -1034,27 +1129,35 @@
 	for (let i = 0; i < this.corrective_actions.length; i++) {
 	let item = this.corrective_actions[i];
 
-	// Validasi deskripsi tindakan (Sesuaikan nama variabelnya jika berbeda)
+	// Validasi deskripsi tindakan
 	if (!item.action || item.action.trim() === '') {
 	if (window.showToast) window.showToast(`Rencana tindakan pada baris ke-${i + 1} tidak boleh kosong!`, 'error');
 	return false;
 	}
+
+	// Validasi hirarki pengendalian
 	if (!item.control_hierarchy || item.control_hierarchy.trim() === '') {
-	if (window.showToast) window.showToast(`Rencana tindakan pada baris ke-${i + 1} tidak boleh kosong!`, 'error');
+	if (window.showToast) window.showToast(`Hirarki pengendalian pada baris ke-${i + 1} tidak boleh kosong!`, 'error');
 	return false;
 	}
 
-	// Validasi PIC / Penanggung Jawab (Sesuaikan jika nama variabelnya berbeda)
-	if (!item.user_id ) {
+	// Validasi PIC / Penanggung Jawab
+	if (!item.user_id) {
 	item.user_id = null;
 	if (window.showToast) window.showToast(`Penanggung jawab (PIC) pada baris ke-${i + 1} wajib diisi!`, 'error');
 	return false;
 	}
 
-	// Validasi Due Date (Field yang baru kita perbaiki sebelumnya)
-	if (!item.due_date || item.due_date.trim() === '') {
-	if (window.showToast) window.showToast(`Tenggat waktu (Due Date) pada baris ke-${i + 1} wajib dipilih!`, 'error');
-	return false;
+	// Validasi Due Date (Nullable / Opsional)
+	// Jika diisi, pastikan formatnya benar. Jika tidak, set ke null dan lanjut.
+	if (item.due_date && String(item.due_date).trim() !== '') {
+	const dueDateVal = String(item.due_date).trim().toLowerCase();
+	if (dueDateVal === 'null' || dueDateVal === '0000-00-00') {
+	item.due_date = null;
+	}
+	} else {
+	// Jika kosong, pastikan menjadi null agar aman saat dikirim ke database
+	item.due_date = null;
 	}
 	}
 	}
@@ -1141,9 +1244,12 @@
 
 	try {
 	const incidentID = this.incident.ID || this.incident.id;
+
 	const response = await fetch('/incident/update/' + incidentID, {
 	method: 'POST',
-	headers: { 'Accept': 'application/json' },
+	headers: { 
+	'Accept': 'application/json' 
+	},
 	body: formData
 	});
 
@@ -1153,7 +1259,6 @@
 	}
 	return true;
 	} catch (error) {
-
 	if (window.showToast) window.showToast('Gagal menyimpan progress: ' + error.message, 'error');
 	return false;
 	}
@@ -1312,9 +1417,24 @@
 	}
 	}
 	}" id="incident-form">
-	<div class="mb-2 font-semibold">
-		<h3 class="text-sm font-bold  text-base-content uppercase tracking-wider">{{ index .Tr "RingkasanInsiden" }}</h3>
-		<p class="text-xs text-slate-500">{{ index .Tr "subJudulIncident" }}</p>
+	<div class="flex items-center justify-between mb-2 font-semibold">
+		<div>
+			<h3 class="text-sm font-bold text-base-content uppercase tracking-wider">{{ index .Tr "RingkasanInsiden" }}</h3>
+			<p class="text-xs text-slate-500">{{ index .Tr "subJudulIncident" }}</p>
+		</div>
+
+		<!-- Badge Status Dinamis -->
+		<div class="kbd kbd-lg">
+			<div class="badge font-bold uppercase text-xs px-3 py-2 text-white"
+				:class="{
+				'badge-info': calculateStatus() === 'submit',
+				'badge-warning': calculateStatus() === 'in progress',
+				'badge-error': calculateStatus() === 'pending',
+				'badge-success': calculateStatus() === 'closed'
+				}">
+				<span x-text="calculateStatus()"></span>
+			</div>
+		</div>
 	</div>
 
 	<form x-ref="form" action="/incident/update/{{ .Incident.ID }}" method="POST" enctype="multipart/form-data" @submit.prevent="handleSubmit" novalidate>
@@ -2254,8 +2374,8 @@
 											"Value" ""
 											"Static" "false"
 											"Type" "date"
-											"Placeholder" (index .Tr "InputDateObservation")
-											"Required" true
+											"Placeholder" (index .Tr "DueDate")
+											"Required" false
 											"RequiredBinding" ""
 											"Attr" "x-model='item.due_date' :id=\"'due_date_' + index\" :name=\"'corrective_actions['+index+'][due_date]'\""
 											)

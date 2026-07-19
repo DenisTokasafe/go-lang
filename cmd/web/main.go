@@ -7,9 +7,11 @@ import (
 	"latihan1/cmd/web/routes"
 	"log"
 	"net/http"
+	"os"
 
-	// 1. IMPORT PACKAGE FASTCGI INI
 	"github.com/joho/godotenv"
+	// 1. IMPORT PACKAGE GORILLA CSRF DI SINI
+	"github.com/gorilla/csrf"
 )
 
 func main() {
@@ -33,13 +35,53 @@ func main() {
 	controllers := bootstrap.InitControllers(db)
 
 	// Register Routes
-	// Karena routes Anda terdaftar ke default mux, fcgi akan otomatis membacanya
+	// Semua route Anda terdaftar di dalam DefaultServeMux bawaan Go
 	routes.RegisterRoutes(db, controllers)
+
+	// =========================================================================
+	// 2. KONFIGURASI MIDDLEWARE GORILLA CSRF
+	// =========================================================================
+
+	// Ambil CSRF Key dari .env untuk keamanan produksi, atau gunakan fallback default (wajib 32 byte)
+	csrfSecret := os.Getenv("CSRF_SECRET_KEY")
+	if len(csrfSecret) != 32 {
+		log.Println("Peringatan: CSRF_SECRET_KEY di .env tidak ada atau panjangnya tidak 32 byte. Menggunakan kunci fallback otomatis.")
+		csrfSecret = "a-very-secret-key-32-characters" // Tepat 32 karakter
+	}
+
+	// Ambil status environment (apakah production / development)
+	// Ambil status environment (apakah production / development)
+	isProd := os.Getenv("APP_ENV") == "production"
+
+	csrfMiddleware := csrf.Protect(
+		[]byte(csrfSecret),
+		csrf.Secure(isProd),                 // Jika true (di prod), cookie CSRF hanya dikirim lewat HTTPS.
+		csrf.HttpOnly(true),                 // Mencegah cookie dibaca oleh JavaScript jahat
+		csrf.SameSite(csrf.SameSiteLaxMode), // Standar keamanan browser modern
+		csrf.Path("/"),
+		csrf.ErrorHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte("403 Forbidden - Proteksi Keamanan CSRF: Sesi Anda tidak valid atau telah kedaluwarsa."))
+		})),
+	)
 
 	log.Println("Aplikasi SENTRY berjalan lokal di http://localhost:8080")
 
-	// Menjalankan server lokal di port 8080
-	err := http.ListenAndServe(":8080", nil)
+	// =========================================================================
+	// 3. JALANKAN SERVER DENGAN MIDDLEWARE
+	// =========================================================================
+	// Default handler menggunakan Mux standar tanpa proteksi CSRF
+	var handler http.Handler = http.DefaultServeMux
+
+	// Jika environment production, bungkus handler dengan middleware CSRF
+	if isProd {
+		handler = csrfMiddleware(http.DefaultServeMux)
+		log.Println("🔒 Proteksi CSRF: AKTIF (Production Mode)")
+	} else {
+		log.Println("⚠️ Proteksi CSRF: NONAKTIF (Development Mode)")
+	}
+
+	err := http.ListenAndServe(":8080", handler)
 	if err != nil {
 		log.Fatalf("Gagal menjalankan server lokal: %v\n", err)
 	}

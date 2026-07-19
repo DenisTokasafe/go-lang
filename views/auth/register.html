@@ -1,81 +1,82 @@
 {{ define "content" }}
 <div
-  class=" flex items-center justify-center bg-base-200 "
-  x-data="{ 
-    loading: false, 
-    password: '', 
-    confirmPassword: '',
-    showPw: false,
-    get isMismatch() { return this.confirmPassword !== '' && this.password !== this.confirmPassword }
-  }"
+	class=" flex items-center justify-center bg-base-200 "
+	x-data="{ 
+	loading: false, 
+	password: '', 
+	confirmPassword: '',
+	showPw: false,
+	get isMismatch() { return this.confirmPassword !== '' && this.password !== this.confirmPassword }
+	}"
 >
-  <div
-    class="card w-full max-w-md bg-base-100 shadow-xl border border-base-300"
-  >
-    <div class="card-body gap-6">
-      <div class="text-center">
-        <h1 class="text-2xl font-bold text-primary italic tracking-tighter">
-          SENTRY <span class="text-base-content font-light">Interlock</span>
-        </h1>
-        <p class="text-xs opacity-50 uppercase tracking-widest mt-1">
-          Health, Safety & Environment System
-        </p>
-      </div>
+	<div
+		class="card w-full max-w-md bg-base-100 shadow-xl border border-base-300"
+	>
+		<div class="card-body gap-6">
+			<div class="text-center">
+				<h1 class="text-2xl font-bold text-primary italic tracking-tighter">
+					SENTRY <span class="text-base-content font-light">Interlock</span>
+				</h1>
+				<p class="text-xs opacity-50 uppercase tracking-widest mt-1">
+					Health, Safety & Environment System
+				</p>
+			</div>
 
-      <div class="text-center -mt-2">
-        <h2 class="text-lg font-semibold">Buat Akun Baru</h2>
-        <p class="text-xs opacity-60">Silakan lengkapi data di bawah ini</p>
-      </div>
+			<div class="text-center -mt-2">
+				<h2 class="text-lg font-semibold">Buat Akun Baru</h2>
+				<p class="text-xs opacity-60">Silakan lengkapi data di bawah ini</p>
+			</div>
 
-      <form action="/register/process" method="POST" @submit="loading = true">
-        <div class="flex flex-col gap-4">
-          {{ template "input-floating" (dict "Label" "Username" "Name" "username" "Placeholder" "Username" "Required" true "Attr" "autofocus") }}
+			<form action="/register/process" method="POST" @submit="loading = true">
+				{{ .csrfField }}
+				<div class="flex flex-col gap-4">
+					{{ template "input-floating" (dict "Label" "Username" "Name" "username" "Placeholder" "Username" "Required" true "Attr" "autofocus") }}
 
-          <div class="relative">
-            {{ template "input-floating" (dict "Label" "Password" "Name" "password" "Type" "password" "Placeholder" "••••••••" "Required" true "Attr" "x-model='password' :type=\"showPw ? 'text' : 'password'\"") }}
-            <button type="button"class="absolute inset-y-0 right-0 text-base-content/50 hover:text-primary transition-colors"@click="showPw = !showPw" >
-              <template x-if="!showPw" >{{ lucide "eye" (dict "class" "size-4") }}</template>
-              <template x-if="showPw">{{ lucide "eye-off" (dict "class" "size-4") }}</template>
-            </button>
-          </div>
+					<div class="relative">
+						{{ template "input-floating" (dict "Label" "Password" "Name" "password" "Type" "password" "Placeholder" "••••••••" "Required" true "Attr" "x-model='password' :type=\"showPw ? 'text' : 'password'\"") }}
+						<button type="button"class="absolute inset-y-0 right-0 text-base-content/50 hover:text-primary transition-colors"@click="showPw = !showPw" >
+							<template x-if="!showPw" >{{ lucide "eye" (dict "class" "size-4") }}</template>
+							<template x-if="showPw">{{ lucide "eye-off" (dict "class" "size-4") }}</template>
+						</button>
+					</div>
 
-          <div class="relative">
-            {{ template "input-floating" (dict "Label" "Konfirmasi Password" "Name" "confirm_password" "Type" "password" "Placeholder" "••••••••" "Required" true "Attr" "x-model='confirmPassword' :type=\"showPw ? 'text' : 'password'\"") }}
+					<div class="relative">
+						{{ template "input-floating" (dict "Label" "Konfirmasi Password" "Name" "confirm_password" "Type" "password" "Placeholder" "••••••••" "Required" true "Attr" "x-model='confirmPassword' :type=\"showPw ? 'text' : 'password'\"") }}
 
-            <div
-              x-show="isMismatch"
-              x-transition
-              class="absolute -bottom-5 left-0"
-            >
-              <span class="text-[10px] text-error font-medium italic"
-                >Password tidak cocok!</span
-              >
-            </div>
-          </div>
+						<div
+							x-show="isMismatch"
+							x-transition
+							class="absolute -bottom-5 left-0"
+						>
+							<span class="text-[10px] text-error font-medium italic"
+							>Password tidak cocok!</span
+							>
+						</div>
+					</div>
 
-          <button
-            type="submit"
-            class="btn btn-primary w-full mt-4"
-            :disabled="loading || isMismatch || password === ''"
-          >
-            <span x-show="!loading" class="flex items-center gap-2">
-              {{ lucide "user-plus" (dict "class" "size-4") }} Daftar Akun
-            </span>
-            <span
-              x-show="loading"
-              class="loading loading-spinner loading-xs"
-            ></span>
-          </button>
-        </div>
-      </form>
+					<button
+						type="submit"
+						class="btn btn-primary w-full mt-4"
+						:disabled="loading || isMismatch || password === ''"
+					>
+						<span x-show="!loading" class="flex items-center gap-2">
+							{{ lucide "user-plus" (dict "class" "size-4") }} Daftar Akun
+						</span>
+						<span
+							x-show="loading"
+							class="loading loading-spinner loading-xs"
+						></span>
+					</button>
+				</div>
+			</form>
 
-      <div class="divider text-[10px] opacity-30 uppercase">Atau</div>
+			<div class="divider text-[10px] opacity-30 uppercase">Atau</div>
 
-      <p class="text-center text-xs opacity-70">
-        Sudah memiliki akun?
-        <a href="/login" class="link link-primary font-bold">Masuk sekarang</a>
-      </p>
-    </div>
-  </div>
+			<p class="text-center text-xs opacity-70">
+				Sudah memiliki akun?
+				<a href="/login" class="link link-primary font-bold">Masuk sekarang</a>
+			</p>
+		</div>
+	</div>
 </div>
 {{ end }}
