@@ -1417,23 +1417,21 @@
 	}
 	}
 	}" id="incident-form">
-	<div class="flex items-center justify-between mb-2 font-semibold">
+	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-1 pb-3 border-b-2 border-base-300">
 		<div>
 			<h3 class="text-sm font-bold text-base-content uppercase tracking-wider">{{ index .Tr "RingkasanInsiden" }}</h3>
-			<p class="text-xs text-slate-500">{{ index .Tr "subJudulIncident" }}</p>
+			<p class="text-xs text-base-content/60 mt-0.5">{{ index .Tr "subJudulIncident" }}</p>
 		</div>
 
-		<!-- Badge Status Dinamis -->
 		<div class="flex items-center gap-2">
-			<span class="font-semibold">Status :</span>
-			<div class="badge font-bold uppercase text-xs py-2 text-white transition-all duration-500 ease-out transform hover:scale-105"
+			<span class="text-xs font-semibold text-base-content/50 uppercase tracking-wide">Status</span>
+			<div class="badge gap-1.5 font-bold uppercase text-[11px] px-3 py-3 text-white"
 				:class="{
 				'badge-info': calculateStatus() === 'submit',
 				'badge-warning': calculateStatus() === 'in progress',
 				'badge-error': calculateStatus() === 'pending',
 				'badge-success': calculateStatus() === 'closed'
 				}">
-				<!-- Tambahkan key agar Alpine mendeteksi perubahan dan menjalankan animasi -->
 				<span x-text="calculateStatus()" :key="calculateStatus()" class="animate-in fade-in zoom-in duration-300"></span>
 			</div>
 		</div>
@@ -1441,8 +1439,7 @@
 
 	<form x-ref="form" action="/incident/update/{{ .Incident.ID }}" method="POST" enctype="multipart/form-data" @submit.prevent="handleSubmit" novalidate>
 		{{ template "card_scroll" . }}
-
-		<div class="flex justify-between items-center py-2">
+		<div class="flex justify-between items-center py-1">
 			<button 
 				type="button" 
 				class="btn btn-secondary btn-soft btn-xs"
@@ -1482,11 +1479,9 @@
 
 					{{ index .Tr "Save" }}... {{ lucide "send-horizontal" (dict "class" "size-4") }}
 				</span>
-
 			</button>
 
 		</div>
-
 	</form>
 </div>
 {{ end }}
@@ -1516,11 +1511,31 @@
 									"Required" true
 									"DefaultText" "-- Pilih Tipe Bahaya --"
 									"Placeholder" "Cari tipe bahaya..."
+									"DisabledBinding" "calculateStatus() === 'closed'"
 									)
 								}}
 							</div>
-							{{ template "select-dynamic" (dict "Label" (index .Tr "HazardType") "Name" "event_type_id" "Value" .Incident.EventCategoryID "Model" "event_type_id" "OptionsArray" "all_types" "ShowCondition" "event_category_id" "DefaultText" (index .Tr "SelectHazardType") "Required" true) }}
-							{{ template "select_input" (dict "Label" (index .Tr "HazardCategory") "Name" "scat_option_id" "ShowType" true "Model" "scat_option_id" "Placeholder" (index .Tr "SelectHazardCategory") "Options" .ScatOptions "Required" true) }}
+							{{ template "select-dynamic" (dict
+								"Label" (index .Tr "HazardType")
+								"DisabledBinding" "calculateStatus() === 'closed'"
+								"Name" "event_type_id"
+								"Value" .Incident.EventCategoryID
+								"Model" "event_type_id"
+								"OptionsArray" "all_types"
+								"ShowCondition" "event_category_id"
+								"DefaultText" (index .Tr "SelectHazardType") "Required" true
+								)
+							}}
+							{{ template "select_input" (dict
+								"Label" (index .Tr "HazardCategory")
+								"Name" "scat_option_id"
+								"ShowType" true "Model"
+								"scat_option_id"
+								"Placeholder" (index .Tr "SelectHazardCategory")
+								"Options" .ScatOptions "Required" true
+								"DisabledBinding" "calculateStatus() === 'closed'"
+								)
+							}}
 
 							<div class="relative my-select-field" @change="location_id = $event.detail">
 								{{ template "select-search" (dict
@@ -1533,14 +1548,34 @@
 									"Attr" "x-model='location_id'"
 									"SearchURL" "/incident/locations/search"
 									"Placeholder" "Cari nama lokasi..."
+									"DisabledBinding" "calculateStatus() === 'closed'"
 									)
 								}}
 							</div>
 
-							{{ template "input" (dict "Label" (index .Tr "LocationSpecific") "Name" "location_specific" "Placeholder" (index .Tr "InputLocationSpecific") "ShowCondition" "location_id" "Required" true "Attr" "x-model='location_specific'") }}
+							{{ template "input" (dict
+								"Label" (index .Tr "LocationSpecific")
+								"Name" "location_specific"
+								"Placeholder" (index .Tr "InputLocationSpecific")
+								"ShowCondition" "location_id"
+								"Required" true
+								"Attr" "x-model='location_specific'"
+								"DisabledBinding" "calculateStatus() === 'closed'"
+								)
+							}}
 
 							<div class="relative ">
-								{{ template "select-user-search" (dict "Label" (index .Tr "ReporterName") "Options" .Users "Value" .AuthUser.ID "SelectedLabel" .AuthUser.Name "DefaultValue" .AuthUser.ID "DefaultText" (index .Tr "SelectReporterName") "Attr" "x-model='reporter_id'" "Required" true) }}
+								{{ template "select-user-search" (dict
+									"Label" (index .Tr "ReporterName")
+									"Options" .Users "Value" .AuthUser.ID
+									"SelectedLabel" .AuthUser.Name
+									"DefaultValue" .AuthUser.ID
+									"DefaultText" (index .Tr "SelectReporterName")
+									"Attr" "x-model='reporter_id'"
+									"DisabledBinding" "calculateStatus() === 'closed'"
+									"Required" true
+									)
+								}}
 							</div>
 
 							{{ template "input-flatpickr" dict
@@ -1551,7 +1586,7 @@
 								"Type" "date-time"
 								"Placeholder" (index .Tr "InputDateObservation")
 								"Required" true
-								"RequiredBinding" ""
+								"DisabledBinding" "calculateStatus() === 'closed'"
 								"Attr" "x-model=event_date"
 							}}
 						</div>
@@ -1576,6 +1611,7 @@
 											"DefaultText" (index .Tr "SelectDepartment")
 											"Attr" "x-model='department_id' aria-label='Pilih Department'"
 											"RequiredBinding" "work_type === 'department'"
+											"DisabledBinding" "calculateStatus() === 'closed'"
 											)
 										}}
 									</div>
@@ -1591,6 +1627,7 @@
 											"DefaultText" (index .Tr "SelectContractor")
 											"Attr" "x-model='contractor_id' aria-label='Pilih Kontraktor'"
 											"RequiredBinding" "work_type === 'contractor'"
+											"DisabledBinding" "calculateStatus() === 'closed'"
 											)
 										}}
 									</div>
@@ -1603,13 +1640,30 @@
 									"ShowCondition" "work_type"
 									"DefaultText" (index .Tr "SelectPIC")
 									"Required" true
+									"DisabledBinding" "calculateStatus() === 'closed'"
 									)
 								}}
 							</div>
 						</fieldset>
 
-						{{ template "ckeditor" dict "ID" "TaskPerformed" "Label" (index .Tr "TaskPerformed") "Name" "tugas_dijalankan" "Model" "TaskPerformed" "Value" .Incident.TugasDijalankan "Required" true "Attr" "" }}
-						{{ template "ckeditor" dict "ID" "IncidentDescription" "Label" (index .Tr "IncidentDescription") "Placeholder" (index .Tr "IncidentDescriptionPlaceholder") "Name" "deskripsi" "Model" "IncidentDescription" "Value" .Incident.Deskripsi "Required" true }}
+						{{ template "ckeditor" dict
+							"ID" "TaskPerformed"
+							"Label" (index .Tr "TaskPerformed")
+							"Name" "tugas_dijalankan"
+							"Model" "TaskPerformed"
+							"Value" .Incident.TugasDijalankan "Required" true
+							"Attr" ""
+							"DisabledBinding" "calculateStatus() === 'closed'"
+						}}
+						{{ template "ckeditor" dict
+							"ID" "IncidentDescription"
+							"Label" (index .Tr "IncidentDescription")
+							"Placeholder" (index .Tr "IncidentDescriptionPlaceholder")
+							"Name" "deskripsi"
+							"Model" "IncidentDescription"
+							"Value" .Incident.Deskripsi "Required" true
+							"DisabledBinding" "calculateStatus() === 'closed'"
+						}}
 
 						{{ template "input-file" (dict
 							"Id" "dokumentasi_desc"
@@ -1620,25 +1674,82 @@
 							"DragDropUpload" (index .Tr "DragDropUpload")
 							"SubDragDropUpload" (index .Tr "SubDragDropUpload")
 							"ExistingFiles" .Docs
-							"DisabledBinding" "false"
+							"DisabledBinding" "calculateStatus() === 'closed'"
 							"Attr" ""
 							)
 						}}
-						{{ template "ckeditor" dict "ID" "ImmediateAction" "Label" (index .Tr "ImmediateAction") "Placeholder" (index .Tr "WorkStatus") "Name" "tindakan_langsung" "Model" "ImmediateAction" "Value" .Incident.TindakanLangsung "Required" true }}
-						{{ template "ckeditor" dict "ID" "DamageDetail" "Label" (index .Tr "DamageDetail") "Placeholder" (index .Tr "UnplannedOutcome") "Name" "detil_kerusakan_kerugian" "Model" "DamageDetail" "Value" .Incident.DetilKerusakanKerugian "Required" true }}
+						{{ template "ckeditor" dict
+							"ID" "ImmediateAction"
+							"Label" (index .Tr "ImmediateAction")
+							"Placeholder" (index .Tr "WorkStatus")
+							"Name" "tindakan_langsung"
+							"Model" "ImmediateAction"
+							"Value" .Incident.TindakanLangsung
+							"Required" true
+							"DisabledBinding" "calculateStatus() === 'closed'"
+						}}
+						{{ template "ckeditor" dict
+							"ID" "DamageDetail"
+							"Label" (index .Tr "DamageDetail")
+							"Placeholder" (index .Tr "UnplannedOutcome")
+							"Name" "detil_kerusakan_kerugian"
+							"Model" "DamageDetail"
+							"Value" .Incident.DetilKerusakanKerugian
+							"Required" true
+							"DisabledBinding" "calculateStatus() === 'closed'"
+						}}
 
 						<div class="flex flex-col md:flex-row gap-2 mt-4">
 							<div class="col-span-2 md:grow">
 								<div class="flex-col">
-									{{ template "select_input" (dict "Label" "Consequences" "Name" "consequence_id" "Model" "consequence_id" "Placeholder" "Pilih Consequences" "Class" "max-w-sm" "Options" .Consequences "Required" true) }}
+									{{ template "select_input" (dict
+										"Label" "Consequences"
+										"Name" "consequence_id"
+										"Model" "consequence_id"
+										"Placeholder" "Pilih Consequences"
+										"Class" "max-w-sm"
+										"Options" .Consequences
+										"Required" true
+										"DisabledBinding" "calculateStatus() === 'closed'"
+										)
+									}}
 									<div x-show="consequence_id" x-transition>
-										<textarea class="textarea textarea-bordered w-full" x-text="getConsequenceDesc()" readonly></textarea>
+
+										<div role="alert" class="alert alert-vertical sm:alert-horizontal border-l-4 border-info">
+											<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current text-info h-6 w-6 shrink-0">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+											</svg>
+											<div class="">
+												<p class="text-xs prose text-justify" x-html="getConsequenceDesc()"></p>	
+											</div>
+
+										</div>
+
 
 									</div>
 
-									{{ template "select_input" (dict "Label" "Likelihood" "Name" "likelihood_id" "Model" "likelihood_id" "Placeholder" "Pilih Likelihood" "Class" "max-w-sm" "Options" .Likelihoods "Required" true) }}
+									{{ template "select_input" (dict
+										"Label" "Likelihood"
+										"Name" "likelihood_id"
+										"Model" "likelihood_id"
+										"Placeholder" "Pilih Likelihood"
+										"Class" "max-w-sm"
+										"Options" .Likelihoods
+										"Required" true
+										"DisabledBinding" "calculateStatus() === 'closed'"
+										)
+									}}
 									<div x-show="likelihood_id" x-transition>
-										<textarea class="textarea textarea-bordered w-full" x-text="getLikelihoodNotes()" readonly></textarea>
+
+										<div role="alert" class="alert alert-vertical sm:alert-horizontal border-l-4 border-info">
+											<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current text-info h-6 w-6 shrink-0">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+											</svg>
+											<div class="">
+												<p class="text-xs prose text-justify" x-html="getLikelihoodNotes()"></p>	
+											</div>
+
+										</div>
 									</div>
 								</div>
 							</div>
@@ -1666,12 +1777,17 @@
 													{{ range $c := $.Consequences }}
 														{{ $mID := getMatrixID $.Matrices $c.ID $l.ID }}
 														{{ $aID := getMatrixAssessmentID $.Matrices $c.ID $l.ID }}
-														<td class="border border-base-300 text-center font-bold text-base-content uppercase shadow-inner cursor-pointer hover:opacity-80 hover:scale-[1.02] transition-all"
-															:class="risk_matrix_id == '{{ $mID }}' ? 'ring-2 ring-black ring-inset scale-105 z-10 '  : ''"
+														<td class="border border-base-300 text-center font-bold text-base-content uppercase shadow-inner transition-all select-none"
+															:class="{
+															'ring-2 ring-black ring-inset scale-105 z-10': risk_matrix_id == '{{ $mID }}',
+															'cursor-not-allowed opacity-50 grayscale contrast-75': calculateStatus() === 'closed',
+															'cursor-pointer hover:opacity-80 hover:scale-[1.02]': calculateStatus() !== 'closed'
+															}"
 															style="background-color: {{ getMatrixColor $.Matrices $c.ID $l.ID }};"
-															@click="if('{{ $mID }}' !== '0') { getDataMatrix('{{ $mID }}', '{{ $c.ID }}', '{{ $l.ID }}', '{{ $aID }}') }">
+															@click="if (calculateStatus() !== 'closed' && '{{ $mID }}' !== '0') { getDataMatrix('{{ $mID }}', '{{ $c.ID }}', '{{ $l.ID }}', '{{ $aID }}') }">
+
 															{{ firstChar (getMatrixName $.Matrices $c.ID $l.ID) }}
-															<input type="hidden" name="risk_matrix_id" x-model="risk_matrix_id">
+															<input type="hidden" name="risk_matrix_id" x-model="risk_matrix_id" :disabled="calculateStatus() === 'closed'">
 														</td>
 													{{ end }}
 												</tr>
@@ -1746,6 +1862,7 @@
 												"Model" "party.user_id"
 												"DefaultText" "-- Pilih Personil --"
 												"Required" true
+												"DisabledBinding" "calculateStatus() === 'closed'"
 												)
 											}}
 
@@ -1760,6 +1877,7 @@
 													"Placeholder" "Pilih Tipe"
 													"Required" true
 													"Slot" "<option value='department'>Internal Dept</option><option value='contractor'>Kontraktor</option>"
+													"DisabledBinding" "calculateStatus() === 'closed'"
 													)
 												}}
 
@@ -1772,6 +1890,7 @@
 															"AlpineVar" "party.department_id"
 															"Options" $.Departments
 															"SearchURL" "/incident/departments/search"
+															"DisabledBinding" "calculateStatus() === 'closed'"
 															"RequiredBinding" "party.department_id != null"
 															)
 														}}
@@ -1788,6 +1907,7 @@
 															"AlpineVar" "party.contractor_id"
 															"Options" $.Contractors
 															"SearchURL" "/incident/contractors/search"
+															"DisabledBinding" "calculateStatus() === 'closed'"
 															"RequiredBinding" "party.contractor_id != null"
 															)
 														}}
@@ -1803,6 +1923,7 @@
 												"Placeholder" "Jabatan"
 												"Required" true
 												"Attr" "x-model='party.jabatan'"
+												"DisabledBinding" "calculateStatus() === 'closed'"
 												)
 											}}
 
@@ -1814,6 +1935,7 @@
 												"Placeholder" "Roster"
 												"Required" true
 												"Attr" "x-model='party.roster'"
+												"DisabledBinding" "calculateStatus() === 'closed'"
 												)
 											}}
 										</td>
@@ -1824,6 +1946,7 @@
 												"Model" "party.shift"
 												"Placeholder" "Pilih Sift"
 												"Required" true
+												"DisabledBinding" "calculateStatus() === 'closed'"
 												"Slot" "<option value='Day'>Day</option><option value='Night'>Night</option>"
 												)
 											}}
@@ -1836,6 +1959,7 @@
 												"Model" "party.keterlibatan"
 												"Placeholder" "Pilih"
 												"Required" true
+												"DisabledBinding" "calculateStatus() === 'closed'"
 												"Slot" "<option value='Saksi'>Saksi</option><option value='Korban Cedera'>Korban Cedera</option><option value='Operator Unit'>Operator Unit</option><option value='Pengawas Lapangan'>Pengawas Lapangan</option>"
 												)
 											}}
@@ -1848,6 +1972,7 @@
 												"Name" "pengalaman"
 												"Placeholder" "Pengalaman"
 												"Required" true
+												"DisabledBinding" "calculateStatus() === 'closed'"
 												"Attr" "x-model='party.pengalaman'"
 												)
 											}}
@@ -1857,11 +1982,10 @@
 											<template x-if="index >= 0">
 												<button type="button" 
 													@click="removeInvolvedParty(index)" 
-													class="btn btn-xs btn-error text-white flex items-center gap-1 mx-auto"
+													:disabled="calculateStatus() === 'closed'"
+													class="btn btn-xs btn-error text-white flex items-center gap-1 mx-auto disabled:bg-base-300 disabled:text-base-content/40 disabled:border-none disabled:cursor-not-allowed"
 													title="Hapus baris ini">
-													<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-													</svg>
+													{{ lucide "trash-2" (dict "class" "sidebar-icon size-4 shrink-0") }}
 													<span>Hapus</span>
 												</button>
 											</template>
@@ -1878,6 +2002,7 @@
 				<button 
 					type="button" 
 					class="btn btn-accent btn-soft btn-sm"
+					:disabled="calculateStatus() === 'closed'"
 					@click="addInvolvedParty()">
 					{{ lucide "user-round-plus" (dict "class" "size-4") }} {{ index .Tr "TambahPersonil" }}
 				</button>
@@ -1911,7 +2036,7 @@
 											<select x-model="inv.role" class="select select-bordered select-xs w-full
 												focus:outline-none focus:border-info
 												leading-normal focus:ring-info
-												appearance-none">
+												appearance-none" :disabled="calculateStatus() === 'closed'">
 												<option value="Pemimpin Investigasi">Pemimpin Investigasi</option>
 												<option value="Facilitator">Facilitator</option>
 												<option value="Anggota">Anggota</option>
@@ -1926,6 +2051,7 @@
 												"Model" "inv.employee_id"
 												"DefaultText" "-- Pilih Personil --"
 												"Required" true
+												"DisabledBinding" "calculateStatus() === 'closed'"
 												)
 											}}
 
@@ -1940,6 +2066,7 @@
 												"Placeholder" "Jabatan"
 												"Required" true
 												"Attr" "x-model='inv.jabatan'"
+												"DisabledBinding" "calculateStatus() === 'closed'"
 												)
 											}}
 										</td>
@@ -1948,7 +2075,7 @@
 											<select x-model="inv.work_type" @change="inv.department_id = ''; inv.contractor_id = ''" class="select select-bordered select-xs w-full
 												focus:outline-none focus:border-info
 												leading-normal focus:ring-info
-												appearance-none">
+												appearance-none" :disabled="calculateStatus() === 'closed'">
 												<option value="department">Internal (Department)</option>
 												<option value="contractor">Eksternal (Contractor)</option>
 											</select>
@@ -1966,6 +2093,7 @@
 													"Options" $.Departments
 													"SearchURL" "/incident/departments/search"
 													"RequiredBinding" "inv.department_id != null"
+													"DisabledBinding" "calculateStatus() === 'closed'"
 													"Attr" "@change=\"syncData('department_id', inv.department_id, index)\""
 													)
 												}}
@@ -1979,6 +2107,7 @@
 													"AlpineVar" "inv.contractor_id"
 													"Options" $.Contractors
 													"SearchURL" "/incident/contractors/search"
+													"DisabledBinding" "calculateStatus() === 'closed'"
 													"RequiredBinding" "inv.contractor_id != null"
 													"Attr" "@change=\"syncData('contractor_id', inv.contractor_id, index)\""
 													)
@@ -1990,9 +2119,16 @@
 										</td>
 
 										<td>
-											<button type="button" @click="removeInvestigator(index)" class="btn btn-error btn-xs btn-square text-white">
-												✕
+
+											<button type="button" 
+												@click="removeInvestigator(index)" 
+												:disabled="calculateStatus() === 'closed'"
+												class="btn btn-xs btn-error text-white flex items-center gap-1 mx-auto disabled:bg-base-300 disabled:text-base-content/40 disabled:border-none disabled:cursor-not-allowed"
+												title="Hapus baris ini">
+												{{ lucide "trash-2" (dict "class" "sidebar-icon size-4 shrink-0") }}
+												<span>Hapus</span>
 											</button>
+
 										</td>
 									</tr>
 								</template>
@@ -2007,18 +2143,21 @@
 				<button 
 					type="button" 
 					class="btn btn-accent btn-soft btn-xs"
+					:disabled="calculateStatus() === 'closed'"
 					@click="addInvestigator('Pemimpin Investigasi')">
 					{{ lucide "circle-plus" (dict "class" "size-4") }} {{ index .Tr "TambahPemimpin" }}
 				</button>
 				<button 
 					type="button" 
 					class="btn btn-info btn-soft btn-xs"
+					:disabled="calculateStatus() === 'closed'"
 					@click="addInvestigator('Facilitator')">
 					{{ lucide "circle-plus" (dict "class" "size-4") }} {{ index .Tr "TambahFacilitator" }}
 				</button>
 				<button 
 					type="button" 
 					class="btn btn-primary btn-soft btn-xs"
+					:disabled="calculateStatus() === 'closed'"
 					@click="addInvestigator('Anggota')">
 					{{ lucide "circle-plus" (dict "class" "size-4") }} {{ index .Tr "TambahAnggota" }}
 				</button>
@@ -2045,7 +2184,7 @@
 								<template x-for="(item, index) in peepo_factors" :key="index">
 									<tr class="hover:bg-slate-50 transition-colors focus-within:relative focus-within:z-50">
 										<td>
-											<select x-model="item.factor" class="select select-bordered select-xs w-full
+											<select x-model="item.factor" :disabled="calculateStatus() === 'closed'" class="select select-bordered select-xs w-full
 												focus:outline-none focus:border-info
 												leading-normal focus:ring-info
 												appearance-none">
@@ -2063,6 +2202,7 @@
 												"Placeholder" "Sebutkan poin utama temuan atau masalah yang ditemukan..."
 												"Required" true
 												"Attr" " x-model='item.findings'"
+												"DisabledBinding" "calculateStatus() === 'closed'"
 												)
 											}}
 										</td>
@@ -2073,11 +2213,19 @@
 												"Placeholder" "Berikan penjelasan detail, konteks, atau kronologi kejadian..."
 												"Required" true
 												"Attr" " x-model='item.description'"
+												"DisabledBinding" "calculateStatus() === 'closed'"
 												)
 											}}
 										</td>
 										<td>
-											<button type="button" @click="removeFactor(index)" class="btn btn-error btn-xs btn-square text-white">x</button>
+											<button type="button" 
+												@click="removeFactor(index)" 
+												:disabled="calculateStatus() === 'closed'"
+												class="btn btn-xs btn-error text-white flex items-center gap-1 mx-auto disabled:bg-base-300 disabled:text-base-content/40 disabled:border-none disabled:cursor-not-allowed"
+												title="Hapus baris ini">
+												{{ lucide "trash-2" (dict "class" "sidebar-icon size-4 shrink-0") }}
+												<span>Hapus</span>
+											</button>
 										</td>
 									</tr>
 								</template>
@@ -2086,7 +2234,7 @@
 					</div>
 				</template>
 			</div>
-			<button type="button" @click="addFactor()" class="mt-2 btn btn-outline btn-xs">
+			<button type="button" @click="addFactor()" :disabled="calculateStatus() === 'closed'" class="mt-2 btn btn-outline btn-xs">
 				+ Tambah Faktor
 			</button>
 
@@ -2136,16 +2284,17 @@
 															"Name" "why"
 															"Placeholder" "Mengapa hal ini terjadi?..."
 															"Required" true
+															"DisabledBinding" "calculateStatus() === 'closed'"
 															"Attr" " x-model='why.text' class='w-full'"
 															)
 														}}
 													</div>
 
 													<div class="flex flex-col gap-1">
-														<button type="button" @click="addChildWhy(tIndex, wIndex)" class="btn btn-xs btn-outline btn-info tooltip" data-tip="Tambah Sub-Why">
+														<button type="button" @click="addChildWhy(tIndex, wIndex)" :disabled="calculateStatus() === 'closed'" class="btn btn-xs btn-outline btn-info tooltip" data-tip="Tambah Sub-Why">
 															{{ lucide "plus" (dict "class" "size-4") }}
 														</button>
-														<button type="button" @click="removeWhy(tIndex, wIndex)" class="btn btn-xs btn-outline btn-error tooltip" data-tip="Hapus Why">
+														<button type="button" @click="removeWhy(tIndex, wIndex)" :disabled="calculateStatus() === 'closed'" class="btn btn-xs btn-outline btn-error tooltip" data-tip="Hapus Why">
 															{{ lucide "trash-2" (dict "class" "size-4") }}
 														</button>
 													</div>
@@ -2164,11 +2313,12 @@
 																		"Name" "child_why"
 																		"Placeholder" "Tambahkan detail/sub-alasan..."
 																		"Required" true
+																		"DisabledBinding" "calculateStatus() === 'closed'"
 																		"Attr" " x-model='child.text' class='w-full text-sm'"
 																		)
 																	}}
 																</div>
-																<button type="button" @click="removeChildWhy(tIndex, wIndex, cIndex)" class="btn btn-ghost btn-xs text-error">
+																<button type="button" @click="removeChildWhy(tIndex, wIndex, cIndex)" :disabled="calculateStatus() === 'closed'" class="btn btn-ghost btn-xs text-error">
 																	{{ lucide "circle-x" (dict "class" "size-4") }}
 																</button>
 															</div>
@@ -2180,7 +2330,7 @@
 									</template>
 								</div>
 
-								<button type="button" @click="addWhy(tIndex)" class="mt-4 btn btn-primary btn-xs">
+								<button type="button" @click="addWhy(tIndex)" :disabled="calculateStatus() === 'closed'" class="mt-4 btn btn-primary btn-xs">
 									+ Tambah Why Utama
 								</button>
 							</div>
@@ -2218,6 +2368,7 @@
 																"Placeholder" "Pilih"
 																"Required" true
 																"Class" "w-96"
+																"DisabledBinding" "calculateStatus() === 'closed'"
 																"Slot" "<template x-for='opt in getScatOptions(key)' :key='opt.ID'><option :value='opt.ID' :selected='opt.ID == item.scat_option_id' x-text='opt.Code + \" - \" + opt.Name'></option></template>"
 																)
 															}}
@@ -2226,6 +2377,7 @@
 																"Name" "description_cause"
 																"Placeholder" "Sub-alasan..."
 																"Required" true
+																"DisabledBinding" "calculateStatus() === 'closed'"
 																"Attr" " x-model='item.description'"
 																)
 															}}
@@ -2234,7 +2386,7 @@
 													<div class="w-14 flex-none">
 														<div class="w-14 flex-none">
 															<div class="tooltip" :data-tip="'Hapus ' + label">
-																<button type="button" @click="causes[key].splice(index, 1)"  class="btn btn-xs btn-square btn-soft btn-error ">
+																<button type="button" @click="causes[key].splice(index, 1)" :disabled="calculateStatus() === 'closed'" class="btn btn-xs btn-square btn-soft btn-error ">
 																	{{ lucide "circle-x" (dict "class" "size-4") }} 
 																</button>
 															</div>
@@ -2245,6 +2397,7 @@
 											<div class="justify-end card-actions">
 												<button 
 													type="button" 
+													:disabled="calculateStatus() === 'closed'"
 													class="btn btn-accent  btn-dash btn-xs mt-2"
 													@click="causes[key].push({category_type: key, scat_option_id: '', description: ''})" >
 													{{ lucide "plus" (dict "class" "size-4") }} {{ index .Tr "TambahBaris" }} <span x-text="label"></span>
@@ -2275,6 +2428,7 @@
 																"Placeholder" "Pilih"
 																"Required" true
 																"Class" "w-96"
+																"DisabledBinding" "calculateStatus() === 'closed'"
 																"Slot" "<template x-for='opt in getScatOptions(key)' :key='opt.ID'><option :value='opt.ID' :selected='opt.ID == item.scat_option_id' x-text='opt.Code + \" - \" + opt.Name'></option></template>"
 																)
 															}}
@@ -2282,6 +2436,7 @@
 																"Label" ""
 																"Name" "description_cause"
 																"Placeholder" "Sub-alasan..."
+																"DisabledBinding" "calculateStatus() === 'closed'"
 																"Required" true
 																"Attr" " x-model='item.description'"
 																)
@@ -2291,7 +2446,7 @@
 													<div class="w-14 flex-none">
 														<div class="w-14 flex-none">
 															<div class="tooltip" :data-tip="'Hapus ' + label">
-																<button type="button" @click="causes[key].splice(index, 1)"  class="btn btn-xs btn-square btn-soft btn-error ">
+																<button type="button" @click="causes[key].splice(index, 1)" :disabled="calculateStatus() === 'closed'" class="btn btn-xs btn-square btn-soft btn-error ">
 																	{{ lucide "circle-x" (dict "class" "size-4") }} 
 																</button>
 															</div>
@@ -2302,6 +2457,7 @@
 											<div class="justify-end card-actions">
 												<button 
 													type="button" 
+													:disabled="calculateStatus() === 'closed'"
 													class="btn btn-accent btn-dash btn-xs mt-2"
 													@click="causes[key].push({category_type: key, scat_option_id: '', description: ''})" >
 													{{ lucide "plus" (dict "class" "size-4") }} {{ index .Tr "TambahBaris" }} <span x-text="label"></span>
@@ -2328,7 +2484,7 @@
 							<div class="card-body p-4 gap-4 overflow-y-scroll">
 								<div class="flex justify-between items-start">
 									<h3 class="font-bold text-sm opacity-60">Action #<span x-text="index + 1"></span></h3>
-									<button type="button" @click="removeCorrectiveAction(index)" class="btn btn-ghost btn-xs text-error">
+									<button type="button" @click="removeCorrectiveAction(index)" :disabled="calculateStatus() === 'closed'" class="btn btn-ghost btn-xs text-error">
 										{{ lucide "trash-2" (dict "class" "size-4") }} Hapus
 									</button>
 								</div>
@@ -2339,6 +2495,7 @@
 											"Name" "description_cause"
 											"Placeholder" "Action..."
 											"Required" true
+											"DisabledBinding" "calculateStatus() === 'closed'"
 											"Attr" " x-model='item.action'"
 											)
 										}}
@@ -2349,6 +2506,7 @@
 											"Name" "description_cause"
 											"Placeholder" "Control Hierarchy..."
 											"Required" true
+											"DisabledBinding" "calculateStatus() === 'closed'"
 											"Attr" " x-model='item.control_hierarchy'"
 											)
 										}}
@@ -2363,6 +2521,7 @@
 											"Name" "user_id"
 											"Options" .Users
 											"Model" "item.user_id"
+											"DisabledBinding" "calculateStatus() === 'closed'"
 											"DefaultText" (index .Tr "InputPIC")
 											"Required" true
 											)
@@ -2379,6 +2538,7 @@
 											"Placeholder" (index .Tr "DueDate")
 											"Required" false
 											"RequiredBinding" ""
+											"DisabledBinding" "calculateStatus() === 'closed'"
 											"Attr" "x-model='item.due_date' :id=\"'due_date_' + index\" :name=\"'corrective_actions['+index+'][due_date]'\""
 											)
 										}}
@@ -2392,6 +2552,7 @@
 			<div class="mt-2">
 				<button 
 					type="button" 
+					:disabled="calculateStatus() === 'closed'"
 					class="btn btn-accent btn-soft btn-sm"
 					@click="addCorrectiveAction()">
 					{{ lucide "plus" (dict "class" "size-4") }} {{ index .Tr "TambahBaris" }}
@@ -2408,7 +2569,16 @@
 		<div class="collapse-content ">
 			<div>
 				<template x-if="activeTab === 8">
-					{{ template "ckeditor" dict "ID" "KeyLearning" "Label" "" "Name" "tugas_dijalankan" "Model" "KeyLearning" "Value" .Incident.KeyLearning "Required" true "Attr" "" }}
+					{{ template "ckeditor" dict
+						"ID" "KeyLearning"
+						"Label" ""
+						"Name" "tugas_dijalankan"
+						"Model" "KeyLearning"
+						"Value" .Incident.KeyLearning
+						"Required" true
+						"Attr" ""
+						"DisabledBinding" "calculateStatus() === 'closed'"
+					}}
 				</template>
 			</div>
 		</div>
@@ -2454,6 +2624,7 @@
 										"ID" "`reviews_${index}`"
 										"AlpineVar" "reviews[reviewer.key].comment"
 										"RequiredBinding" "isReviewRequired(reviewer.key)"
+										"DisabledBinding" "calculateStatus() === 'closed'"
 										)
 									}}
 
@@ -2465,6 +2636,7 @@
 											"Model" "reviews[reviewer.key].user_id"
 											"DefaultText" (index .Tr "InputPeninjauan")
 											"RequiredBinding" "isReviewRequired(reviewer.key)"
+											"DisabledBinding" "calculateStatus() === 'closed'"
 											)
 										}}
 										<fieldset class="fieldset w-full">
@@ -2498,6 +2670,7 @@
 											"Name" "reviewer.key + '_accepted'"
 											"Model" "reviews[reviewer.key].accepted"
 											"RequiredBinding" "isReviewRequired(reviewer.key)"
+											"DisabledBinding" "calculateStatus() === 'closed'"
 											)
 										}}
 									</div>

@@ -10,8 +10,10 @@ import (
 	"latihan1/models"
 	"latihan1/services"
 	"latihan1/utils"
+	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -23,6 +25,115 @@ type IncidentController struct {
 	ServiceIncident services.IncidentService
 	Render          func(w http.ResponseWriter, r *http.Request, tmpl string, data interface{}) // Sesuaikan tipe render Anda
 
+}
+
+func (ic *IncidentController) Index(w http.ResponseWriter, r *http.Request) {
+	// ==========================================
+	// AMBIL CURRENT USER DARI CONTEXT
+	// ==========================================
+	userRaw, ok := r.Context().Value(middlewares.AuthUserKey).(models.User)
+	if !ok {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	// ==========================================
+	// AMBIL QUERY PARAMETERS (FILTERS & SEARCH)
+	// ==========================================
+	search := strings.TrimSpace(
+		r.URL.Query().Get("search"),
+	)
+
+	startDate := r.URL.Query().Get("start_date")
+	endDate := r.URL.Query().Get("end_date")
+
+	filterCategory := r.URL.Query().Get("category")
+	filterLocation := r.URL.Query().Get("location")
+	filterRisk := r.URL.Query().Get("risk")
+	filterScat := r.URL.Query().Get("scat")
+	filterStatus := r.URL.Query().Get("status") // Tambahan opsional yang penting untuk insiden
+
+	page, err := strconv.Atoi(
+		r.URL.Query().Get("page"),
+	)
+
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	// ==========================================
+	// GET DATA FROM SERVICE (USER RAW DISISIPKAN)
+	// ==========================================
+	result, err := ic.ServiceIncident.GetIncidentReports(
+		userRaw,
+		search,
+		startDate,
+		endDate,
+		filterCategory,
+		filterLocation,
+		filterRisk,
+		filterScat,
+		filterStatus,
+		page,
+	)
+
+	if err != nil {
+		log.Println(
+			"GET INCIDENT REPORTS ERROR:",
+			err,
+		)
+
+		http.Error(
+			w,
+			"Failed load incident reports",
+			http.StatusInternalServerError,
+		)
+
+		return
+	}
+
+	// =========================
+	// VIEW DATA
+	// =========================
+	lang := "id"
+	if cookie, err := r.Cookie("lang"); err == nil {
+		lang = cookie.Value
+	}
+
+	data := map[string]interface{}{
+		"Lang":  lang,
+		"Tr":    helpers.Translations[lang],
+		"Title": "Incident Reports",
+
+		"Incidents": result.Incidents, // Berisi []IncidentReport atau []IncidentReportDisplay
+
+		"Search":         search,
+		"FilterCategory": filterCategory,
+		"FilterLocation": filterLocation,
+		"FilterRisk":     filterRisk,
+		"FilterScat":     filterScat,
+		"FilterStatus":   filterStatus,
+
+		// Master data untuk dropdown filter di view
+		"Categories":      result.Categories,
+		"ScatOptions":     result.ScatOptions,
+		"RiskAssessments": result.RiskAssessments, // atau result.RiskMatrices
+		"Locations":       result.Locations,
+
+		"StartDate": startDate,
+		"EndDate":   endDate,
+
+		"CurrentPage": result.CurrentPage,
+		"TotalPages":  result.TotalPages,
+		"TotalRows":   result.TotalRows,
+	}
+
+	ic.Render(
+		w,
+		r,
+		"/incident_report/index.gohtml",
+		data,
+	)
 }
 
 func (ic *IncidentController) Create(w http.ResponseWriter, r *http.Request) {
@@ -76,21 +187,23 @@ func (ic *IncidentController) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
-	// ... (Logika r.ParseMultipartForm, tangkap input Bagian 1, dan upload file tetap ada di sini) ...
-	err := r.ParseMultipartForm(32 << 20)
+	err := r.ParseMultipartForm(32 << 20) // Maksimal 32 MB
 	if err != nil {
 		http.Error(w, "Gagal memproses form", http.StatusBadRequest)
 		return
 	}
-	// Siapkan objek Bagian 1
-	// 1. Buat helper parsing lokal untuk mengubah string dari form ke tipe data Go
+
+	// ==========================================
+	// 1. HELPER PARSING & BAGIAN 1 (INFO UTAMA)
+	// ==========================================
 	parseDate := func(str string) time.Time {
 		if str == "" {
 			return time.Now()
 		}
-		// Ganti layout format string ini sesuai dengan format keluaran dari flatpickr JS Anda
-		t, err := time.Parse("2006-01-02 15:04", str)
+		layout := "2006-01-02 15:04"
+		t, err := time.ParseInLocation(layout, str, time.Local)
 		if err != nil {
+			log.Printf("Gagal memproses string tanggal '%s': %v", str, err)
 			return time.Now()
 		}
 		return t
@@ -99,7 +212,6 @@ func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
 		val, _ := strconv.ParseUint(s, 10, 32)
 		return uint(val)
 	}
-
 	parseUintPtr := func(s string) *uint {
 		if s == "" || s == "0" || s == "undefined" {
 			return nil
@@ -108,59 +220,46 @@ func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
 		u := uint(val)
 		return &u
 	}
-
 	parseBool := func(s string) bool {
 		return s == "true" || s == "1" || s == "on"
 	}
+
 	newRefNumber, err := ic.GenerateRefNumber(ic.DB)
 	if err != nil {
 		http.Error(w, "Gagal membuat nomor laporan: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// 2. Inisialisasi struct dengan nomor yang sudah digenerate
 	incident := models.IncidentReport{
-		RefNumber:       newRefNumber, // Masukkan hasil generate di sini
-		EventCategoryID: parseUint(r.FormValue("event_type_id")),
-		ScatOptionID:    parseUint(r.FormValue("scat_option_id")),
-		RiskMatrixID:    parseUint(r.FormValue("risk_matrix_id")),
-
-		// Waktu Kejadian
-		TanggalWaktu: parseDate(r.FormValue("event_date")),
-
-		// Lokasi (Non-Pointer uint)
-		LocationID:       parseUint(r.FormValue("location_id")),
-		LocationSpecific: r.FormValue("location_specific"),
-
-		// PIC & Penanggung Jawab
-		PicID:        parseUintPtr(r.FormValue("pic_id")),        // Wajib ada (Non-Pointer)
-		DepartmentID: parseUintPtr(r.FormValue("department_id")), // Pointer (Bisa NULL)
-		ContractorID: parseUintPtr(r.FormValue("contractor_id")), // Pointer (Bisa NULL)
-
-		// Pelapor / User yang menginput (Pointer)
-		ReportByID:     parseUintPtr(r.FormValue("reporter_id")),
-		ReporterManual: r.FormValue("reporter_manual"), // Jika dari template select-user diinput manual
-
-		// Deskripsi & Detail Operasional Lapangan (CKEditor Text)
+		RefNumber:              newRefNumber,
+		EventCategoryID:        parseUint(r.FormValue("event_type_id")),
+		ScatOptionID:           parseUint(r.FormValue("scat_option_id")),
+		RiskMatrixID:           parseUint(r.FormValue("risk_matrix_id")),
+		TanggalWaktu:           parseDate(r.FormValue("event_date")),
+		LocationID:             parseUint(r.FormValue("location_id")),
+		LocationSpecific:       r.FormValue("location_specific"),
+		PicID:                  parseUintPtr(r.FormValue("pic_id")),
+		DepartmentID:           parseUintPtr(r.FormValue("department_id")),
+		ContractorID:           parseUintPtr(r.FormValue("contractor_id")),
+		ReportByID:             parseUintPtr(r.FormValue("report_by_id")),
+		ReporterManual:         r.FormValue("reporter_manual"),
 		TugasDijalankan:        r.FormValue("tugas_dijalankan"),
 		Deskripsi:              r.FormValue("deskripsi"),
 		TindakanLangsung:       r.FormValue("tindakan_langsung"),
 		DetilKerusakanKerugian: r.FormValue("detil_kerusakan_kerugian"),
-
-		// Field Opsional (Bisa diambil dari form jika nanti ada inputannya)
-		AreaKontrakKarya:      r.FormValue("area_kontrak_karya"),
-		PotensiLTIFatality:    parseBool(r.FormValue("potensi_lti_fatality")),
-		KlasifikasiLingkungan: r.FormValue("klasifikasi_lingkungan"),
-		PekerjaanBerhenti:     parseBool(r.FormValue("pekerjaan_berhenti")),
+		AreaKontrakKarya:       r.FormValue("area_kontrak_karya"),
+		PotensiLTIFatality:     parseBool(r.FormValue("potensi_lti_fatality")),
+		KlasifikasiLingkungan:  r.FormValue("klasifikasi_lingkungan"),
+		PekerjaanBerhenti:      parseBool(r.FormValue("pekerjaan_berhenti")),
 	}
 
-	// Tangkap string JSON Bagian 2 dari hidden input
-	// Tangkap string JSON Bagian 2 dari hidden input
+	// ==========================================
+	// 2. BAGIAN 2 (INVOLVED PARTIES JSON)
+	// ==========================================
 	partiesJSON := r.FormValue("involved_parties_json")
 	var finalParties []models.InvolvedParty
 
 	if partiesJSON != "" {
-		// 1. Ubah struct sementara: Pengalaman sekarang menjadi interface{}
 		var rawParties []struct {
 			UserID         interface{} `json:"user_id"`
 			ReporterManual string      `json:"reporter_manual"`
@@ -171,10 +270,9 @@ func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
 			Roster         string      `json:"roster"`
 			Shift          string      `json:"shift"`
 			Keterlibatan   string      `json:"keterlibatan"`
-			Pengalaman     interface{} `json:"pengalaman"` // <-- UBAH DI SINI
+			Pengalaman     interface{} `json:"pengalaman"`
 		}
 
-		// Helper 1: Untuk Pointer Uint (ID)
 		parseJSONToUintPtr := func(val interface{}) *uint {
 			if val == nil {
 				return nil
@@ -188,7 +286,6 @@ func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
 			return &u
 		}
 
-		// Helper 2: Untuk Angka Biasa (Pengalaman) <-- TAMBAHAN BARU
 		parseJSONToInt := func(val interface{}) int {
 			if val == nil {
 				return 0
@@ -201,15 +298,12 @@ func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
 			return parsedVal
 		}
 
-		// Proses Unmarshal
 		err := json.Unmarshal([]byte(partiesJSON), &rawParties)
 		if err != nil {
-			fmt.Println("DEBUG ERROR UNMARSHAL JSON:", err)
+			log.Println("DEBUG ERROR UNMARSHAL JSON:", err)
 		} else {
 			for _, rp := range rawParties {
 				userIDPtr := parseJSONToUintPtr(rp.UserID)
-
-				// Cegah baris kosong
 				if rp.ReporterManual == "" && userIDPtr == nil {
 					continue
 				}
@@ -220,13 +314,12 @@ func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
 					Roster:         rp.Roster,
 					Shift:          rp.Shift,
 					Keterlibatan:   rp.Keterlibatan,
-					Pengalaman:     parseJSONToInt(rp.Pengalaman), // <-- GUNAKAN HELPER
+					Pengalaman:     parseJSONToInt(rp.Pengalaman),
 				}
 
 				if userIDPtr != nil && *userIDPtr > 0 {
 					party.UserID = userIDPtr
 				}
-
 				if rp.WorkType == "department" {
 					party.DepartmentID = parseJSONToUintPtr(rp.DepartmentID)
 				} else if rp.WorkType == "contractor" {
@@ -238,17 +331,14 @@ func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	for i, p := range finalParties {
-		fmt.Printf("DEBUG: Party[%d] - Manual: %s, UserID: %v\n", i, p.ReporterManual, p.UserID)
-	}
-
 	// ==========================================
-	// PANGGIL SERVICE (Simpan Bagian 1 & Bagian 2)
+	// 3. PANGGIL SERVICE (Simpan Bagian 1, 2, & Upload Dokumentasi)
 	// ==========================================
-	err = ic.ServiceIncident.CreateIncident(&incident, finalParties)
-
+	// Upload file sekarang ditangani SEPENUHNYA di dalam service (s.uploadFiles),
+	// sama persis dengan jalur Update. Controller cukup meneruskan *http.Request.
+	err = ic.ServiceIncident.CreateIncident(&incident, finalParties, r)
 	if err != nil {
-		// Log error jika diperlukan
+		log.Printf("Error saat menyimpan insiden ke service: %v", err)
 		http.Error(w, "Gagal menyimpan laporan insiden ke database", http.StatusInternalServerError)
 		return
 	}

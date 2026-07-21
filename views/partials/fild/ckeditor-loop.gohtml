@@ -1,380 +1,149 @@
 {{ define "ckeditor-loop" }}
-
 <div class="mt-2" x-data="{ isInvalid: false }">
 
-
-
 	{{ if .Label }}
-
 		<label class="label">
-
 			<span class="text-xs font-bold text-base-content opacity-60">
-
 				{{ .Label }}
-
-
-
 				{{ if or .Required .RequiredBinding }}
-
 					<span class="text-error font-bold ml-0.5">*</span>
-
 				{{ end }}
-
-
-
 			</span>
-
 		</label>
-
 	{{ end }}
 
-
-
 	<div
-
-		class="border rounded-md overflow-hidden"
-
-		:class="isInvalid ? 'border-error' : 'border-base-300'">
-
-
+		class="border rounded-md overflow-hidden transition-colors duration-200"
+		:class="[
+		isInvalid ? 'border-error' : 'border-base-300',
+{{ if .DisabledBinding }}
+		({{ .DisabledBinding }}) ? 'opacity-50 cursor-not-allowed bg-base-200 pointer-events-none' : ''
+{{ end }}
+		]">
 
 		<div
-
 			x-init="
-
 			(async () => {
-
-
-
 			try {
-
-
-
 			// =========================
-
 			// LOAD CKEDITOR
+			// =========================
+			const ClassicEditor = await window.ClassicEditor;
 
 			// =========================
-
-			const ClassicEditor =
-
-			await window.ClassicEditor;
-
-
-
-			// =========================
-
 			// CREATE EDITOR
-
 			// =========================
-
-			const editor =
-
-			await ClassicEditor.create(
-
+			const editor = await ClassicEditor.create(
 			$refs.editor,
-
 			{
-
 			toolbar: [
-
 			'heading',
-
 			'|',
-
 			'bold',
-
 			'italic',
-
 			'link',
-
 			'bulletedList',
-
 			'numberedList',
-
 			'blockQuote'
-
 			]
-
 			}
-
 			);
 
-
-
 			// =========================
-
 			// SAVE INSTANCE
-
 			// =========================
-
 			$el._editor = editor;
 
-
-
 			// =========================
-
 			// INITIAL VALUE
-
 			// =========================
-
 			let initialData = '';
-
-
-
 {{ if .Value }}
-
-
-
 			initialData = `{{ .Value }}`;
-
-
-
 {{ else if .AlpineVar }}
-
-
-
-			initialData =
-
-		{{ .AlpineVar }} || '';
-
-
-
+			initialData = {{ .AlpineVar }} || '';
 {{ end }}
-
-
 
 			editor.setData(initialData);
 
-
+			// Set initial disabled state jika binding langsung true saat render
+{{ if .DisabledBinding }}
+			if (Boolean({{ .DisabledBinding }})) {
+			editor.enableReadOnlyMode('disabled_binding');
+			}
+{{ end }}
 
 			// =========================
-
 			// CKEDITOR -> ALPINE
-
 			// =========================
-
-			editor.model.document.on(
-
-			'change:data',
-
-			() => {
-
-
-
-			const htmlData =
-
-			editor.getData();
-
-
-
-			$refs.editor.value =
-
-			htmlData;
-
-
-
+			editor.model.document.on('change:data', () => {
+			const htmlData = editor.getData();
+			$refs.editor.value = htmlData;
 			isInvalid = false;
 
-
-
 {{ if .AlpineVar }}
-
-
-
-		{{ .AlpineVar }} =
-
-			htmlData;
-
-
-
+		{{ .AlpineVar }} = htmlData;
 {{ end }}
 
-
-
-			$refs.editor.dispatchEvent(
-
-			new Event('input')
-
-			);
-
-			}
-
-			);
-
-
+			$refs.editor.dispatchEvent(new Event('input'));
+			});
 
 			// =========================
-
 			// ALPINE -> CKEDITOR
-
 			// =========================
-
 {{ if .AlpineVar }}
-
-
-
-			$watch(
-
-			'{{ .AlpineVar }}',
-
-			(newVal) => {
-
-
-
-			if (
-
-			newVal !==
-
-			editor.getData()
-
-			) {
-
-
-
-			editor.setData(
-
-			newVal || ''
-
-			);
-
-
-
+			$watch('{{ .AlpineVar }}', (newVal) => {
+			if (newVal !== editor.getData()) {
+			editor.setData(newVal || '');
 			}
-
-			}
-
-			);
-
-
-
+			});
 {{ end }}
-
-
 
 			} catch (error) {
-
-
-
-			console.error(
-
-			'CKEditor Error:',
-
-			error
-
-			);
-
-
-
+			console.error('CKEditor Error:', error);
 			}
-
-
-
 			})()
-
 			"
-
-
-
 			x-effect="
-
-			if ($el._editor && !$el.isConnected) {
-
-
-
-			$el._editor.destroy()
-
-			.catch(err => console.log(err))
-
-
-
+			if ($el._editor) {
+			if (!$el.isConnected) {
+			$el._editor.destroy().catch(err => console.log(err));
 			}
-
+{{ if .DisabledBinding }}
+			else {
+			if (Boolean({{ .DisabledBinding }})) {
+			$el._editor.enableReadOnlyMode('disabled_binding');
+			} else {
+			$el._editor.disableReadOnlyMode('disabled_binding');
+			}
+			}
+{{ end }}
+			}
 			">
 
-
-
 			<textarea
-
 				x-bind:id="{{ .ID }}"
-
 				x-ref="editor"
-
 				name="{{ .Name }}"
-
 				class="hidden"
-
-
-
-				{{ if .AlpineVar }}
-
-					x-model="{{ .AlpineVar }}"
-
-				{{ end }}
-
-
-
+				{{ if .AlpineVar }} x-model="{{ .AlpineVar }}" {{ end }}
 			{{ .Attr }}
-
-
-
-				{{ if .Required }}
-
-					required
-
-				{{ end }}
-
-
-
-				{{ if .RequiredBinding }}
-
-					x-bind:required="{{ .RequiredBinding }}"
-
-				{{ end }}
-
-
-
+				{{ if .Required }} required {{ end }}
+				{{ if .RequiredBinding }} x-bind:required="{{ .RequiredBinding }}" {{ end }}
+				{{ if .DisabledBinding }} :disabled="{{ .DisabledBinding }}" {{ end }}
 				@invalid.prevent="isInvalid = true"
-
 				@input="isInvalid = false"
-
-
-
 				aria-label="{{ .Label }}">
-
-
-
 				{{ .Value }}
-
-
-
 			</textarea>
-
-
-
 		</div>
-
 	</div>
-
-
 
 	<div
-
 		x-show="isInvalid"
-
 		x-cloak
-
 		class="text-error text-[9px] font-semibold leading-none mt-1">
-
-
-
 		Field {{ .Label }} wajib diisi.
-
-
-
 	</div>
-
 </div>
-
-{{ end }} 
-
+{{ end }}

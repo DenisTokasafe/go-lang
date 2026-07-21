@@ -249,6 +249,7 @@ func RegisterRoutes(db *gorm.DB, c *bootstrap.Controllers) {
 	// INCIDENT REPORT
 	// =========================
 	http.HandleFunc("POST /incident/sync", withAuth(c.IncidentController.SyncField))
+	http.HandleFunc("/incident", withAuth(c.IncidentController.Index))
 	http.HandleFunc("/incident/create", withAuth(c.IncidentController.Create))
 	// 1. Endpoint untuk mencari Karyawan / User Internal & Kontraktor
 	http.HandleFunc("GET /incident/users/search", withAuth(c.IncidentController.Search))

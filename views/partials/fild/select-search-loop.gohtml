@@ -294,6 +294,7 @@
 	<button x-ref="triggerButton" type="button"
 		class="btn btn-block btn-xs border bg-base-100 btn-ghost flex items-center justify-between w-full focus:outline-none"
 		:class="isInvalid ? 'border border-error text-error' : 'border border-base-300 focus:border-info'"
+		:disabled="{{ if .DisabledBinding }}{{ .DisabledBinding }}{{ else }}false{{ end }}"
 		@click.stop="toggle()"> <span class="truncate" x-text="selectedLabel()"></span>
 		<span class="text-xs opacity-60">▾</span>
 	</button>

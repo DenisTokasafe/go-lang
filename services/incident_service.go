@@ -7,6 +7,7 @@ import (
 	"latihan1/cmd/web/helpers"
 	"latihan1/models"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -19,11 +20,13 @@ import (
 
 type IncidentService interface {
 	GetFormDataReferences(page int) (map[string]interface{}, error)
-	CreateIncident(incident *models.IncidentReport, parties []models.InvolvedParty) error
+	CreateIncident(incident *models.IncidentReport, parties []models.InvolvedParty, r *http.Request) error
 	// Tambahkan r *http.Request di akhir parameter ini:
 	UpdateIncident(id uint, userID uint, updatedIncident *models.IncidentReport, parties []models.InvolvedParty, investigators []models.InvestigationParticipant, peepoFactors []models.PeepoFactor, timelines []models.Timeline, causes []models.IncidentCause, corrective_action_incidents []models.CorrectiveActionIncident, reviews *models.IncidentReview, r *http.Request) (bool, error)
 	GetByID(id uint) (*models.IncidentReport, error)
 	GetEditData(id uint, currentUserID uint, page int) (*IncidentEditData, error)
+	// <-- TAMBAHKAN METHOD INI DI SINI
+	GetIncidentReports(user models.User, search, startDate, endDate, category, location, risk, scat, status string, page int) (*IncidentReportIndexResult, error)
 }
 
 type incidentService struct {
@@ -33,6 +36,144 @@ type incidentService struct {
 func NewIncidentService(db *gorm.DB) IncidentService {
 	return &incidentService{db: db}
 
+}
+
+// GetIncidentReports mengambil daftar insiden dengan filter, search, dan paginasi
+func (s *incidentService) GetIncidentReports(
+	user models.User,
+	search, startDate, endDate string,
+	category, location, risk, scat, status string,
+	page int,
+) (*IncidentReportIndexResult, error) {
+
+	var result IncidentReportIndexResult
+	limit := 10 // Jumlah data per halaman
+
+	// ==========================================
+	// 1. BASE QUERY
+	// ==========================================
+	query := s.db.Model(&models.IncidentReport{})
+
+	// OPSIONAL: Jika ingin membatasi user normal hanya melihat data departemennya
+	/*
+		if user.Role != "Admin" && user.Role != "EHS" {
+			query = query.Where("department_id = ? OR report_by_id = ?", user.DepartmentID, user.ID)
+		}
+	*/
+
+	// ==========================================
+	// 2. APPLY FILTERS & SEARCH
+	// ==========================================
+	if search != "" {
+		searchLike := "%" + strings.ToLower(search) + "%"
+		query = query.Where(
+			"LOWER(ref_number) LIKE ? OR LOWER(deskripsi) LIKE ? OR LOWER(location_specific) LIKE ? OR LOWER(reporter_manual) LIKE ?",
+			searchLike, searchLike, searchLike, searchLike,
+		)
+	}
+
+	if startDate != "" && endDate != "" {
+		query = query.Where("tanggal_waktu BETWEEN ? AND ?", startDate+" 00:00:00", endDate+" 23:59:59")
+	} else if startDate != "" {
+		query = query.Where("tanggal_waktu >= ?", startDate+" 00:00:00")
+	} else if endDate != "" {
+		query = query.Where("tanggal_waktu <= ?", endDate+" 23:59:59")
+	}
+
+	if category != "" {
+		query = query.Where("event_category_id = ?", category)
+	}
+	if location != "" {
+		query = query.Where("location_id = ?", location)
+	}
+	if risk != "" {
+		query = query.Where("risk_matrix_id = ?", risk)
+	}
+	if scat != "" {
+		query = query.Where("scat_option_id = ?", scat)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	// ==========================================
+	// 3. HITUNG TOTAL ROWS & PAGINASI
+	// ==========================================
+	var totalRows int64
+	if err := query.Count(&totalRows).Error; err != nil {
+		return nil, err
+	}
+
+	totalPages := int(math.Ceil(float64(totalRows) / float64(limit)))
+	if page > totalPages && totalPages > 0 {
+		page = totalPages
+	}
+	if page < 1 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
+	// ==========================================
+	// 4. FETCH DATA INCIDENTS DENGAN PRELOAD
+	// ==========================================
+	var incidents []models.IncidentReport
+	err := query.
+		Preload("EventCategory").
+		Preload("RiskMatrix.RiskAssessment"). // Preload sampai assessment code agar nama risiko langsung dapat
+		Preload("ScatOption").
+		Preload("Location").
+		Preload("Department").
+		Preload("Contractor").
+		Preload("PIC").
+		Preload("ReportBy").
+		Order("tanggal_waktu DESC, id DESC"). // Urutan dari kejadian terbaru
+		Limit(limit).
+		Offset(offset).
+		Find(&incidents).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	// ==========================================
+	// 5. FETCH MASTER DATA UNTUK DROPDOWN FILTER
+	// (Menggunakan pola query yang sama dengan GetFormDataReferences)
+	// ==========================================
+	var categories []models.EventCategory
+	var scatOptions []models.ScatOption
+	var riskMatrices []models.RiskMatrix
+	var locations []models.Location
+
+	// Ambil Kategori khusus Incident ("%INC%")
+	s.db.Where("parent_id IS NULL AND category_group = ? AND code LIKE ?", "incident", "%INC%").
+		Order("name asc").Find(&categories)
+
+	// Ambil Scat Options dengan sorting khusus
+	s.db.Where("type IN ?", []string{"unsafe_act", "personal_factor"}).
+		Order("FIELD(type, 'unsafe_act', 'personal_factor'), code asc").
+		Find(&scatOptions)
+
+	// Ambil Risk Matrices beserta assessment-nya
+	s.db.Preload("RiskAssessment").Order("risk_consequence_id asc").Find(&riskMatrices)
+
+	// Ambil Lokasi
+	s.db.Order("name asc").Find(&locations)
+
+	// ==========================================
+	// 6. COMPILE RESULT
+	// ==========================================
+	result = IncidentReportIndexResult{
+		Incidents:       incidents,
+		Categories:      categories,
+		ScatOptions:     scatOptions,
+		RiskAssessments: riskMatrices,
+		Locations:       locations,
+		CurrentPage:     page,
+		TotalPages:      totalPages,
+		TotalRows:       totalRows,
+	}
+
+	return &result, nil
 }
 
 // GetFormDataReferences mengambil semua data master untuk dropdown di form KPLH
@@ -114,28 +255,54 @@ func (s *incidentService) GetFormDataReferences(page int) (map[string]interface{
 }
 
 // CreateIncident menyimpan Laporan beserta baris anak secara transaksional
-func (s *incidentService) CreateIncident(incident *models.IncidentReport, parties []models.InvolvedParty) error {
+// Upload file dilakukan di sini lewat s.uploadFiles() -- SATU-SATUNYA jalur upload,
+// sama persis dengan yang dipakai UpdateIncident, supaya penamaan file & DocType konsisten.
+func (s *incidentService) CreateIncident(incident *models.IncidentReport, parties []models.InvolvedParty, r *http.Request) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		// 1. Simpan Laporan Induk (Bagian 1)
+		// Simpan Laporan Utama
 		if err := tx.Create(incident).Error; err != nil {
-			return err // Otomatis Rollback Laporan Utama
+			return err
 		}
 
-		// 2. Jika ada data Pihak Terlibat, proses penyimpanannya
+		// Simpan Pihak Terlibat (Involved Parties)
 		if len(parties) > 0 {
-			// Hubungkan ID Laporan Utama yang baru di-generate ke Foreign Key child-nya
 			for i := range parties {
 				parties[i].IncidentReportID = incident.ID
 			}
-
-			// CUKUP PANGGIL SATU KALI DI SINI (Secara Batch Insert)
 			if err := tx.Create(&parties).Error; err != nil {
-
-				return err // Otomatis Rollback Laporan Utama & Batalkan Insert Pihak Terlibat
+				return err
 			}
 		}
 
-		return nil // Otomatis Commit seluruh data jika sampai di titik ini
+		// Upload file dokumentasi (field name harus sama dengan name="" di input-file.gohtml pada create.gohtml)
+		docs, err := s.uploadFiles(r, "dokumentasi_desc")
+		if err != nil {
+			return err
+		}
+
+		// Simpan Documentation & Relasi ke IncidentDocumentation
+		if len(docs) > 0 {
+			for i := range docs {
+				// Simpan metadata file ke tabel documentations
+				if err := tx.Create(&docs[i]).Error; err != nil {
+					return err
+				}
+
+				// Buat relasi di tabel pivot incident_documentations
+				// DocType WAJIB diisi "incident" -- inilah yang tadinya kosong dan
+				// menyebabkan dokumen dari Create tidak lolos filter di GetEditData
+				incidentDoc := models.IncidentDocumentation{
+					IncidentReportID: incident.ID,
+					DocumentationID:  docs[i].ID,
+					DocType:          "incident",
+				}
+				if err := tx.Create(&incidentDoc).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
 	})
 }
 
@@ -181,7 +348,18 @@ func (s *incidentService) GetByID(id uint) (*models.IncidentReport, error) {
 // Pastikan struct FileDTO sudah ada di package Anda (biasanya digunakan bersama di hazard)
 // Jika belum, Anda bisa mendefinisikannya:
 // type FileDTO struct { ID uint `json:"id"`; URL string `json:"url"` }
+// IncidentReportIndexResult menampung data list insiden beserta meta paginasi & data master filter
+type IncidentReportIndexResult struct {
+	Incidents       []models.IncidentReport
+	Categories      []models.EventCategory
+	ScatOptions     []models.ScatOption
+	RiskAssessments []models.RiskMatrix
+	Locations       []models.Location
 
+	CurrentPage int
+	TotalPages  int
+	TotalRows   int64
+}
 type IncidentEditData struct {
 	Incident    models.IncidentReport
 	CanReopen   bool
@@ -878,9 +1056,17 @@ func (s *incidentService) toFileDTOIncident(docs []models.Documentation) []FileD
 		ext := strings.ToLower(filepath.Ext(doc.FileURL))
 		isImage := ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp" || ext == ".gif"
 
+		// Tampilkan nama file ASLI (FileName) yang diinput user, bukan nama fisik
+		// (timestamp+ext) yang tersimpan di FileURL. Fallback ke basename FileURL
+		// hanya untuk data lama yang FileName-nya masih kosong.
+		displayName := doc.FileName
+		if displayName == "" {
+			displayName = filepath.Base(doc.FileURL)
+		}
+
 		result = append(result, FileDTOIncident{
 			ID:      doc.ID,
-			Name:    filepath.Base(doc.FileURL),
+			Name:    displayName,
 			URL:     doc.FileURL,
 			IsImage: isImage,
 		})

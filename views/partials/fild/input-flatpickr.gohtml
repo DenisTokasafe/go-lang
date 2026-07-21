@@ -1,12 +1,35 @@
 {{ define "input-flatpickr" }}
 <fieldset
 	class="fieldset"
-	x-modelable="value" {{/* 🔥 PERBAIKAN 1: Menghubungkan x-model Parent dengan state internal Alpine */}}
+	x-modelable="value"
 	x-data="{
 	value: '{{ .Value }}',
 	isInvalid: false,
 	errorMsg: '',
 	_fp: null,
+	isDisabled: {{ if .DisabledBinding }}{{ .DisabledBinding }}{{ else }}false{{ end }},
+
+	// =========================================================
+	// ✅ FUNGSI KONSISTENSI DISABLED (INPUT ASLI & VISUAL)
+	// =========================================================
+	setDisabled(val) {
+	this.isDisabled = Boolean(val);
+	if (this._fp) {
+	// Kunci input asli
+	if (this._fp._input) {
+	this._fp._input.disabled = this.isDisabled;
+	}
+	// Kunci input visual (altInput) & berikan style Tailwind/DaisyUI
+	if (this._fp.altInput) {
+	this._fp.altInput.disabled = this.isDisabled;
+	if (this.isDisabled) {
+	this._fp.altInput.classList.add('opacity-50', 'cursor-not-allowed', 'bg-base-200');
+	} else {
+	this._fp.altInput.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-base-200');
+	}
+	}
+	}
+	},
 
 	isFuture(val) {
 	if (!val) return false;
@@ -16,6 +39,14 @@
 	},
 
 	validate() {
+	// Jika dalam posisi disabled, lewati validasi agar tidak muncul error
+	if (this.isDisabled) {
+	this.isInvalid = false;
+	this.errorMsg = '';
+	this.updateStyles();
+	return true;
+	}
+
 	const isRequired =
 {{ if .Required }}
 	true
@@ -25,7 +56,7 @@
 	false
 {{ end }};
 
-	if (isRequired && (!this.value || this.value.trim() === '')) {
+	if (isRequired && (!this.value || String(this.value).trim() === '')) {
 	this.isInvalid = true;
 	this.errorMsg = '{{ .Label }} wajib diisi.';
 	this.updateStyles();
@@ -56,7 +87,7 @@
 	},
 
 	async init() {
-	// 💡 JALUR PENYELAMATAN DATA: Jika x-model parent sempat mengosongkan state saat binding awal, paksa isi kembali dari database Go
+	// 💡 JALUR PENYELAMATAN DATA: Jika x-model parent sempat mengosongkan state saat binding awal
 	if ((this.value === undefined || this.value === '') && '{{ .Value }}' !== '') {
 	this.value = '{{ .Value }}';
 	}
@@ -75,10 +106,13 @@
 	pickerSetup.value = this.value;
 	pickerSetup.init.call(this);
 
-	if (this.value) {
-	this.$nextTick(() => this.validate());
-	}
+	// 💡 TERAPKAN STATUS DISABLED SECARA INSTAN SAAT RENDER SELESAI
+	this.$nextTick(() => {
+	this.setDisabled(this.isDisabled);
+	if (this.value) this.validate();
+	});
 
+	// Pantau perubahan nilai tanggal
 	this.$watch('value', val => {
 	this.$dispatch('input', val);
 	this.$dispatch('change', val);
@@ -90,6 +124,24 @@
 	() => {{ .RequiredBinding }},
 	(val) => {
 	if (!val) {
+	this.isInvalid = false;
+	this.errorMsg = '';
+	this.updateStyles();
+	} else {
+	this.validate();
+	}
+	}
+	);
+{{ end }}
+
+{{ if .DisabledBinding }}
+	// 💡 PANTAU PERUBAHAN STATUS DISABLED DARI FRONTEND (REAKTIF)
+	this.$watch(
+	() => {{ .DisabledBinding }},
+	(val) => {
+	this.setDisabled(val);
+	if (val) {
+	// Bersihkan error jika elemen berubah menjadi disabled
 	this.isInvalid = false;
 	this.errorMsg = '';
 	this.updateStyles();
@@ -121,7 +173,7 @@
 			name="{{ .Name }}"
 			id="{{ .Id }}"
 			x-ref="datepicker"
-			value="{{ .Value }}" {{/* 🔥 PERBAIKAN 2: Menyediakan data mentah awal agar dibaca Flatpickr */}}
+			value="{{ .Value }}" 
 			placeholder="{{ .Placeholder }}"
 			@change="validate()"
 			@input="validate()"
@@ -130,7 +182,7 @@
 			class="input input-xs w-full focus:outline-none focus:border-info leading-normal focus:ring-info appearance-none"
 
 			{{ if .Required }} required {{ end }}
-			{{ if .DisabledBinding }} :disabled="{{ .DisabledBinding }}" {{ end }}
+			:disabled="isDisabled" 
 			{{ if .RequiredBinding }} x-bind:required="{{ .RequiredBinding }}" {{ end }}
 		/>
 	</div>

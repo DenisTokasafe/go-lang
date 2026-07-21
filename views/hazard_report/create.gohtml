@@ -97,7 +97,6 @@
 	// INIT
 	// =========================
 	init() {
-	console.log(this.event_date)
 	this.checkFlash()
 	// =========================
 	// AUTO STATUS
@@ -368,7 +367,7 @@
 			{{ template "input" (dict "Label" (index .Tr "LocationSpecific") "Name" "location_specific" "Placeholder" (index .Tr "InputLocationSpecific") "Required" true "Attr" "x-model='location_specific'") }}
 		</div>
 		<div class="relative ">
-			{{ template "select-user-search" (dict "Label" (index .Tr "ReporterName") "Options" .Users "Value" .AuthUser.ID "SelectedLabel" .AuthUser.Name "DefaultValue" .AuthUser.ID "DefaultText" (index .Tr "SelectReporterName") "Attr" "x-model='reporter_id'" "Required" true) }}
+			{{ template "select-user-search" (dict "Label" (index .Tr "ReporterName") "Name" "reporter_id" "Options" .Users "Value" .AuthUser.ID "SelectedLabel" .AuthUser.Name "DefaultValue" .AuthUser.ID "DefaultText" (index .Tr "SelectReporterName") "Attr" "x-model='reporter_id'" "Required" true) }}
 		</div>
 
 		{{ template "input-flatpickr" dict

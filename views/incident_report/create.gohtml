@@ -26,7 +26,7 @@
 	location_id: '{{ .Data.LocationID }}',
 	location_specific: '',
 	event_date: '',
-	reporter_id: '{{ .AuthUser.ID }}',
+
 
 	// =========================
 	// RISK MATRIX
@@ -213,100 +213,100 @@
 	const form = this.$refs.form
 	if (!form) return
 
-	// 1. VALIDASI BAGIAN 2: Wajib ada minimal 1 baris personil
+	// ==========================================
+	// 1. VALIDASI BAGIAN 2: Wajib ada minimal 1 baris personil & lengkap
+	// ==========================================
+	let bagian2Invalid = false
+
 	if (!this.involved_parties || this.involved_parties.length === 0) {
-	this.involved_error = true;
-	const msg = 'BAGIAN 2 (Pihak Terlibat Langsung) wajib diisi minimal 1 personil!';
-	if (window.showToast) {
-	window.showToast(msg, 'error');
+	bagian2Invalid = true
 	} else {
-	alert(msg);
-	}
-	return;
-	}
-
-	// 2. VALIDASI BAGIAN 2: Loop cek kelengkapan kolom input wajib per baris
-	console.log('=== MEMULAI VALIDASI BAGIAN 2 ===');
-	console.log('Total baris personil:', this.involved_parties.length);
-
 	for (let i = 0; i < this.involved_parties.length; i++) {
-	let party = this.involved_parties[i];
-	let userIdValue = party.user_id ? String(party.user_id).trim() : '';
-	let manualValue = party.reporter_manual ? String(party.reporter_manual).trim() : '';
-
-
-	// --- 🔍 CONSOLE LOG UNTUK PENGECEKAN ---
-	console.log('userIdValue:', userIdValue);
-	console.log('--- Mengecek Baris ke-' + (i + 1) + ' ---');
-	console.log('Data utuh baris ini:', JSON.parse(JSON.stringify(party))); 
-	console.log('1. user_id:', party.user_id, '| Tipe:', typeof party.user_id);
-	console.log('2. reporter_manual:', party.reporter_manual);
-	console.log('3. jabatan:', party.jabatan);
-	console.log('4. keterlibatan:', party.keterlibatan);
-	console.log('5. work_type:', party.work_type);
-	// -----------------------------------------
-
-	// Cek apakah user_id ada isinya ATAU reporter_manual ada isinya
-	let hasName = party.user_id || party.reporter_manual.trim() !== '';
-	console.log('=> Hasil evaluasi hasName:', hasName);
+	let party = this.involved_parties[i]
+	let hasName = party.user_id || (party.reporter_manual && party.reporter_manual.trim() !== '')
 
 	if (!hasName || !party.jabatan.trim() || !party.keterlibatan) {
-	console.error('[Validasi Gagal] Baris ke-' + (i + 1) + ': Nama, Jabatan, atau Keterlibatan kosong.');
-	this.involved_error = true;
-	const msg = 'Mohon lengkapi Nama Personil, Jabatan, dan Keterlibatan pada baris ke-' + (i + 1) + '!';
+	bagian2Invalid = true
+	break
+	}
+	if (party.work_type === 'department' && !party.department_id) {
+	bagian2Invalid = true
+	break
+	}
+	if (party.work_type === 'contractor' && !party.contractor_id) {
+	bagian2Invalid = true
+	break
+	}
+	}
+	}
+
+	if (bagian2Invalid) {
+	this.involved_error = true
+	const msg = 'BAGIAN 2 (Pihak Terlibat Langsung) wajib diisi minimal 1 personil dengan data lengkap!'
 	if (window.showToast) {
-	window.showToast(msg, 'error');
+	window.showToast(msg, 'error')
 	} else {
-	alert(msg);
-	}
-	return;
+	alert(msg)
 	}
 
-	// Cek dropdown departemen atau kontraktor berdasarkan pilihan tipe kerjanya
-	if (party.work_type === 'department') {
-	console.log('=> Mengecek department_id:', party.department_id);
-	if (!party.department_id) {
-	console.error('[Validasi Gagal] Baris ke-' + (i + 1) + ': Department belum dipilih.');
-	this.involved_error = true;
-	const msg = 'Mohon pilih Department internal untuk personil baris ke-' + (i + 1) + '!';
-	if (window.showToast) window.showToast(msg, 'error'); else alert(msg);
-	return;
+	// Auto-scroll ke section BAGIAN 2
+	this.$nextTick(() => {
+	const container = this.$refs.bagian2
+	if (container) {
+	container.scrollIntoView({ behavior: 'smooth', block: 'start' })
+	}
+	})
+	return
+	}
+
+	this.involved_error = false
+
+	// ==========================================
+	// 2. VALIDASI SEMUA FIELD REQUIRED DI FORM (termasuk CKEditor)
+	// Manual scan (bukan form.checkValidity() bawaan browser) supaya
+	// bisa deteksi & scroll ke textarea CKEditor yang aslinya 'hidden'.
+	// ==========================================
+	const allRequired = form.querySelectorAll('input[required]:not([type=\'hidden\']), select[required], textarea[required]')
+	let invalidElement = null
+
+	for (const input of allRequired) {
+	if (!input.value || String(input.value).trim() === '') {
+	invalidElement = input
+	break
 	}
 	}
 
-	if (party.work_type === 'contractor') {
-	console.log('=> Mengecek contractor_id:', party.contractor_id);
-	if (!party.contractor_id) {
-	console.error('[Validasi Gagal] Baris ke-' + (i + 1) + ': Contractor belum dipilih.');
-	this.involved_error = true;
-	const msg = 'Mohon pilih Nama Kontraktor/Perusahaan untuk personil baris ke-' + (i + 1) + '!';
-	if (window.showToast) window.showToast(msg, 'error'); else alert(msg);
-	return;
+	if (invalidElement) {
+	// Trigger event 'invalid' agar Alpine di komponen field menandai isInvalid = true
+	invalidElement.dispatchEvent(new Event('invalid', { bubbles: true }))
+
+	if (invalidElement.classList.contains('hidden')) {
+	// Kasus CKEditor: textarea asli disembunyikan, scroll ke container editor-nya
+	const editorContainer = invalidElement.parentElement
+	editorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' })
+	if (editorContainer._editor) {
+	editorContainer._editor.editing.view.focus()
 	}
-	}
-	console.log('Baris ke-' + (i + 1) + ' lolos validasi.');
+	} else {
+	// Field standar (input/select/textarea biasa)
+	invalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+	invalidElement.focus()
 	}
 
-	// Reset status error jika lolos validasi Bagian 2
-	console.log('=== VALIDASI BAGIAN 2 SELESAI & SUKSES ===');
-	this.involved_error = false;
-
-	// 3. VALIDASI BAGIAN 1: Cek internal HTML5 Form validation bawaan browser
-	if (!form.checkValidity()) {
-	const firstInvalid = form.querySelector(':invalid')
-	if (firstInvalid) {
-	firstInvalid.focus()
-	firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' })
+	if (window.showToast) {
+	window.showToast('Mohon lengkapi field yang wajib diisi (bertanda *)', 'error')
 	}
 	return
 	}
 
-	// 4. CEK ANTI DOUBLE-SUBMIT
+	// ==========================================
+	// 3. CEK ANTI DOUBLE-SUBMIT & SUBMIT
+	// ==========================================
 	if (form.dataset.submitting === 'true') return
 	form.dataset.submitting = 'true'
 
 	form.submit()
-	}, 50) 
+	}, 50)
 	},
 
 	// =========================
@@ -315,7 +315,7 @@
 	async syncData(name, value) {
 	this[name] = value
 
-	if (name === 'reporter_id') return
+	if (name === 'report_by_id') return
 
 	const formData = new FormData()
 	formData.append('name', name)
@@ -346,7 +346,19 @@
 	}
 	}
 	}">
-	<h1 class="text-sm font-bold mb-2 text-base-content uppercase tracking-wider">{{ index .Tr "NewReport" }}</h1>
+	<div class="mb-2">
+		<div class="flex items-center gap-2">
+			{{ lucide "file-text" (dict "class" "size-5 text-primary") }}
+			<h1 class="text-xl font-bold text-base-content tracking-tight">
+				{{ index .Tr "NewReport" }}
+			</h1>
+			<span class="badge badge-primary badge-sm font-medium">Baru</span>
+		</div>
+		<p class="text-sm text-base-content/60 mt-1">
+			Isi setiap bagian dengan lengkap. Field bertanda <span class="text-error font-semibold">*</span> wajib diisi.
+		</p>
+		<div class="divider my-2"></div>
+	</div>
 	{{ template "card_scroll" . }}
 </div>
 {{ end }}
@@ -356,7 +368,7 @@
 	<h3 class="text-lg font-bold text-slate-700">BAGIAN 1 – Detil Laporan</h3>
 	<p class="text-xs text-slate-500">(Informasi Umum, Lokasi, Kronologi, & Tindakan Langsung)</p>
 </div>
-<form x-ref="form" action="/incident/store" method="POST" enctype="multipart/form-data" @submit.prevent="handleSubmit" >
+<form x-ref="form" action="/incident/store" method="POST" enctype="multipart/form-data" @submit.prevent="handleSubmit" novalidate>
 
 	<div class="bg-base-100 rounded-md border border-base-200 p-2">
 		<div class="grid grid-cols-1 md:grid-cols-4 gap-2 ">
@@ -366,7 +378,7 @@
 			{{ template "select-dynamic" (dict "Label" (index .Tr "HazardType") "Name" "event_type_id" "Model" "event_type_id" "OptionsArray" "all_types" "ShowCondition" "event_category_id" "DefaultText" (index .Tr "SelectHazardType") "Required" true) }}
 			{{ template "select_input" (dict "Label" (index .Tr "HazardCategory") "Name" "scat_option_id" "ShowType" true "Model" "scat_option_id" "Placeholder" (index .Tr "SelectHazardCategory") "Options" .ScatOptions "Required" true) }}
 
-			<div class="relative my-select-field" @change="location_id = $event.detail">
+			<div class="relative " @change="location_id = $event.detail">
 				{{ template "select-search" (dict
 					"Label" (index .Tr "Location")
 					"Name" "location_id"
@@ -383,7 +395,7 @@
 				{{ template "input" (dict "Label" (index .Tr "LocationSpecific") "Name" "location_specific" "Placeholder" (index .Tr "InputLocationSpecific") "Required" true "Attr" "x-model='location_specific'") }}
 			</div>
 			<div class="relative ">
-				{{ template "select-user-search" (dict "Label" (index .Tr "ReporterName") "Options" .Users "Value" .AuthUser.ID "SelectedLabel" .AuthUser.Name "DefaultValue" .AuthUser.ID "DefaultText" (index .Tr "SelectReporterName") "Attr" "x-model='reporter_id'" "Required" true) }}
+				{{ template "select-user-search" (dict "Label" (index .Tr "ReporterName") "Name" "report_by_id" "Options" .Users "Value" .AuthUser.ID "SelectedLabel" .AuthUser.Name "DefaultValue" .AuthUser.ID "DefaultText" (index .Tr "SelectReporterName") "Attr" "x-model='report_by_id'" "Required" true) }}
 			</div>
 
 			{{ template "input-flatpickr" dict
@@ -443,12 +455,26 @@
 			<div class="col-span-2 md:grow">
 				{{ template "select_input" (dict "Label" "Consequences" "Name" "consequence_id" "Model" "consequence_id" "Placeholder" "Pilih Consequences" "Class" "max-w-sm" "Options" .Consequences "Required" true) }}
 				<div x-show="consequence_id" x-transition>
-					<textarea class="textarea textarea-bordered w-full" x-text="getConsequenceDesc()" readonly></textarea>
+					<div role="alert" class="alert alert-vertical sm:alert-horizontal border-l-4 border-info">
+						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current text-info h-6 w-6 shrink-0">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+						</svg>
+						<div class="">
+							<p class="text-xs prose text-justify" x-html="getConsequenceDesc()"></p>	
+						</div>
+					</div>
 				</div>
 
 				{{ template "select_input" (dict "Label" "Likelihood" "Name" "likelihood_id" "Model" "likelihood_id" "Placeholder" "Pilih Likelihood" "Class" "max-w-sm" "Options" .Likelihoods "Required" true) }}
 				<div x-show="likelihood_id" x-transition>
-					<textarea class="textarea textarea-bordered w-full" x-text="getLikelihoodNotes()" readonly></textarea>
+					<div role="alert" class="alert alert-vertical sm:alert-horizontal border-l-4 border-info">
+						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current text-info h-6 w-6 shrink-0">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+						</svg>
+						<div class="">
+							<p class="text-xs prose text-justify" x-html="getLikelihoodNotes()"></p>	
+						</div>
+					</div>
 				</div>
 			</div>
 
@@ -515,7 +541,7 @@
 		</div>
 	</div>
 
-	<div class="mt-8 border-t pt-6">
+	<div class="mt-8 border-t pt-6" x-ref="bagian2">
 		<div class="flex justify-between items-center mb-4">
 			<div>
 				<h3 class="text-lg font-bold text-slate-700">BAGIAN 2 – Pihak Terlibat Langsung</h3>
