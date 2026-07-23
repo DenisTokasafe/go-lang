@@ -2,6 +2,11 @@
 {{ define "content" }}
 <div class="px-4 w-full " 
 	x-data="{
+	// =========================
+	// SECURITY (CSRF)
+	// =========================
+	csrf_token: '{{ .CSRFToken }}',
+
 	stripHtml(html) {
 	let tmp = document.createElement('DIV');
 	tmp.innerHTML = html;
@@ -830,7 +835,7 @@
 
 	// Kondisi 3: Tab 3 - 8 baru diisi sebagian / sedang berjalan
 	if (isInvestigationStarted) {
-	return 'in progress';
+	return 'in_progress';
 	}
 
 	// Kondisi 4: Baru Tab 1 - 2 yang terisi
@@ -1248,7 +1253,8 @@
 	const response = await fetch('/incident/update/' + incidentID, {
 	method: 'POST',
 	headers: { 
-	'Accept': 'application/json' 
+	'Accept': 'application/json',
+	'X-CSRF-Token': this.csrf_token
 	},
 	body: formData
 	});
@@ -1274,15 +1280,11 @@
 	this.focusInvalidField(this.activeTab);
 	return; 
 	}
-
-
 	this.isSubmitting = true;
 	this.showErrors = true;
-
 	try {
 	// 3. Jalankan proses simpan data di background
 	const success = await this.saveBackground();
-
 	if (success) {
 	if (window.showToast) {
 	window.showToast('Progress Bagian ' + this.activeTab + ' tersimpan.', 'success');
@@ -1298,20 +1300,16 @@
 	this.showErrors = true;
 	}
 	},
-
 	// ====================================================
 	// FORM FINAL SUBMIT (TOMBOL UPDATE PALING BAWAH)
 	// ====================================================
 	async handleSubmit(e) {
-
 	// 1. Validasi dulu semua tab
 	for (let i = 1; i <= this.totalTabs; i++) {
 	// Cek validasi custom Anda
 	if (!this.validateStep(i)) {
-
 	// Pindah ke tab yang bermasalah
 	this.activeTab = i;
-
 	// Tunggu transisi DOM/Animasi
 	this.$nextTick(() => {
 	setTimeout(() => {
@@ -1330,7 +1328,6 @@
 	break; // Berhenti di elemen pertama yang kosong
 	}
 	}
-
 	if (invalidElement) {
 	// 3. Trigger @invalid.prevent agar Alpine menjalankan isInvalid = true
 	invalidElement.dispatchEvent(new Event('invalid', { bubbles: true }));
@@ -1352,7 +1349,6 @@
 	invalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	invalidElement.focus();
 	}
-
 	} else {
 	// Fallback: Jika tidak ditemukan input kosong 
 	container.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1363,61 +1359,53 @@
 	return; // Berhenti di sini
 	}
 	}
-
 	// 2. Jika semua valid, lanjut submit
 	const form = e.target;
 	if (form.dataset.submitting === 'true') return;
 	form.dataset.submitting = 'true';
-
 	const success = await this.saveBackground();
-
 	if (success) {
 	const incidentID = this.incident.ID || this.incident.id;
 	this.isSubmitting = true;
-
 	sessionStorage.setItem('flash_msg', 'Berhasil!');
 	window.location.href = `/incident/edit/${incidentID}`;
 	} else {
 	form.dataset.submitting = 'false';
 	this.isSubmitting = false;
-
 	}
 	},
-
 	// =========================
 	// BACKEND SYNC
 	// =========================
 	async syncData(name, value, isInit = false) {
 	this[name] = value
 	if (name === 'reporter_id') return
-
 	const formData = new FormData()
 	formData.append('name', name)
 	formData.append('value', value)
-
 	try {
 	const response = await fetch('/incident/sync', {
 	method: 'POST',
+	headers: {
+	'X-CSRF-Token': this.csrf_token
+	},
 	body: formData
 	})
 	const result = await response.json()
 	if (result.status !== 'success') return
-
 	if (name === 'event_category_id') {
 	this.all_types = result.types || []
 	if (!isInit) this.event_type_id = ''
 	}
-
 	if (name === 'department_id' || name === 'contractor_id') {
 	this.all_pics = result.pics || []
 	if (!isInit) this.pic_id = ''
 	}
 	} catch (error) {
-
 	}
 	}
 	}" id="incident-form">
-	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-1 pb-3 border-b-2 border-base-300">
+	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-1 pb-2 border-b shadow-sm px-2 border-base-300">
 		<div>
 			<h3 class="text-sm font-bold text-base-content uppercase tracking-wider">{{ index .Tr "RingkasanInsiden" }}</h3>
 			<p class="text-xs text-base-content/60 mt-0.5">{{ index .Tr "subJudulIncident" }}</p>
@@ -1425,48 +1413,57 @@
 
 		<div class="flex items-center gap-2">
 			<span class="text-xs font-semibold text-base-content/50 uppercase tracking-wide">Status</span>
-			<div class="badge gap-1.5 font-bold uppercase text-[11px] px-3 py-3 text-white"
-				:class="{
-				'badge-info': calculateStatus() === 'submit',
-				'badge-warning': calculateStatus() === 'in progress',
-				'badge-error': calculateStatus() === 'pending',
-				'badge-success': calculateStatus() === 'closed'
+			<div class="aura " :class="{
+				'text-info': calculateStatus() === 'submit',
+				'text-warning': calculateStatus() === 'in_progress',
+				'text-error': calculateStatus() === 'pending',
+				'text-success': calculateStatus() === 'closed'
 				}">
-				<span x-text="calculateStatus()" :key="calculateStatus()" class="animate-in fade-in zoom-in duration-300"></span>
+				<div class="badge gap-1.5 font-bold uppercase text-[11px] px-3 py-3 text-white "
+					:class="{
+					'badge-info': calculateStatus() === 'submit',
+					'badge-warning': calculateStatus() === 'in_progress',
+					'badge-error': calculateStatus() === 'pending',
+					'badge-success': calculateStatus() === 'closed'
+					}">
+					<span x-text="calculateStatus()" :key="calculateStatus()" class="animate-in fade-in zoom-in duration-300"></span>
+				</div>
 			</div>
 		</div>
 	</div>
 
 	<form x-ref="form" action="/incident/update/{{ .Incident.ID }}" method="POST" enctype="multipart/form-data" @submit.prevent="handleSubmit" novalidate>
+		{{ .CSRFField }}
 		{{ template "card_scroll" . }}
-		<div class="flex justify-between items-center py-1">
-			<button 
-				type="button" 
-				class="btn btn-secondary btn-soft btn-xs"
-				:disabled="activeTab === 1"  
-				@click="activeTab--">
-				{{ lucide "chevrons-left" (dict "class" "size-4") }} {{ index .Tr "Previous" }}
-			</button>
+		<div class="flex justify-between items-center py-1 ">
+			<div :class="activeTab > 1 ? 'aura text-secondary aura-xs' : ''">
+				<button 
+					type="button" 
+					class="btn btn-secondary btn-soft btn-xs"
+					:disabled="activeTab === 1"  
+					@click="activeTab--">
+					{{ lucide "chevrons-left" (dict "class" "size-4") }} {{ index .Tr "Previous" }}
+				</button>
+			</div>
 
 			<span class="text-xs text-base-content/50" x-text="`Step ${activeTab} of ${totalTabs}`"></span>
 
-			<button 
-				type="button" 
-				class="btn btn-secondary btn-soft btn-xs"
-				x-show="activeTab < totalTabs" 
-				@click="goNext()">
+			<div class="aura text-secondary aura-xs">
+				<button 
+					type="button" 
+					class="btn btn-secondary btn-soft btn-xs"
+					x-show="activeTab < totalTabs" 
+					@click="goNext()">
 
-				<span x-show="!isSubmitting" class="flex items-center gap-1">
-					{{ index .Tr "SaveNext" }} {{ lucide "chevrons-right" (dict "class" "size-4") }}
-				</span>
-				<span x-show="isSubmitting" class="flex items-center gap-1">
-					<span class="loading loading-spinner loading-xs"></span> 
-
-					{{ index .Tr "Save" }}... {{ lucide "send-horizontal" (dict "class" "size-4") }}
-				</span>
-
-			</button>
-
+					<span x-show="!isSubmitting" class="flex items-center gap-1">
+						{{ index .Tr "SaveNext" }} {{ lucide "chevrons-right" (dict "class" "size-4") }}
+					</span>
+					<span x-show="isSubmitting" class="flex items-center gap-1">
+						<span class="loading loading-spinner loading-xs"></span> 
+						{{ index .Tr "Save" }}... {{ lucide "send-horizontal" (dict "class" "size-4") }}
+					</span>
+				</button>
+			</div>
 			<button 
 				type="submit" 
 				class="btn btn-success btn-xs"
@@ -1669,7 +1666,7 @@
 							"Id" "dokumentasi_desc"
 							"Name" "dokumentasi_desc"
 							"Label" (index .Tr "UploadDocument")
-							"Required" true
+							"Required" false
 							"Accept" "image/*, application/pdf"
 							"DragDropUpload" (index .Tr "DragDropUpload")
 							"SubDragDropUpload" (index .Tr "SubDragDropUpload")

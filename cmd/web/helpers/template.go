@@ -97,6 +97,7 @@ func RenderTemplate(
 		"views/partials/fild/input-flatpickr.gohtml",
 		"views/partials/fild/input-flatpickr-range.gohtml",
 		"views/partials/fild/select-search.gohtml",
+		"views/partials/fild/select-search-floating.gohtml",
 		"views/partials/fild/select.gohtml",
 		"views/partials/fild/select-dinamic-loop.gohtml",
 		"views/partials/fild/select-search-loop.gohtml",

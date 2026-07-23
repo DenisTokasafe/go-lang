@@ -603,7 +603,7 @@ func (s *HazardService) toFileDTO(docs []models.Documentation) []FileDTO {
 		result = append(result, FileDTO{
 			ID:      doc.ID,
 			Name:    filepath.Base(doc.FileURL),
-			URL:     doc.FileURL,
+			URL:     fmt.Sprintf("/hazard/document/%d", doc.ID),
 			IsImage: isImage,
 		})
 	}
@@ -621,20 +621,18 @@ func (s *HazardService) uploadFiles(r *http.Request, fieldName string) ([]string
 		return nil, nil // Tidak ada file yang diupload di field ini, return nil (bukan error)
 	}
 
-	folder := "./public/uploads/hazards"
+	folder := "./storage/uploads/hazards"
 	if err := os.MkdirAll(folder, 0755); err != nil {
 		return nil, fmt.Errorf("gagal membuat direktori: %v", err)
 	}
 
 	var results []string
 
-	// Tambahkan index 'i' untuk mencegah bentrok nama file
-	for i, header := range files {
+	for _, header := range files {
 		// Pindahkan logika ke fungsi terpisah agar return error bisa ditangkap
 		err := func() error {
-			// Cek ukuran file sebelum membukanya (2 MB limit)
-			if header.Size > 2<<20 {
-				return fmt.Errorf("ukuran file %s melebihi batas 2MB", header.Filename)
+			if header.Size > 5<<20 {
+				return fmt.Errorf("ukuran file melebihi batas 5MB")
 			}
 
 			file, err := header.Open()
@@ -643,12 +641,19 @@ func (s *HazardService) uploadFiles(r *http.Request, fieldName string) ([]string
 			}
 			defer file.Close()
 
-			ext := filepath.Ext(header.Filename)
-			// Tambahkan index (i) ke nama file agar pasti unik meskipun di-looping di nanosecond yang sama
-			safeName := fmt.Sprintf("%d_%d%s", time.Now().UnixNano(), i, ext)
+			sniff := make([]byte, 512)
+			n, _ := io.ReadFull(file, sniff)
+			_, ok := map[string]string{"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}[http.DetectContentType(sniff[:n])]
+			if !ok {
+				return fmt.Errorf("format file tidak didukung")
+			}
+			if _, err := file.Seek(0, io.SeekStart); err != nil {
+				return fmt.Errorf("gagal membaca file")
+			}
+			safeName := sanitizeHazardUploadFilename(header.Filename)
 			path := filepath.Join(folder, safeName)
 
-			dst, err := os.Create(path)
+			dst, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 			if err != nil {
 				return fmt.Errorf("gagal menyimpan file %s: %v", header.Filename, err)
 			}
@@ -658,7 +663,7 @@ func (s *HazardService) uploadFiles(r *http.Request, fieldName string) ([]string
 				return fmt.Errorf("gagal menyalin data file %s: %v", header.Filename, err)
 			}
 
-			results = append(results, "/public/uploads/hazards/"+safeName)
+			results = append(results, "/storage/uploads/hazards/"+safeName)
 			return nil
 		}()
 
@@ -669,6 +674,23 @@ func (s *HazardService) uploadFiles(r *http.Request, fieldName string) ([]string
 	}
 
 	return results, nil
+}
+
+func sanitizeHazardUploadFilename(filename string) string {
+	name := filepath.Base(strings.TrimSpace(filename))
+	var cleaned strings.Builder
+	for _, char := range name {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '.' || char == '-' || char == '_' {
+			cleaned.WriteRune(char)
+		} else {
+			cleaned.WriteByte('_')
+		}
+	}
+	name = strings.Trim(cleaned.String(), "._")
+	if name == "" || name == "." || name == ".." {
+		return "document"
+	}
+	return name
 }
 func buildCorrectiveActionAudit(
 	actions []models.CorrectiveActionHazard,
@@ -799,7 +821,7 @@ func (s *HazardService) CreateWithFiles(r *http.Request) (models.Hazard, error) 
 	// ========================
 	// 1. PARSE MULTIPART FORM
 	// ========================
-	err := r.ParseMultipartForm(10 << 20)
+	err := r.ParseMultipartForm(5 << 20)
 	if err != nil {
 		return models.Hazard{}, fmt.Errorf("gagal parse multipart: %w", err)
 	}
@@ -1186,7 +1208,7 @@ func (s *HazardService) UpdateWithFiles(id uint, r *http.Request) (models.Hazard
 	// ========================
 	// PARSE MULTIPART
 	// ========================
-	if err := r.ParseMultipartForm(10 << 20); err != nil {
+	if err := r.ParseMultipartForm(5 << 20); err != nil {
 		return models.Hazard{}, fmt.Errorf("gagal parse multipart: %w", err)
 	}
 

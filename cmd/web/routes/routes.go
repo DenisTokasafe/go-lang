@@ -238,6 +238,7 @@ func RegisterRoutes(db *gorm.DB, c *bootstrap.Controllers) {
 	http.HandleFunc("/hazard/create", withAuth(c.HazardController.Create))
 	http.HandleFunc("POST /hazard/store", withAuth(c.HazardController.Store))
 	http.HandleFunc("GET /hazard/edit/{id}", withAuth(c.HazardController.Edit))
+	http.HandleFunc("GET /hazard/document/{id}", withAuth(c.HazardController.Document))
 	http.HandleFunc("POST /hazard/update/{id}", withAuth(c.HazardController.Update))
 	http.HandleFunc("POST /hazard/update-status/{id}", withAuth(c.HazardController.UpdateStatus))
 	http.HandleFunc("GET /api/users/search", withAuth(c.HazardController.Search))
@@ -260,7 +261,17 @@ func RegisterRoutes(db *gorm.DB, c *bootstrap.Controllers) {
 	http.HandleFunc("GET /incident/departments/search", withAuth(c.IncidentController.SearchDepartment))
 	http.HandleFunc("POST /incident/store", withAuth(c.IncidentController.Store))
 	http.HandleFunc("GET /incident/edit/{id}", withAuth(c.IncidentController.Edit))
+	http.HandleFunc("GET /incident/document/{id}", withAuth(c.IncidentController.Document))
 	http.HandleFunc("POST /incident/update/{id}", withAuth(c.IncidentController.Update))
 	// http.HandleFunc("POST /incident/update-status/{id}", withAuth(c.IncidentController.UpdateStatus))
 	// http.HandleFunc("POST /incident/delete/{id}", withAuth(c.IncidentController.Delete))
+	// =========================
+	// WPI REPORT
+	// =========================
+	http.HandleFunc("GET /wpi-report", withAuth(c.WpiReportController.Index))
+	http.HandleFunc("/wpi-report/create", withAuth(c.WpiReportController.Create))
+	http.HandleFunc("POST /wpi-report/store", withAuth(c.WpiReportController.Store))
+	http.HandleFunc("GET /wpi-report/edit/{id}", withAuth(c.WpiReportController.Edit))
+	http.HandleFunc("POST /wpi-report/update/{id}", withAuth(c.WpiReportController.Update))
+	http.HandleFunc("GET /wpi-report/document/{name}", withAuth(c.WpiReportController.Document))
 }

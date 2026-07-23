@@ -63,10 +63,23 @@ func InitDB() *gorm.DB {
 		&models.IncidentCause{},
 		&models.CorrectiveActionIncident{},
 		&models.IncidentReview{},
+		&models.WpiReport{},
+		&models.WpiInspector{},
+		&models.WpiItem{},
 	)
 	if err != nil {
 		log.Fatalf("MIGRASI DATABASE GAGAL: %v", err)
 	} else {
+		// Explicit migration for installations where the WPI tables predate the
+		// documentation fields. AutoMigrate is retained above for new installs.
+		migrator := db.Migrator()
+		for _, field := range []string{"DocUraianTindakan", "DocJenisTindakan"} {
+			if !migrator.HasColumn(&models.WpiItem{}, field) {
+				if err := migrator.AddColumn(&models.WpiItem{}, field); err != nil {
+					log.Fatalf("MIGRASI KOLOM WPI GAGAL (%s): %v", field, err)
+				}
+			}
+		}
 		fmt.Println("Migrasi sukses!")
 	}
 

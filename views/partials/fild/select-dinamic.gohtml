@@ -1,5 +1,5 @@
 {{ define "select-dynamic" }}
-<fieldset class="fieldset w-full" {{ if .ShowCondition }} x-show="{{ .ShowCondition }}" x-transition {{ end }} x-data="{
+<fieldset class=" w-full" {{ if .ShowCondition }} x-show="{{ .ShowCondition }}" x-transition {{ end }} x-data="{
 	isInvalid: false,
 	errorMsg: '',
 

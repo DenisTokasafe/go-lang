@@ -1,0 +1,175 @@
+{{ define "title" }}Daftar Laporan WPI - SENTRY{{ end }}
+
+{{ define "content" }}
+<div x-data="{
+	searchQuery: '{{ .Search }}',
+	locationId: '{{ .LocationID }}',
+	unitFilter: '{{ .UnitFilter }}',
+	startDate: '{{ .StartDate }}',
+	endDate: '{{ .EndDate }}',
+	filterTimer: null,
+	scheduleSearch() {
+	clearTimeout(this.filterTimer);
+	this.filterTimer = setTimeout(() => this.doSearch(), 250);
+	},
+	applySelectFilter({ name, value }) {
+	if (name === 'location_id') this.locationId = value;
+	if (name === 'unit') this.unitFilter = value;
+	this.scheduleSearch();
+	},
+	applyDateRange(value) {
+	const dates = String(value || '').split(' to ');
+	if (dates.length === 2 && dates[0] && dates[1]) {
+	this.startDate = dates[0];
+	this.endDate = dates[1];
+	this.scheduleSearch();
+	return;
+	}
+	if (!value) {
+	this.startDate = '';
+	this.endDate = '';
+	this.scheduleSearch();
+	}
+	},
+	doSearch() {
+	clearTimeout(this.filterTimer);
+	this.filterTimer = null;
+	const params = new URLSearchParams();
+	if (this.searchQuery.trim() !== '') {
+	params.set('search', this.searchQuery);
+	} else {
+	params.delete('search');
+	}
+	if (this.locationId) params.set('location_id', this.locationId)
+	if (this.unitFilter) params.set('unit', this.unitFilter)
+	if (this.startDate) params.set('start_date', this.startDate)
+	if (this.endDate) params.set('end_date', this.endDate)
+	params.set('page', '1');
+	window.location.href = window.location.pathname + '?' + params.toString();
+	}
+	}" @select-search-change.window="applySelectFilter($event.detail)">
+	<!-- PAGE HEADER -->
+	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+		<div>
+			<div class="flex items-center gap-2 mb-1">
+				{{ lucide "clipboard-list" (dict "class" "size-5 text-primary") }}
+				<h1 class="text-xl font-bold text-base-content tracking-tight">Daftar Laporan WPI</h1>
+			</div>
+			<p class="text-xs text-base-content/50">
+				Manajemen Laporan Work Place Inspection (WPI) KPLH.
+			</p>
+		</div>
+		<div>
+			<a href="/wpi-report/create" class="btn btn-sm btn-primary gap-1">
+				{{ lucide "plus-circle" (dict "class" "size-4") }}
+				Tambah Laporan
+			</a>
+		</div>
+	</div>
+
+	<!-- SEARCH & FILTER -->
+	<div class="mb-4 rounded-2xl border border-base-200 bg-base-100 p-3 shadow-sm">
+		<div class="flex flex-col gap-3 md:flex-row md:items-center">
+			<div class="w-full md:flex-1">
+				{{ template "input-floating" (dict "Label" "Cari Laporan" "Name" "search" "Placeholder" "Cari reference, site, area, reviewer..." "Attr" "x-model='searchQuery' @input.debounce.500ms='doSearch()' autofocus") }}
+			</div>
+			<div class="w-full md:flex-1">
+				{{ template "select-search-floating" (dict "Label" "Location" "Name" "location_id" "Value" .LocationID "Options" .Locations "DefaultText" "Semua Location" "Placeholder" "Cari location...") }}
+			</div>
+			<div class="w-full md:flex-1">
+				{{ template "select-search-floating" (dict "Label" "Unit Kerja / Kontraktor" "Name" "unit" "Value" .UnitFilter "Options" .UnitOptions "DefaultText" "Semua Unit Kerja / Kontraktor" "Placeholder" "Cari unit kerja atau kontraktor...") }}
+			</div>
+			<div class="w-full md:flex-1" @flatpickr-range-change="applyDateRange($event.detail)">
+				{{ $dateRange := "" }}
+				{{ if and .StartDate .EndDate }}{{ $dateRange = printf "%s to %s" .StartDate .EndDate }}{{ end }}
+				{{ template "input-flatpickr-range" (dict "Label" "Rentang Tanggal Inspeksi" "Name" "inspection_date_range" "Value" $dateRange "Placeholder" "Rentang tanggal inspeksi...") }}
+			</div>
+		</div>
+	</div>
+
+	{{ template "card_scroll" . }}
+</div>
+{{ end }}
+
+{{ define "slot" }}
+{{ template "pagination" . }}
+
+<div class="overflow-x-auto bg-base-100 shadow-md rounded-2xl border border-base-300">
+	<table class="table table-zebra table-sm w-full text-xs">
+		<thead>
+			<tr class="bg-base-200/60 text-base-content/70">
+				<th class="w-12 text-center">No</th>
+				<th class="min-w-[150px]">Reference</th>
+				<th class="min-w-[140px]">Waktu Inspeksi</th>
+				<th>Site / Area</th>
+				<th>Lokasi / Location</th>
+				<th>Unit Kerja / Perusahaan</th>
+				<th>Reviewer</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{ if .Reports }}
+				{{ range $index, $report := .Reports }}
+					<tr class="hover align-middle">
+						<td class="text-center font-semibold">
+							{{ add (mul (sub $.CurrentPage 1) 10) (add $index 1) }}
+						</td>
+						<td>
+							<span class="font-mono text-[11px] font-semibold text-primary">
+
+							</span>
+							<a href="/wpi-report/edit/{{ $report.ID }}" class="btn btn-link btn-xs text-sm">
+								{{ if $report.Reference }}{{ $report.Reference }}{{ else }}-{{ end }}
+							</a>
+						</td>
+						<td>
+							<div class="font-medium text-base-content">
+								{{ if not $report.TanggalJam.IsZero }}
+									{{ $report.TanggalJam.Format "02 Jan 2006 15:04" }}
+								{{ else }}
+									-
+								{{ end }}
+							</div>
+						</td>
+						<td>
+							<div class="font-semibold">{{ $report.SiteName }}</div>
+							<div class="text-[10px] opacity-60">{{ $report.Area }}</div>
+						</td>
+						<td>
+							{{ if $report.Location }}
+								<span class="badge badge-outline badge-sm">{{ $report.Location.Name }}</span>
+							{{ else }}
+								<span class="text-base-content/30">-</span>
+							{{ end }}
+						</td>
+						<td>
+							{{ if $report.Contractor }}
+								<span class="badge badge-accent badge-sm font-medium text-white">{{ $report.Contractor.Name }}</span>
+							{{ else if $report.Department }}
+								<span class="badge badge-info badge-sm font-medium text-white">{{ $report.Department.Name }}</span>
+							{{ else }}
+								<span class="text-base-content/30">-</span>
+							{{ end }}
+						</td>
+						<td>
+							{{ if $report.Reviewer }}
+								<div class="font-medium">{{ $report.Reviewer.Name }}</div>
+							{{ else }}
+								<span class="text-base-content/30">-</span>
+							{{ end }}
+						</td>
+
+					</tr>
+				{{ end }}
+			{{ else }}
+				<tr>
+					<td colspan="8" class="text-center py-8 text-base-content/50">
+						{{ lucide "inbox" (dict "class" "size-8 mx-auto mb-2 opacity-40") }}
+						<span>Belum ada data laporan WPI.</span>
+					</td>
+				</tr>
+			{{ end }}
+		</tbody>
+	</table>
+</div>
+{{ end }}

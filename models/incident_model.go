@@ -7,6 +7,16 @@ import (
 	"gorm.io/gorm"
 )
 
+type IncidentStatus string
+
+const (
+	IncidentStatusSubmit     IncidentStatus = "submit"
+	IncidentStatusInProgress IncidentStatus = "in_progress"
+	IncidentStatusPending    IncidentStatus = "pending"
+	IncidentStatusClosed     IncidentStatus = "closed"
+	IncidentStatusCancelled  IncidentStatus = "cancelled"
+)
+
 // IncidentReport mewakili BAGIAN 1 – Detil Laporan (Parent Table)
 type IncidentReport struct {
 	gorm.Model
@@ -21,9 +31,9 @@ type IncidentReport struct {
 	RiskMatrix   RiskMatrix `gorm:"foreignKey:RiskMatrixID;references:ID"`
 
 	// Status Hazard
-	Status             HazardStatus `gorm:"type:enum('submit','in_progress','pending','closed','cancelled');default:'submit'" json:"status"`
-	ModeratorComment   string       `json:"moderator_comment" gorm:"type:text"`
-	ModeratorCommentEn string       `json:"moderator_comment_en" gorm:"type:text"`
+	Status             IncidentStatus `gorm:"type:enum('submit','in_progress','pending','closed','cancelled');default:'submit'" json:"status"`
+	ModeratorComment   string         `json:"moderator_comment" gorm:"type:text"`
+	ModeratorCommentEn string         `json:"moderator_comment_en" gorm:"type:text"`
 	// Relasi Scat Option
 	ScatOptionID uint       `gorm:"column:scat_option_id;after:event_category_id" json:"scat_option_id"`
 	ScatOption   ScatOption `gorm:"foreignKey:ScatOptionID;references:ID"`

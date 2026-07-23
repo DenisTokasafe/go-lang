@@ -32,6 +32,7 @@ type Controllers struct {
 	HazardController          *controllers.HazardController
 	IncidentController        *controllers.IncidentController
 	DashboardController       *controllers.DashboardController
+	WpiReportController       *controllers.WpiReportController
 }
 
 func InitControllers(db *gorm.DB) *Controllers {
@@ -224,6 +225,15 @@ func InitControllers(db *gorm.DB) *Controllers {
 				DB: db,
 			},
 			Render: render,
+		},
+
+		// =========================
+		// WPI REPORT
+		// =========================
+		WpiReportController: &controllers.WpiReportController{
+			DB:      db,
+			Service: services.NewWpiReportService(db),
+			Render:  render,
 		},
 	}
 }

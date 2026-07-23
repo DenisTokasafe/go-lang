@@ -44,14 +44,23 @@ func main() {
 
 	// Ambil CSRF Key dari .env untuk keamanan produksi, atau gunakan fallback default (wajib 32 byte)
 	csrfSecret := os.Getenv("CSRF_SECRET_KEY")
-	if len(csrfSecret) != 32 {
-		log.Println("Peringatan: CSRF_SECRET_KEY di .env tidak ada atau panjangnya tidak 32 byte. Menggunakan kunci fallback otomatis.")
-		csrfSecret = "a-very-secret-key-32-characters" // Tepat 32 karakter
-	}
 
 	// Ambil status environment (apakah production / development)
-	// Ambil status environment (apakah production / development)
 	isProd := os.Getenv("APP_ENV") == "production"
+
+	if len(csrfSecret) != 32 {
+		if isProd {
+			// FAIL-FAST: di production, JANGAN PERNAH diam-diam pakai kunci fallback.
+			// Kunci fallback sudah "publik" karena tertulis di source code ini.
+			// Kalau ini dibiarkan lolos, proteksi CSRF jadi percuma (penyerang bisa
+			// bikin token valid sendiri karena tahu kuncinya).
+			log.Fatal("FATAL: CSRF_SECRET_KEY tidak di-set atau panjangnya bukan 32 byte. " +
+				"Aplikasi TIDAK BOLEH jalan di production tanpa secret key yang valid. " +
+				"Generate dengan: openssl rand -base64 32 (lalu potong/sesuaikan jadi 32 karakter)")
+		}
+		log.Println("Peringatan: CSRF_SECRET_KEY di .env tidak ada atau panjangnya tidak 32 byte. Menggunakan kunci dev sementara (TIDAK aman untuk production).")
+		csrfSecret = "dev-only-key-do-not-use-in-prod" // Jelas ditandai dev-only, 32 karakter
+	}
 
 	csrfMiddleware := csrf.Protect(
 		[]byte(csrfSecret),

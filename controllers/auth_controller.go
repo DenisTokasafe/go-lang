@@ -1,10 +1,10 @@
 package controllers
 
 import (
-	"fmt"
 	"latihan1/models"
 	"latihan1/utils" // Pastikan fungsi HashPassword & CheckPasswordHash ada di sini
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/csrf"
@@ -18,7 +18,6 @@ type AuthController struct {
 
 // ShowLogin menampilkan halaman login
 func (ac *AuthController) ShowLogin(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("ISI TOKEN:", csrf.TemplateField(r))
 	data := map[string]interface{}{
 		// WAJIB DITAMBAHKAN: Kirim field CSRF ke template login
 		"csrfField": csrf.TemplateField(r),
@@ -57,6 +56,7 @@ func (ac *AuthController) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 🟢 2. Set Session via Cookie dengan pengamanan ekstra
+	isProd := os.Getenv("APP_ENV") == "production"
 	expiration := time.Now().Add(24 * time.Hour)
 	cookie := http.Cookie{
 		Name:     "user_session",
@@ -64,7 +64,7 @@ func (ac *AuthController) Login(w http.ResponseWriter, r *http.Request) {
 		Expires:  expiration,
 		Path:     "/",
 		HttpOnly: true,                 // Mencegah XSS (JavaScript tidak bisa mencuri cookie)
-		Secure:   false,                // Set ke 'true' jika kamu sudah pakai HTTPS
+		Secure:   isProd,               // true kalau production (butuh HTTPS), false saat development lokal
 		SameSite: http.SameSiteLaxMode, // Melindungi dari serangan CSRF
 	}
 	http.SetCookie(w, &cookie)
@@ -119,12 +119,16 @@ func (ac *AuthController) Register(w http.ResponseWriter, r *http.Request) {
 
 // Logout menghapus session
 func (ac *AuthController) Logout(w http.ResponseWriter, r *http.Request) {
+	isProd := os.Getenv("APP_ENV") == "production"
 	cookie := http.Cookie{
 		Name:     "user_session",
 		Value:    "",
+		MaxAge:   -1, // Hapus cookie segera
 		Expires:  time.Unix(0, 0),
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   isProd,
+		SameSite: http.SameSiteLaxMode, // Harus sama dengan atribut saat cookie di-set di Login()
 	}
 	http.SetCookie(w, &cookie)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)

@@ -1,6 +1,6 @@
 {{ define "input-flatpickr" }}
 <fieldset
-	class="fieldset"
+	class=""
 	x-modelable="value"
 	x-data="{
 	value: '{{ .Value }}',
@@ -98,7 +98,7 @@
 	dateFormat: {{ if eq .Type "date" }}'Y-m-d'{{ else }}'Y-m-d H:i'{{ end }},
 	time_24hr: true,
 	disableMobile: true,
-	static: true,
+	static: {{ if eq .Static "false" }}false{{ else }}true{{ end }},
 	minuteIncrement: 1,
 	altInputClass: 'input input-bordered input-xs w-full focus:outline-none focus:border-info focus:ring-info'
 	});
@@ -106,8 +106,11 @@
 	pickerSetup.value = this.value;
 	pickerSetup.init.call(this);
 
-	// 💡 TERAPKAN STATUS DISABLED SECARA INSTAN SAAT RENDER SELESAI
+	// 💡 TERAPKAN STATUS DISABLED & INITIAL VALUE SECARA INSTAN SAAT RENDER SELESAI
 	this.$nextTick(() => {
+	if (this._fp && this.value) {
+	this._fp.setDate(this.value, false);
+	}
 	this.setDisabled(this.isDisabled);
 	if (this.value) this.validate();
 	});

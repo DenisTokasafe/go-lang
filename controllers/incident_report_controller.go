@@ -12,10 +12,13 @@ import (
 	"latihan1/utils"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/gorilla/csrf"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -138,9 +141,6 @@ func (ic *IncidentController) Index(w http.ResponseWriter, r *http.Request) {
 
 func (ic *IncidentController) Create(w http.ResponseWriter, r *http.Request) {
 	// 1. Ambil string parent_id (Sama seperti Hazard)
-	rawID := r.FormValue("parent_id")
-	eventCategoryID, _ := strconv.ParseUint(rawID, 10, 32)
-	fmt.Printf("Value: %v | Type: %T\n", eventCategoryID, eventCategoryID)
 
 	// 2. Ambil parameter page untuk Risk Matrix grid
 	page, err := strconv.Atoi(r.URL.Query().Get("page"))
@@ -151,7 +151,8 @@ func (ic *IncidentController) Create(w http.ResponseWriter, r *http.Request) {
 	// 3. Panggil Service untuk mengambil semua master data + pagination matrix
 	refs, err := ic.ServiceIncident.GetFormDataReferences(page)
 	if err != nil {
-		http.Error(w, "Gagal mengambil data referensi: "+err.Error(), http.StatusInternalServerError)
+		log.Println("GET FORM DATA REFERENCES ERROR:", err)
+		http.Error(w, "Gagal mengambil data referensi formulir.", http.StatusInternalServerError)
 		return
 	}
 
@@ -166,6 +167,8 @@ func (ic *IncidentController) Create(w http.ResponseWriter, r *http.Request) {
 		"Lang":            lang,
 		"Tr":              helpers.Translations[lang],
 		"Title":           "Tambah Laporan Investigasi Insiden KPLH",
+		"CSRFField":       csrf.TemplateField(r), // Token untuk form biasa (hidden input)
+		"CSRFToken":       csrf.Token(r),         // Token mentah untuk dipakai di header fetch/AJAX
 		"Matrices":        refs["Matrices"],
 		"Consequences":    refs["Consequences"],
 		"Likelihoods":     refs["Likelihoods"],
@@ -187,7 +190,8 @@ func (ic *IncidentController) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(32 << 20) // Maksimal 32 MB
+	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
+	err := r.ParseMultipartForm(5 << 20)
 	if err != nil {
 		http.Error(w, "Gagal memproses form", http.StatusBadRequest)
 		return
@@ -226,7 +230,8 @@ func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
 
 	newRefNumber, err := ic.GenerateRefNumber(ic.DB)
 	if err != nil {
-		http.Error(w, "Gagal membuat nomor laporan: "+err.Error(), http.StatusInternalServerError)
+		log.Println("GENERATE REF NUMBER ERROR:", err)
+		http.Error(w, "Gagal membuat nomor laporan.", http.StatusInternalServerError)
 		return
 	}
 
@@ -349,6 +354,34 @@ func (ic *IncidentController) Store(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/incident", http.StatusSeeOther)
 }
 
+// Document serves an Incident attachment from private storage after confirming
+// that the documentation record belongs to an Incident.
+func (ic *IncidentController) Document(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var doc models.Documentation
+	if err := ic.DB.First(&doc, uint(id)).Error; err != nil || !strings.HasPrefix(doc.FileURL, "/storage/uploads/incidents/") {
+		http.NotFound(w, r)
+		return
+	}
+	var count int64
+	ic.DB.Model(&models.IncidentDocumentation{}).Where("documentation_id = ?", doc.ID).Count(&count)
+	if count == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	path := filepath.Join(".", filepath.FromSlash(strings.TrimPrefix(doc.FileURL, "/")))
+	if _, err := os.Stat(path); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeFile(w, r, path)
+}
+
 // incident_report_controller.go
 
 // Edit menampilkan halaman form edit
@@ -378,8 +411,13 @@ func (ic *IncidentController) Edit(w http.ResponseWriter, r *http.Request) {
 	// Panggil Service dengan variabel 'id' yang sudah berhasil dikonversi
 	editData, err := ic.ServiceIncident.GetEditData(uint(id), userID.ID, 1)
 	if err != nil {
-		fmt.Printf("Error fetching edit data: %v\n", err)
-		http.Error(w, err.Error(), http.StatusNotFound)
+		log.Println("GET EDIT DATA ERROR:", err)
+		if strings.Contains(err.Error(), "unauthorized") {
+			// Pesan ini sengaja dibuat aman ditampilkan (tidak mengandung detail internal)
+			http.Error(w, "Anda tidak memiliki akses untuk mengedit laporan ini.", http.StatusForbidden)
+		} else {
+			http.Error(w, "Data insiden tidak ditemukan.", http.StatusNotFound)
+		}
 		return
 	}
 
@@ -406,7 +444,7 @@ func (ic *IncidentController) Edit(w http.ResponseWriter, r *http.Request) {
 		if _, exists := groupedCauses[cause.CategoryType]; exists {
 			groupedCauses[cause.CategoryType] = append(groupedCauses[cause.CategoryType], cause)
 		} else {
-			fmt.Printf("WARNING: CategoryType '%s' tidak cocok dengan map!\n", cause.CategoryType) // <--- TAMBAHKAN INI
+			log.Printf("WARNING: CategoryType '%s' tidak cocok dengan map!\n", cause.CategoryType)
 		}
 	}
 
@@ -415,6 +453,8 @@ func (ic *IncidentController) Edit(w http.ResponseWriter, r *http.Request) {
 		"Lang":            lang,
 		"Tr":              helpers.Translations[lang],
 		"Title":           "Edit Laporan Investigasi Insiden KPLH",
+		"CSRFField":       csrf.TemplateField(r), // Token untuk form biasa (hidden input)
+		"CSRFToken":       csrf.Token(r),         // Token mentah untuk dipakai di header fetch/AJAX
 		"Incident":        editData.Incident,
 		"Docs":            toJSON(editData.Docs),
 		"WorkType":        editData.WorkType,
@@ -466,9 +506,11 @@ func (ic *IncidentController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. PARSE MULTIPART FORM terlebih dahulu (Maksimal 32MB)
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		http.Error(w, "Gagal memproses form multipart: "+err.Error(), http.StatusBadRequest)
+	// Batas request body diterapkan sebelum multipart parsing untuk mencegah DoS.
+	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
+	if err := r.ParseMultipartForm(5 << 20); err != nil {
+		log.Println("PARSE MULTIPART FORM ERROR:", err)
+		http.Error(w, "Gagal memproses form. Pastikan ukuran file tidak melebihi batas.", http.StatusBadRequest)
 		return
 	}
 
@@ -492,7 +534,8 @@ func (ic *IncidentController) Update(w http.ResponseWriter, r *http.Request) {
 
 	// 3. UNMARSHAL string JSON tersebut ke struct req
 	if err := json.Unmarshal([]byte(jsonPayload), &req); err != nil {
-		http.Error(w, "Invalid input JSON: "+err.Error(), http.StatusBadRequest)
+		log.Println("UNMARSHAL UPDATE PAYLOAD ERROR:", err)
+		http.Error(w, "Format data yang dikirim tidak valid.", http.StatusBadRequest)
 		return
 	}
 	// --- TAMBAHAN BARU: Filter Data Causes Kosong ---
@@ -513,8 +556,12 @@ func (ic *IncidentController) Update(w http.ResponseWriter, r *http.Request) {
 	partiesUpdated, err := ic.ServiceIncident.UpdateIncident(uint(id), userID.ID, &req.Incident, req.InvolvedParties, req.InvestigationParticipants, req.PeepoFactors, req.Timelines, req.Causes, req.CorrectiveActionIncidents, req.Reviews, r)
 
 	if err != nil {
-
-		http.Error(w, "Gagal mengupdate data: "+err.Error(), http.StatusInternalServerError)
+		log.Println("UPDATE INCIDENT ERROR:", err)
+		if strings.Contains(err.Error(), "unauthorized") {
+			http.Error(w, "Anda tidak memiliki akses untuk mengedit laporan ini.", http.StatusForbidden)
+		} else {
+			http.Error(w, "Gagal mengupdate data laporan insiden.", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -531,11 +578,10 @@ func (ic *IncidentController) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	// redirectURL := fmt.Sprintf("/incident/edit/%s", idStr)
 	w.Header().Set("Content-Type", "application/json")
-	// json.NewEncoder(w).Encode(map[string]string{
-	// 	"status":       "success",
-	// 	"message":      message,
-	// 	"redirect_url": redirectURL,
-	// })
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":  "success",
+		"message": message,
+	})
 	// Note: http.Redirect dihapus di sini karena redirect sudah ditangani oleh window.location di JS frontend Anda.
 }
 
@@ -610,7 +656,7 @@ func (ic *IncidentController) SyncField(w http.ResponseWriter, r *http.Request) 
 				Find(&filteredTypes).Error
 
 			if err != nil {
-
+				log.Println("SYNC FIELD DB ERROR:", err)
 				http.Error(
 					w,
 					"Database error",

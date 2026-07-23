@@ -1,0 +1,15 @@
+{{ define "select-search-floating" }}
+{{/*
+  Wrapper untuk select-search dengan gaya floating label DaisyUI.
+  Semua parameter select-search tetap dapat dipakai: Name, Options, Value,
+  ModelName, AlpineVar, SearchURL, Multiple, Required, DisabledBinding, dll.
+*/}}
+<label class="floating-label block w-full">
+	<span class="z-10 bg-base-100 px-1 text-xs font-medium text-base-content/65">
+		{{ .Label }}{{ if .Required }} <span class="text-error">*</span>{{ end }}
+	</span>
+	<div class="[&>fieldset>label]:hidden">
+		{{ template "select-search" . }}
+	</div>
+</label>
+{{ end }}

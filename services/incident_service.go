@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"latihan1/cmd/web/config"
@@ -735,12 +736,11 @@ func (s *incidentService) UpdateIncident(id uint, userID uint,
 			return err
 		}
 
-		// 2. Update Data Utama Incident
-		if err := tx.Model(&models.IncidentReport{}).Where("id = ?", id).Updates(updatedIncident).Error; err != nil {
-			return err
-		}
 		// =================================================================
 		// 2. CHECK PERMISSION & POLICY GUARD (IDOR PROTECTION)
+		// Dilakukan SEBELUM update data apapun ke database (bukan sesudah),
+		// supaya tidak ada perubahan data yang sempat "menyentuh" tabel
+		// walau ujung-ujungnya di-rollback oleh transaksi.
 		// =================================================================
 		var currentUser models.User
 		// Gunakan variabel `userID` yang dikirim ke parameter UpdateIncident
@@ -749,6 +749,7 @@ func (s *incidentService) UpdateIncident(id uint, userID uint,
 		}
 
 		canAccess := false
+		isModerator := false
 
 		// A. Cek jika user adalah PIC dari data LAMA (oldIncident)
 		if oldIncident.PicID != nil && currentUser.ID == *oldIncident.PicID {
@@ -764,22 +765,46 @@ func (s *incidentService) UpdateIncident(id uint, userID uint,
 		for _, cat := range currentUser.ModeratedCategories {
 			if oldIncident.EventCategory.ParentID != nil && cat.ID == *oldIncident.EventCategory.ParentID {
 				canAccess = true
+				isModerator = true
 				break
 			}
 			if cat.ID == oldIncident.EventCategoryID {
 				canAccess = true
+				isModerator = true
 				break
 			}
 		}
 
 		// Jika kamu punya role Admin, kamu bisa menambahkannya di sini:
-		// if currentUser.Role == "Admin" { canAccess = true }
+		// if currentUser.Role == "Admin" { canAccess = true; isModerator = true }
 
 		// TENDANG JIKA TIDAK PUNYA AKSES!
 		if !canAccess {
 			return fmt.Errorf("unauthorized: Anda tidak memiliki akses untuk mengedit laporan ini")
 		}
 		// =================================================================
+
+		// =================================================================
+		// 3. Update Data Utama Incident
+		// PENTING (fix mass-assignment): field di bawah ini TIDAK BOLEH
+		// diubah lewat blanket-update dari payload JSON client, apapun
+		// isi field itu di request:
+		//  - ID/CreatedAt/DeletedAt/RefNumber/ReportByID: identitas & audit trail,
+		//    tidak pernah boleh diubah lewat form edit.
+		//  - Status/ModeratorComment(*): hanya boleh berubah kalau user yang
+		//    mengedit memang moderator kategori ini. Tanpa guard ini, user
+		//    biasa bisa saja menyisipkan "status": "closed" di payload JSON
+		//    (lewat devtools/Postman) dan langsung meng-close laporannya
+		//    sendiri tanpa lewat proses moderasi.
+		// =================================================================
+		omitFields := []string{"ID", "CreatedAt", "DeletedAt", "RefNumber", "ReportByID"}
+		if !isModerator {
+			omitFields = append(omitFields, "Status", "ModeratorComment", "ModeratorCommentEn")
+		}
+
+		if err := tx.Model(&models.IncidentReport{}).Where("id = ?", id).Omit(omitFields...).Updates(updatedIncident).Error; err != nil {
+			return err
+		}
 
 		// =================================================================
 		// 3. Update/Re-sync Involved Parties
@@ -978,28 +1003,29 @@ func (s *incidentService) UpdateIncident(id uint, userID uint,
 					// --- PERBAIKAN: Tambahkan Unscoped() di sini ---
 
 					// 1. Hapus dari Tabel Pivot Incident (Hard Delete)
-					tx.Debug().Unscoped().Where("documentation_id = ? AND incident_report_id = ?", docID, id).Delete(&models.IncidentDocumentation{})
+					tx.Unscoped().Where("documentation_id = ? AND incident_report_id = ?", docID, id).Delete(&models.IncidentDocumentation{})
 
 					// 2. Hapus dari Tabel Pivot Hazard (Hard Delete)
-					tx.Debug().Unscoped().Where("documentation_id = ?", docID).Delete(&models.HazardDocumentation{})
+					tx.Unscoped().Where("documentation_id = ?", docID).Delete(&models.HazardDocumentation{})
 
 					// 3. Hapus data utama (Hard Delete)
-					result := tx.Debug().Unscoped().Delete(&models.Documentation{}, docID)
+					result := tx.Unscoped().Delete(&models.Documentation{}, docID)
 
 					if result.Error != nil {
-						fmt.Printf("Gagal hapus dokumentasi: %v\n", result.Error)
+						log.Printf("Gagal hapus dokumentasi: %v\n", result.Error)
 					} else if result.RowsAffected > 0 {
 						// Hanya masukkan ke queue hapus fisik jika benar-benar terhapus
 						filesToDeletePhysical = append(filesToDeletePhysical, "."+doc.FileURL)
 					}
 				} else {
-					fmt.Printf("Dokumen ID %d tidak ditemukan\n", docID)
+					log.Printf("Dokumen ID %d tidak ditemukan\n", docID)
 				}
 			}
 		}
 
 		// 5. Handle New File Uploads
-		newDocs, err := s.uploadFiles(r, "dokumentasi[]")
+		// Field name harus cocok dengan name="dokumentasi_desc" di template edit.gohtml
+		newDocs, err := s.uploadFiles(r, "dokumentasi_desc")
 		if err != nil {
 			return err
 		}
@@ -1067,11 +1093,42 @@ func (s *incidentService) toFileDTOIncident(docs []models.Documentation) []FileD
 		result = append(result, FileDTOIncident{
 			ID:      doc.ID,
 			Name:    displayName,
-			URL:     doc.FileURL,
+			URL:     fmt.Sprintf("/incident/document/%d", doc.ID),
 			IsImage: isImage,
 		})
 	}
 	return result
+}
+
+// isValidFileSignature memverifikasi magic bytes/signature ASLI file,
+// bukan cuma percaya nama ekstensinya. Ini mencegah file berbahaya yang
+// sengaja di-rename supaya lolos whitelist ekstensi (misal file .exe/.php
+// di-rename jadi .pdf/.png agar lolos validasi ekstensi semata).
+func isValidFileSignature(ext string, header []byte) bool {
+	signatures := map[string][][]byte{
+		".pdf":  {{0x25, 0x50, 0x44, 0x46}}, // "%PDF"
+		".jpg":  {{0xFF, 0xD8, 0xFF}},
+		".jpeg": {{0xFF, 0xD8, 0xFF}},
+		".png":  {{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}},
+		".doc":  {{0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1}}, // OLE Compound File (format .doc/.xls lama)
+		// .docx sebenarnya adalah file ZIP (format OOXML), jadi signature-nya sama dengan ZIP
+		".docx": {{0x50, 0x4B, 0x03, 0x04}, {0x50, 0x4B, 0x05, 0x06}, {0x50, 0x4B, 0x07, 0x08}},
+	}
+
+	candidates, ok := signatures[ext]
+	if !ok {
+		return false
+	}
+
+	for _, sig := range candidates {
+		if len(header) < len(sig) {
+			continue
+		}
+		if bytes.Equal(header[:len(sig)], sig) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *incidentService) uploadFiles(r *http.Request, fieldName string) ([]models.Documentation, error) {
@@ -1086,7 +1143,7 @@ func (s *incidentService) uploadFiles(r *http.Request, fieldName string) ([]mode
 	}
 
 	// 2. Tentukan target folder untuk insiden
-	folder := "./public/uploads/incidents"
+	folder := "./storage/uploads/incidents"
 	if err := os.MkdirAll(folder, 0755); err != nil {
 		return nil, fmt.Errorf("gagal membuat direktori penyimpanan: %v", err)
 	}
@@ -1094,12 +1151,11 @@ func (s *incidentService) uploadFiles(r *http.Request, fieldName string) ([]mode
 	var results []models.Documentation
 
 	// 3. Iterasi file dengan index 'i' untuk mencegah bentrok nama file
-	for i, header := range files {
+	for _, header := range files {
 		// Gunakan closure agar resource file langsung di-close di setiap akhir iterasi
 		err := func() error {
-			// Cek ukuran file (Batas maksimal 2MB)
-			if header.Size > 2<<20 {
-				return fmt.Errorf("ukuran file %s melebihi batas maksimal 2MB", header.Filename)
+			if header.Size > 5<<20 {
+				return fmt.Errorf("ukuran file melebihi batas maksimal 5MB")
 			}
 
 			// Buka file sumber
@@ -1109,25 +1165,24 @@ func (s *incidentService) uploadFiles(r *http.Request, fieldName string) ([]mode
 			}
 			defer file.Close()
 
-			// Buat nama file unik (Timestamp Nanosecond + Index + Ekstensi)
-			// Di dalam loop uploadFiles (incident_service.go)
-			ext := strings.ToLower(filepath.Ext(header.Filename))
-
-			// 1. Buat daftar whitelist ekstensi yang diizinkan
-			allowedExts := map[string]bool{
-				".pdf": true, ".jpg": true, ".jpeg": true, ".png": true, ".doc": true, ".docx": true,
+			sniff := make([]byte, 512)
+			n, _ := io.ReadFull(file, sniff)
+			sniff = sniff[:n]
+			_, ok := map[string]string{"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}[http.DetectContentType(sniff)]
+			if !ok {
+				return fmt.Errorf("format file tidak didukung")
 			}
 
-			if !allowedExts[ext] {
-				return fmt.Errorf("ekstensi file %s tidak diizinkan", ext)
+			// Kembalikan posisi baca file ke awal, karena 8 byte tadi sudah "dimakan" saat sniffing
+			if _, err := file.Seek(0, io.SeekStart); err != nil {
+				return fmt.Errorf("gagal memproses file %s: %v", header.Filename, err)
 			}
 
-			// Lanjut ke pembuatan safeName...
-			safeName := fmt.Sprintf("%d_%d%s", time.Now().UnixNano(), i, ext)
+			safeName := sanitizeUploadFilename(header.Filename)
 			path := filepath.Join(folder, safeName)
 
 			// Buat file tujuan di server
-			dst, err := os.Create(path)
+			dst, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 			if err != nil {
 				return fmt.Errorf("gagal membuat file tujuan %s: %v", header.Filename, err)
 			}
@@ -1140,9 +1195,9 @@ func (s *incidentService) uploadFiles(r *http.Request, fieldName string) ([]mode
 
 			// 4. Bungkus ke dalam objek models.Documentation sesuai kebutuhan transaksi database Anda
 			doc := models.Documentation{
-				FileURL:  "/public/uploads/incidents/" + safeName,
-				FileName: header.Filename,
-				FileType: ext,
+				FileURL:  "/storage/uploads/incidents/" + safeName,
+				FileName: safeName,
+				FileType: filepath.Ext(safeName),
 				FileSize: header.Size,
 			}
 
@@ -1157,6 +1212,23 @@ func (s *incidentService) uploadFiles(r *http.Request, fieldName string) ([]mode
 	}
 
 	return results, nil
+}
+
+func sanitizeUploadFilename(filename string) string {
+	name := filepath.Base(strings.TrimSpace(filename))
+	var cleaned strings.Builder
+	for _, char := range name {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '.' || char == '-' || char == '_' {
+			cleaned.WriteRune(char)
+		} else {
+			cleaned.WriteByte('_')
+		}
+	}
+	name = strings.Trim(cleaned.String(), "._")
+	if name == "" || name == "." || name == ".." {
+		return "document"
+	}
+	return name
 }
 
 func deletePhysicalFileIncident(fileURL string) {
@@ -1178,7 +1250,7 @@ func (s *incidentService) sendUpdateNotification(h models.Hazard, isUpdate bool)
 	// 1. Defer recover untuk mencegah aplikasi crash
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("panic email:", r)
+			log.Println("panic email:", r)
 		}
 	}()
 
@@ -1194,19 +1266,19 @@ func (s *incidentService) sendUpdateNotification(h models.Hazard, isUpdate bool)
 		First(&fullHazard, h.ID).Error
 
 	if err != nil {
-		fmt.Println("Gagal memuat data lengkap untuk email:", err)
+		log.Println("Gagal memuat data lengkap untuk email:", err)
 		return
 	}
 
 	// 2. Ambil Email
 	picEmail, err := helpers.GetPICEmail(s.db, fullHazard.PicID)
 	if err != nil {
-		fmt.Println("gagal ambil pic email:", err)
+		log.Println("gagal ambil pic email:", err)
 	}
 
 	moderatorEmails, err := helpers.GetModeratorEmails(s.db, fullHazard.EventCategoryID)
 	if err != nil {
-		fmt.Println("gagal ambil moderator email:", err)
+		log.Println("gagal ambil moderator email:", err)
 	}
 
 	// 3. Persiapkan Data
@@ -1277,7 +1349,7 @@ func (s *incidentService) sendUpdateNotification(h models.Hazard, isUpdate bool)
 		)
 
 		if err != nil {
-			fmt.Printf("gagal kirim email ke %v: %v\n", to, err)
+			log.Printf("gagal kirim email ke %v: %v\n", to, err)
 		}
 	}
 

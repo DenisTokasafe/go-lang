@@ -13,6 +13,8 @@ import (
 	"latihan1/utils"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -230,6 +232,7 @@ func (hc *HazardController) Store(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "hazard service is nil", http.StatusInternalServerError)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
 	hazard, err := hc.Service.CreateWithFiles(r)
 	if err != nil {
 		log.Println("Store error:", err)
@@ -238,6 +241,33 @@ func (hc *HazardController) Store(w http.ResponseWriter, r *http.Request) {
 	}
 	hc.setFlash(w, "Data Hazard berhasil dibuat!!!", "success")
 	http.Redirect(w, r, "/hazard/edit/"+strconv.Itoa(int(hazard.ID)), http.StatusSeeOther)
+}
+
+// Document serves a Hazard attachment only when it is linked to a Hazard record.
+func (hc *HazardController) Document(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var doc models.Documentation
+	if err := hc.DB.First(&doc, uint(id)).Error; err != nil || !strings.HasPrefix(doc.FileURL, "/storage/uploads/hazards/") {
+		http.NotFound(w, r)
+		return
+	}
+	var count int64
+	hc.DB.Model(&models.HazardDocumentation{}).Where("documentation_id = ?", doc.ID).Count(&count)
+	if count == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	path := filepath.Join(".", filepath.FromSlash(strings.TrimPrefix(doc.FileURL, "/")))
+	if _, err := os.Stat(path); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeFile(w, r, path)
 }
 func (hc *HazardController) Edit(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
@@ -363,6 +393,7 @@ func (hc *HazardController) Update(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
 
 	// ========================
 	// GET PARAM ID

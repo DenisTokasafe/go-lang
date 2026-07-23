@@ -6,7 +6,7 @@
 
     <div class="join   ">
         {{ if .HasPrev }}
-        <a href="?page={{ sub .CurrentPage 1 }}&search={{ .Search }}" 
+        <a href="?page={{ sub .CurrentPage 1 }}&search={{ .Search }}&location_id={{ .LocationID }}&unit={{ .UnitFilter }}" 
            class="join-item btn btn-xs px-2" 
            @click="loading = true">«</a>
         {{ else }}
@@ -15,7 +15,7 @@
 
         {{ range $p := iterate 1 .TotalPages }}
             {{ if or (eq $p 1) (eq $p $.TotalPages) (and (ge $p (sub $.CurrentPage 2)) (le $p (add $.CurrentPage 2))) }}
-                <a href="?page={{ $p }}&search={{ $.Search }}" 
+                <a href="?page={{ $p }}&search={{ $.Search }}&location_id={{ $.LocationID }}&unit={{ $.UnitFilter }}" 
                    class="join-item btn btn-xs px-3 {{ if eq $p $.CurrentPage }}btn-accent text-white{{ end }}"
                    @click="loading = true">
                     {{ $p }}
@@ -26,7 +26,7 @@
         {{ end }}
 
         {{ if .HasNext }}
-        <a href="?page={{ add .CurrentPage 1 }}&search={{ .Search }}" 
+        <a href="?page={{ add .CurrentPage 1 }}&search={{ .Search }}&location_id={{ .LocationID }}&unit={{ .UnitFilter }}" 
            class="join-item btn btn-xs px-2" 
            @click="loading = true">»</a>
         {{ else }}

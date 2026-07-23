@@ -1,0 +1,570 @@
+{{ define "title" }}Buat Laporan WPI - SENTRY{{ end }}
+
+{{ define "content" }}
+<div class="px-4 w-full" x-data="{
+	csrf_token: '{{ .CSRFToken }}',
+
+	tanggal_jam: '',
+	location_id: '',
+	location_specific: '',
+	site_name: '',
+	area: '',
+	company_id: '',
+	work_type: 'department',
+	department_id: '',
+	contractor_id: '',
+
+	// =========================
+	// INSPECTORS (Dinamis)
+	// =========================
+	inspectors: [
+	{
+	inspector_id: null,
+	inspector_work_type: 'department',
+	department_id: null,
+	contractor_id: null
+	}
+	],
+
+	addInspector() {
+	this.inspectors.push({
+	inspector_id: null,
+	inspector_work_type: 'department',
+	department_id: null,
+	contractor_id: null
+	});
+	},
+
+	removeInspector(index) {
+	this.inspectors.splice(index, 1);
+	},
+
+	// =========================
+	// ITEMS/FINDINGS (Dinamis)
+	// =========================
+	items: [
+	{
+	ohs_risk_code: '',
+	unsafe_condition: '',
+	prevention_action: '',
+	pic_id: null,
+	due_date: '',
+	pr_wo_needed: '',
+	completion_date: '',
+	inx_number: '',
+	doc_uraian_tindakan: [],
+	doc_jenis_tindakan: []
+	}
+	],
+	items_error: false,
+	inspectors_error: false,
+
+	addItem() {
+	this.items.push({
+	ohs_risk_code: '',
+	unsafe_condition: '',
+	prevention_action: '',
+	pic_id: null,
+	due_date: '',
+	pr_wo_needed: '',
+	completion_date: '',
+	inx_number: '',
+	doc_uraian_tindakan: [],
+	doc_jenis_tindakan: []
+	});
+	this.items_error = false;
+	},
+
+	removeItem(index) {
+	this.items.splice(index, 1);
+	},
+
+	checkFlash() {
+	const getCookie = (name) => {
+	let value = `; ${document.cookie}`;
+	let parts = value.split(`; ${name}=`);
+	if (parts.length === 2) return parts.pop().split(';').shift();
+	}
+
+	const msg = getCookie('flash_msg');
+	const type = getCookie('flash_type');
+
+	if (msg) {
+	const decodedMsg = decodeURIComponent(msg.replace(/\+/g, ' '));
+	if (window.showToast) {
+	window.showToast(decodedMsg, type || 'success');
+	}
+	document.cookie = 'flash_msg=; Max-Age=-99999999; path=/;';
+	document.cookie = 'flash_type=; Max-Age=-99999999; path=/;';
+	}
+	},
+
+	init() {
+	this.checkFlash()
+	},
+
+	handleSubmit() {
+	this.$dispatch('validate-me')
+
+	setTimeout(() => {
+	const form = this.$refs.form
+	if (!form) return
+
+	// 1. Validasi Tim Inspeksi (Bagian 2)
+	let inspectorInvalid = false
+	if (!this.inspectors || this.inspectors.length === 0) {
+	inspectorInvalid = true
+	} else {
+	for (let i = 0; i < this.inspectors.length; i++) {
+	const insp = this.inspectors[i]
+	if (!insp.inspector_id) {
+	inspectorInvalid = true
+	break
+	}
+	if (insp.inspector_work_type === 'department' && !insp.department_id) {
+	inspectorInvalid = true
+	break
+	}
+	if (insp.inspector_work_type === 'contractor' && !insp.contractor_id) {
+	inspectorInvalid = true
+	break
+	}
+	}
+	}
+	if (inspectorInvalid) {
+	this.inspectors_error = true
+	if (window.showToast) {
+	window.showToast('Setiap petugas inspeksi wajib memiliki Nama Petugas dan Unit Kerja!', 'error')
+	}
+	const container = this.$refs.tableInspectors
+	if (container) {
+	container.scrollIntoView({ behavior: 'smooth', block: 'center' })
+	}
+	return
+	}
+	this.inspectors_error = false
+
+	// 2. Validasi minimal temuan (Bagian 3)
+	if (!this.items || this.items.length === 0) {
+	this.items_error = true
+	if (window.showToast) {
+	window.showToast('Wajib memasukkan minimal 1 temuan!', 'error')
+	}
+	const container = this.$refs.tableItems
+	if (container) {
+	container.scrollIntoView({ behavior: 'smooth', block: 'center' })
+	}
+	return
+	}
+	this.items_error = false
+
+	// 2. Cari semua input/textarea/select yang 'required'
+	const allRequired = form.querySelectorAll('[required]')
+	let invalidElement = null
+
+	for (const input of allRequired) {
+	if (!input.value || String(input.value).trim() === '') {
+	invalidElement = input
+	break
+	}
+	}
+
+	if (invalidElement) {
+	// Trigger @invalid.prevent agar komponen meng-update status error visualnya
+	invalidElement.dispatchEvent(new Event('invalid', { bubbles: true }))
+
+	// Cek jika elemen disembunyikan (seperti CKEditor atau select-search pointer-events-none)
+	if (invalidElement.classList.contains('hidden') || invalidElement.classList.contains('pointer-events-none') || invalidElement.style.display === 'none') {
+	const container = invalidElement.closest('fieldset') || invalidElement.parentElement
+	container.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+	// Fokus khusus CKEditor
+	if (container._editor) {
+	container._editor.editing.view.focus()
+	} else {
+	// Fokus ke tombol dropdown select-search
+	const btn = container.querySelector('button')
+	if (btn) btn.focus()
+	}
+	} else {
+	invalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+	invalidElement.focus()
+	}
+
+	if (window.showToast) {
+	window.showToast('Mohon lengkapi field yang wajib diisi (bertanda *)', 'error')
+	}
+	return
+	}
+
+	if (form.dataset.submitting === 'true') return
+	form.dataset.submitting = 'true'
+
+	fetch(form.action, {
+		method: 'POST',
+		body: new FormData(form),
+		headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+	}).then(async (response) => {
+		const payload = await response.json()
+		if (!response.ok) throw new Error(payload.error || 'Gagal menyimpan laporan')
+		window.showToast?.(payload.message || 'WPI Report berhasil disimpan', 'success')
+		window.location.href = '/wpi-report/create'
+	}).catch((error) => {
+		form.dataset.submitting = 'false'
+		window.showToast?.(error.message || 'Gagal mengunggah dokumen', 'error')
+	})
+	}, 100)
+	}
+	}">
+
+	<!-- PAGE HEADER -->
+	<div class="mb-2">
+		<div class="flex items-center gap-2 mb-1">
+			{{ lucide "clipboard-check" (dict "class" "size-5 text-primary") }}
+			<h1 class="text-xl font-bold text-base-content tracking-tight">Formulir Laporan WPI KPLH</h1>
+			<span class="badge badge-primary badge-sm font-semibold">Baru</span>
+		</div>
+		<p class="text-xs text-base-content/50">
+			Isi setiap bagian dengan lengkap. Field bertanda <span class="text-error font-bold">*</span> wajib diisi.
+		</p>
+	</div>
+
+	{{ template "card_scroll" . }}
+</div>
+{{ end }}
+
+{{ define "slot" }}
+<form x-ref="form" action="/wpi-report/store" method="POST" enctype="multipart/form-data" @submit.prevent="handleSubmit" novalidate>
+	{{ .CSRFField }}
+
+	<!-- =============================== -->
+	<!-- BAGIAN 1: INFORMASI UMUM        -->
+	<!-- =============================== -->
+	<div class="card bg-base-100 border border-base-200 shadow-sm mb-4">
+		<div class="card-body p-4">
+			<!-- Section Header -->
+			<div class="flex items-center gap-3 mb-4 pb-3 border-b border-base-200">
+				<div class="bg-primary/10 text-primary rounded-lg p-2">
+					{{ lucide "info" (dict "class" "size-4") }}
+				</div>
+				<div>
+					<h2 class="font-bold text-base text-base-content">Bagian 1 — Informasi Umum</h2>
+					<p class="text-xs text-base-content/50">Waktu, lokasi, dan unit kerja inspeksi</p>
+				</div>
+				<div class="ml-auto">
+					<span class="badge badge-outline badge-sm text-primary border-primary/30">Wajib</span>
+				</div>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+
+				{{ template "input-flatpickr" (dict "Label" "Waktu Inspeksi" "Type" "datetime" "Name" "tanggal_jam" "Required" true "Attr" "x-model='tanggal_jam'") }}
+
+				{{ template "select-search" (dict
+					"Label" "Lokasi / Location"
+					"Name" "location_id"
+					"ModelName" "location_id"
+					"Options" .Locations
+					"Required" true
+					"DefaultText" "Pilih Lokasi"
+					"Attr" "aria-label='Pilih Lokasi'"
+					"SearchURL" "/api/locations/search"
+					"Placeholder" "Cari nama lokasi..."
+					)
+				}}
+
+				<div x-show="location_id" x-transition>
+					{{ template "input" (dict "Label" "Location Specific" "Name" "location_specific" "Placeholder" "Detail lokasi spesifik..." "Required" true "Attr" "x-model='location_specific'") }}
+				</div>
+
+				{{ template "input" (dict "Label" "Site Name" "Name" "site_name" "Placeholder" "Nama site..." "Required" true "Attr" "x-model='site_name'") }}
+				{{ template "input" (dict "Label" "Area" "Name" "area" "Placeholder" "Nama area..." "Required" true "Attr" "x-model='area'") }}
+
+				<div class="relative">
+					{{ template "select-search" (dict "Label" "Company" "Name" "company_id" "ModelName" "company_id" "Options" .Companies "DefaultText" "Pilih Company" "Attr" "x-model='company_id'" "Required" true) }}
+				</div>
+
+				<fieldset class="col-span-1 md:col-span-3">
+					<div class="label py-0 mb-1">
+						<span class="text-xs font-bold text-base-content opacity-60">Unit Kerja</span>
+					</div>
+					<!-- Radio Tabs -->
+					<div class="join ">
+						<button type="button"
+							@click="work_type = 'department'"
+							:class="work_type === 'department' ? 'btn-primary text-white' : 'btn-ghost'"
+							class="join-item btn btn-xs gap-1">
+							{{ lucide "building-2" (dict "class" "size-3") }} Department
+						</button>
+						<button type="button"
+							@click="work_type = 'contractor'"
+							:class="work_type === 'contractor' ? 'btn-primary text-white' : 'btn-ghost'"
+							class="join-item btn btn-xs gap-1">
+							{{ lucide "hard-hat" (dict "class" "size-3") }} Contractor
+						</button>
+					</div>
+
+					<!-- Hidden input untuk submit form -->
+					<input type="hidden" name="work_type" :value="work_type">
+
+					<div x-show="work_type === 'department'" x-transition @change="department_id = $event.detail">
+						{{ template "select-search" (dict "Label" "" "Name" "department_id" "ModelName" "department_id" "Options" .Departments "DefaultText" "Pilih Department..." "Attr" "x-model='department_id' aria-label='Pilih Department'" "RequiredBinding" "work_type === 'department'") }}
+					</div>
+
+					<div x-show="work_type === 'contractor'" x-transition @change="contractor_id = $event.detail">
+						{{ template "select-search" (dict "Label" "" "Name" "contractor_id" "ModelName" "contractor_id" "Options" .Contractors "DefaultText" "Pilih Contractor..." "Attr" "x-model='contractor_id' aria-label='Pilih Kontraktor'" "RequiredBinding" "work_type === 'contractor'") }}
+					</div>
+				</fieldset>
+
+			</div>
+		</div>
+	</div>
+
+	<!-- =============================== -->
+	<!-- BAGIAN 2: INSPECTORS            -->
+	<!-- =============================== -->
+	<div class="card bg-base-100 border border-base-200 shadow-sm mb-4" x-ref="tableInspectors">
+		<div class="card-body p-4">
+			<!-- Section Header -->
+			<div class="flex items-center gap-3 mb-4 pb-3 border-b border-base-200">
+				<div class="bg-info/10 text-info rounded-lg p-2">
+					{{ lucide "users" (dict "class" "size-4") }}
+				</div>
+				<div>
+					<h2 class="font-bold text-base text-base-content">Bagian 2 — Tim Petugas Inspeksi</h2>
+					<p class="text-xs text-base-content/50">Maksimal 6 petugas inspeksi</p>
+				</div>
+				<div class="ml-auto flex items-center gap-2">
+					<div class="badge badge-info/20 text-info border-info/30 badge-sm font-semibold" x-text="inspectors.length + ' / 6 Petugas'"></div>
+					<button type="button"
+						@click="if(inspectors.length < 6) addInspector()"
+						:disabled="inspectors.length >= 6"
+						:class="inspectors.length >= 6 ? 'btn-disabled opacity-40' : 'btn-info'"
+						class="btn btn-sm text-white gap-1">
+						{{ lucide "user-plus" (dict "class" "size-3.5") }}
+						<span class="hidden sm:inline">Tambah</span>
+					</button>
+				</div>
+			</div>
+
+			<!-- Error alert inspectors -->
+			<template x-if="inspectors_error">
+				<div class="alert alert-error mb-3 py-2 text-sm">
+					{{ lucide "circle-x" (dict "class" "size-4 shrink-0") }}
+					<span>Setiap petugas inspeksi wajib memiliki <strong>Nama Petugas</strong> dan <strong>Unit Kerja</strong> (Department/Contractor).</span>
+				</div>
+			</template>
+
+			<div class="overflow-x-auto rounded-lg border border-base-200">
+				<table class="table table-zebra table-sm w-full text-xs">
+					<thead>
+						<tr class="bg-base-200/60 text-base-content/70">
+							<th class="w-10 text-center">#</th>
+							<th class="min-w-[180px]">Nama Petugas</th>
+							<th class="min-w-[280px]">Unit Kerja</th>
+							<th class="w-20 text-center">Aksi</th>
+						</tr>
+					</thead>
+					<tbody>
+						<template x-for="(inspector, index) in inspectors" :key="index">
+							<tr class="hover focus-within:relative focus-within:z-[100] align-top">
+								<td class="text-center pt-3">
+									<div class="badge badge-sm badge-ghost font-bold" x-text="index + 1"></div>
+								</td>
+								<td class="pt-2">
+									{{ template "select-user-search_model" (dict
+										"Label" ""
+										"Options" $.Users
+										"Model" "inspector.inspector_id"
+										"DefaultText" "— Pilih Petugas —"
+										"Required" true
+										)
+									}}
+								</td>
+								<td class="pt-2">
+									<!-- Radio -->
+									<div class="join mb-1.5">
+										<label class="join-item cursor-pointer">
+											<input type="radio" :name="'insp_wt_' + index" value="department" x-model="inspector.inspector_work_type" class="hidden peer/d">
+											<span class="join-item btn btn-xs peer-checked/d:btn-primary peer-checked/d:text-white" @click="inspector.inspector_work_type = 'department'">Dept</span>
+										</label>
+										<label class="join-item cursor-pointer">
+											<input type="radio" :name="'insp_wt_' + index" value="contractor" x-model="inspector.inspector_work_type" class="hidden peer/c">
+											<span class="join-item btn btn-xs peer-checked/c:btn-primary peer-checked/c:text-white" @click="inspector.inspector_work_type = 'contractor'">Contr</span>
+										</label>
+									</div>
+									<div x-show="inspector.inspector_work_type === 'department'" x-transition>
+										{{ template "select-search" (dict "Label" "" "Name" "insp_dept" "ModelName" "inspector.department_id" "Options" $.Departments "DefaultText" "Pilih Department" "Attr" "x-model='inspector.department_id'" "RequiredBinding" "inspector.inspector_work_type === 'department'") }}
+									</div>
+									<div x-show="inspector.inspector_work_type === 'contractor'" x-transition>
+										{{ template "select-search" (dict "Label" "" "Name" "insp_cont" "ModelName" "inspector.contractor_id" "Options" $.Contractors "DefaultText" "Pilih Contractor" "Attr" "x-model='inspector.contractor_id'" "RequiredBinding" "inspector.inspector_work_type === 'contractor'") }}
+									</div>
+								</td>
+								<td class="text-center pt-3">
+									<button type="button"
+										@click="removeInspector(index)"
+										class="btn btn-xs btn-ghost text-error hover:bg-error/10"
+										title="Hapus baris ini">
+										{{ lucide "trash-2" (dict "class" "size-3.5") }}
+									</button>
+								</td>
+							</tr>
+						</template>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<input type="hidden" name="inspectors_json" :value="JSON.stringify(inspectors)">
+
+	<!-- =============================== -->
+	<!-- BAGIAN 3: TEMUAN                -->
+	<!-- =============================== -->
+	<div class="card bg-base-100 border border-base-200 shadow-sm mb-4" x-ref="tableItems">
+		<div class="card-body p-4">
+			<!-- Section Header -->
+			<div class="flex items-center gap-3 mb-4 pb-3 border-b border-base-200">
+				<div class="bg-warning/10 text-warning rounded-lg p-2">
+					{{ lucide "triangle-alert" (dict "class" "size-4") }}
+				</div>
+				<div>
+					<h2 class="font-bold text-base text-base-content">Bagian 3 — Temuan</h2>
+					<p class="text-xs text-base-content/50">Tindakan / Kondisi Tidak Aman yang ditemukan</p>
+				</div>
+				<div class="ml-auto flex items-center gap-2">
+					<div class="badge badge-warning/20 text-warning border-warning/30 badge-sm font-semibold" x-text="items.length + ' Temuan'"></div>
+					<button type="button" @click="addItem()" class="btn btn-sm btn-warning text-white gap-1">
+						{{ lucide "plus-circle" (dict "class" "size-3.5") }}
+						<span class="hidden sm:inline">Tambah</span>
+					</button>
+				</div>
+			</div>
+
+			<!-- Error alert -->
+			<template x-if="items_error">
+				<div class="alert alert-error mb-3 py-2 text-sm">
+					{{ lucide "circle-x" (dict "class" "size-4 shrink-0") }}
+					<span>Harap masukkan minimal 1 baris temuan dan lengkapi data (Kode OHS, Uraian & Tindakan Pencegahan).</span>
+				</div>
+			</template>
+
+			<!-- Responsive Card Grid Layout -->
+			<div class="grid grid-cols-1 gap-4">
+				<template x-for="(item, index) in items" :key="index">
+					<div class="card bg-base-100 border border-base-300 rounded-2xl shadow-sm transition-all duration-200 hover:shadow-md focus-within:border-primary">
+						<div class="card-body p-4 sm:p-5 gap-5">
+
+							<!-- Card Header: Title & Delete -->
+							<div class="flex items-center justify-between pb-3 border-b border-base-200">
+								<div class="flex items-center gap-2">
+									<span class="badge badge-neutral font-bold text-xs" x-text="'#' + (index + 1)"></span>
+									<span class="text-xs font-bold text-base-content/80">Rincian Temuan</span>
+								</div>
+								<button type="button" @click="removeItem(index)" class="btn btn-xs btn-ghost text-error hover:bg-error/10 btn-square" title="Hapus temuan ini">
+									{{ lucide "trash-2" (dict "class" "size-3.5") }}
+								</button>
+							</div>
+
+							<!-- Card Grid Fields -->
+							<div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+
+								<!-- OHS Risk Select -->
+								<div>
+									<label class="label py-0 mb-1">
+										<span class="text-xs font-bold text-base-content opacity-60">Kode OHS Risk <span class="text-error font-bold">*</span></span>
+									</label>
+									{{ template "select_input" (dict "Label" "" "Name" "ohs_risk_code" "Model" "item.ohs_risk_code" "Required" true "Placeholder" "— Pilih —" "Slot" "<option value=\"E\">🔴 E – Ekstrim</option><option value=\"H\">🟠 H – High</option><option value=\"M\">🟡 M – Menengah</option><option value=\"L\">🟢 L – Low</option>") }}
+								</div>
+
+								<!-- PIC Select -->
+								<div class="relative">
+									<label class="label py-0 mb-1">
+										<span class="text-xs font-bold text-base-content opacity-60">Karyawan Bertanggung Jawab</span>
+									</label>
+									{{ template "select-user-search_model" (dict
+										"Label" ""
+										"Options" $.Users
+										"Model" "item.pic_id"
+										"DefaultText" "— Pilih PIC —"
+										"Required" false
+										)
+									}}
+								</div>
+
+								<!-- PR / WO -->
+								<div>
+									<label class="label py-0 mb-1">
+										<span class="text-xs font-bold text-base-content opacity-60">PR/WO Needed</span>
+									</label>
+								{{ template "input" (dict "Label" "" "Name" "item_pr_wo_needed" "Placeholder" "No. PR/WO" "Attr" "x-model='item.pr_wo_needed'") }}
+								</div>
+							</div>
+
+							<div class="grid grid-cols-1 xl:grid-cols-2 gap-5 rounded-xl bg-base-200/40 p-3 sm:p-4">
+
+								<!-- Uraian Textarea -->
+								<div class="space-y-3">
+									<label class="label py-0 mb-1">
+										<span class="text-xs font-bold text-base-content opacity-60">Uraian Tindakan / Kondisi Tidak Aman <span class="text-error font-bold">*</span></span>
+									</label>
+								{{ template "ckeditor-loop" (dict "Label" "" "Required" true "AlpineVar" "item.unsafe_condition" "Name" "item_unsafe_condition" "ID" "'ck_unsafe_' + index") }}
+								{{ template "input-file" (dict "Label" "Dokumentasi Uraian" "DragDropUpload" "Pilih atau tarik dokumen" "NameBinding" "'doc_uraian_tindakan_' + index" "IdBinding" "'doc_uraian_tindakan_' + index" "Accept" ".pdf,.jpg,.jpeg,.png,.doc,.docx") }}
+								</div>
+
+								<!-- Pencegahan Textarea -->
+								<div class="space-y-3">
+									<label class="label py-0 mb-1">
+										<span class="text-xs font-bold text-base-content opacity-60">Jenis Tindakan Pencegahan <span class="text-error font-bold">*</span></span>
+									</label>
+								{{ template "ckeditor-loop" (dict "Label" "" "Required" true "AlpineVar" "item.prevention_action" "Name" "item_prevention_action" "ID" "'ck_prev_' + index") }}
+								{{ template "input-file" (dict "Label" "Dokumentasi Tindakan Pencegahan" "DragDropUpload" "Pilih atau tarik dokumen" "NameBinding" "'doc_jenis_tindakan_' + index" "IdBinding" "'doc_jenis_tindakan_' + index" "Accept" ".pdf,.jpg,.jpeg,.png,.doc,.docx") }}
+								</div>
+							</div>
+
+							<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 rounded-xl border border-base-200 p-3 sm:p-4 text-xs">
+
+								<!-- Due Date -->
+								<div>
+									<label class="label py-0 mb-1">
+										<span class="text-xs font-bold text-base-content opacity-60">Tgl Jatuh Tempo</span>
+									</label>
+									{{ template "input-flatpickr" (dict "Label" "" "Type" "date" "Name" "item_due_date" "Required" false "Static" "false" "Attr" "x-model='item.due_date'") }}
+								</div>
+
+								<!-- Completion Date -->
+								<div>
+									<label class="label py-0 mb-1">
+										<span class="text-xs font-bold text-base-content opacity-60">Tgl Penyelesaian</span>
+									</label>
+									{{ template "input-flatpickr" (dict "Label" "" "Type" "date" "Name" "item_completion_date" "Required" false "Static" "false" "Attr" "x-model='item.completion_date'") }}
+								</div>
+
+								<!-- INX Nomor -->
+								<div>
+									<label class="label py-0 mb-1">
+										<span class="text-xs font-bold text-base-content opacity-60">INX Nomor</span>
+									</label>
+									<input type="text" class="input input-xs input-bordered w-full" x-model="item.inx_number" placeholder="INX No.">
+								</div>
+
+							</div>
+						</div>
+					</div>
+				</template>
+			</div>
+		</div>
+	</div>
+
+	<input type="hidden" name="items_json" :value="JSON.stringify(items)">
+
+	<!-- SUBMIT BAR -->
+	<div class="flex justify-end">
+		<button type="submit" class="btn btn-primary gap-2">
+			{{ lucide "save" (dict "class" "size-4") }}
+			Simpan Laporan WPI
+		</button>
+	</div>
+
+</form>
+{{ end }}

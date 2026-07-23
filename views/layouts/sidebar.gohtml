@@ -203,6 +203,76 @@
 
 				</li>
 
+				<!-- WPI REPORT -->
+				<li class="py-1">
+
+					<details {{ if hasPrefix .CurrentPath "/wpi-report" }}open{{ end }}
+						class="group">
+
+						<summary
+							class="sidebar-menu-item
+							is-drawer-close:tooltip
+							is-drawer-close:tooltip-right
+							truncate rounded-xl text-xs
+						{{ if hasPrefix .CurrentPath "/wpi-report" }}sidebar-menu-active{{ end }}"
+							data-tip="WPI Report">
+
+							<div class="flex items-center gap-2 overflow-hidden">
+
+								{{ lucide "clipboard-check" (dict "class" "sidebar-icon size-4 shrink-0") }}
+
+								<span class="truncate is-drawer-close:hidden">
+									WPI Report
+								</span>
+
+							</div>
+
+						</summary>
+
+						<ul class="is-drawer-close:hidden mt-1 space-y-1">
+
+							<li>
+
+								<a href="/wpi-report"
+									class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/wpi-report" }}
+									bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+
+									List Report
+
+								</a>
+
+							</li>
+
+							<li>
+
+								<a href="/wpi-report/create"
+									class="sidebar-submenu-item my-1 truncate rounded-lg text-xs {{ if eq .CurrentPath "/wpi-report/create" }}
+									bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}">
+
+									Create Report
+
+								</a>
+
+							</li>
+							{{ if hasPrefix .CurrentPath "/wpi-report/edit" }}
+								<li>
+
+									<a href="{{ .CurrentPath }}"
+										class="sidebar-submenu-item my-1 truncate rounded-lg text-xs
+									{{ if hasPrefix .CurrentPath "/wpi-report/edit" }} bg-accent/20 text-accent border-l-4 border-accent font-medium {{ end }}}">
+
+										Detail Report
+
+									</a>
+
+								</li>
+							{{ end }}
+						</ul>
+
+					</details>
+
+				</li>
+
 				<!-- MANHOURS -->
 				<li class="py-1">
 

@@ -1,6 +1,6 @@
 {{ define "input-flatpickr-range" }}
 <fieldset
-	class="fieldset w-full"
+	class=" w-full"
 	x-modelable="value"
 	x-data="{
 	value: '{{ .Value }}',
@@ -115,6 +115,7 @@
 	this.$watch('value', val => {
 	this.$dispatch('input', val);
 	this.$dispatch('change', val);
+	this.$dispatch('flatpickr-range-change', val);
 	this.validate(); 
 	});
 
@@ -137,18 +138,8 @@
 	@validate-me="validate()"
 	{{ with .Attr }}{{ . | htmlattr }}{{ end }}>
 
-	{{ if .Label }}
-		<label class="label">
-			<span class="text-xs font-bold text-base-content opacity-60">
-				{{ .Label }}
-				{{ if or .Required .RequiredBinding }}
-					<span class="text-error font-bold ml-0.5">*</span>
-				{{ end }}
-			</span>
-		</label>
-	{{ end }}
-
 	<div class="relative w-full flex items-center">
+		<label class="floating-label block w-full">
 		<input
 			type="text"
 			name="{{ .Name }}"
@@ -166,6 +157,15 @@
 			{{ if .DisabledBinding }} :disabled="{{ .DisabledBinding }}" {{ end }}
 			{{ if .RequiredBinding }} x-bind:required="{{ .RequiredBinding }}" {{ end }}
 		/>
+		{{ if .Label }}
+			<span>
+				{{ .Label }}
+				{{ if or .Required .RequiredBinding }}
+					<span class="text-error font-bold ml-0.5">*</span>
+				{{ end }}
+			</span>
+		{{ end }}
+		</label>
 
 		<button 
 			type="button"

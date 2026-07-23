@@ -3,6 +3,11 @@
 {{ define "content" }}
 <div class="px-4 w-full" x-data="{
 	// =========================
+	// SECURITY (CSRF)
+	// =========================
+	csrf_token: '{{ .CSRFToken }}',
+
+	// =========================
 	// BASIC STATE
 	// =========================
 	type_error: false,
@@ -324,6 +329,9 @@
 	try {
 	const response = await fetch('/incident/sync', {
 	method: 'POST',
+	headers: {
+	'X-CSRF-Token': this.csrf_token
+	},
 	body: formData
 	})
 
@@ -369,6 +377,7 @@
 	<p class="text-xs text-slate-500">(Informasi Umum, Lokasi, Kronologi, & Tindakan Langsung)</p>
 </div>
 <form x-ref="form" action="/incident/store" method="POST" enctype="multipart/form-data" @submit.prevent="handleSubmit" novalidate>
+	{{ .CSRFField }}
 
 	<div class="bg-base-100 rounded-md border border-base-200 p-2">
 		<div class="grid grid-cols-1 md:grid-cols-4 gap-2 ">

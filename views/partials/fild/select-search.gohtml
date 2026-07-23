@@ -1,6 +1,5 @@
 {{ define "select-search" }}
-
-<fieldset class="w-full fieldset relative" x-data="{
+<fieldset class="w-full  relative" x-data="{
 	open: false,
 	q: '',
 	highlightedIndex: -1,
@@ -19,7 +18,7 @@
 {{- end -}}],
 
 	// ====================================================================
-	// ✅ FUNGSI REPOSITION (VERSI DIV RELATIVE)
+	// REPOSITION WITH AUTO-FLIP (Optimized with Fixed Context for Tables)
 	// ====================================================================
 	reposition() {
 	const button = this.$refs.triggerButton;
@@ -33,17 +32,14 @@
 
 	if (spaceBelow < popoverHeight + margin && rect.top > popoverHeight + margin) {
 	// Dropdown Terbuka ke ATAS
-	popover.style.top = 'auto';
-	popover.style.bottom = '100%';
-	popover.style.marginBottom = '4px';
-	popover.style.marginTop = '0px';
+	popover.style.top = `${rect.top - popoverHeight - 4}px`;
 	} else {
-	// Dropdown Terbuka ke BAWAH
-	popover.style.top = '100%';
-	popover.style.bottom = 'auto';
-	popover.style.marginTop = '4px';
-	popover.style.marginBottom = '0px';
+	// Dropdown Terbuka ke BAWAH (Normal)
+	popover.style.top = `${rect.bottom + 4}px`;
 	}
+
+	popover.style.left = `${rect.left}px`;
+	popover.style.width = `${rect.width}px`;
 	},
 
 	// =========================
@@ -88,15 +84,20 @@
 	// =========================
 	// INIT
 	// =========================
-	init() {
-{{ if .AlpineVar }}
+init() {
+{{ if .RootAlpineVar }}
+	this.selected = String(this.$root.{{ .RootAlpineVar }} || '{{ .Value }}' || '')
+	this.$watch(() => this.$root.{{ .RootAlpineVar }}, (value) => {
+	this.selected = String(value || '')
+	})
+{{ else if .AlpineVar }}
 	this.selected = String({{ .AlpineVar }} || '{{ .Value }}' || '')
 	this.$watch(() => {{ .AlpineVar }}, (value) => {
 	this.selected = String(value || '')
 	})
 {{ else if .ModelName }}
-	this.selected = String(this.$root.{{ .ModelName }} || '{{ .Value }}' || '')
-	this.$watch('$root.{{ .ModelName }}', (value) => {
+	this.selected = String(this.{{ .ModelName }} || '{{ .Value }}' || '')
+	this.$watch('{{ .ModelName }}', (value) => {
 	this.selected = String(value || '')
 	})
 {{ end }}
@@ -209,14 +210,21 @@
 	}
 	this.isInvalid = false;
 
-{{ if .AlpineVar }}
-{{ .AlpineVar }} = this.selected;
+{{ if .RootAlpineVar }}
+	this.$root.{{ .RootAlpineVar }} = this.selected;
+{{ else if .AlpineVar }}
+	this.{{ .AlpineVar }} = this.selected;
 {{ else if .ModelName }}
-	this.$root.{{ .ModelName }} = this.selected;
+	this.{{ .ModelName }} = this.selected;
 {{ end }}
-	this.$dispatch('change', this.selected);
-
-	if (this.open) this.$nextTick(() => this.reposition());
+	this.$nextTick(() => {
+		this.$dispatch('select-search-change', {
+			name: '{{ .Name }}',
+			value: this.selected
+		});
+		this.$root.dispatchEvent(new CustomEvent('change', { detail: this.selected, bubbles: true }));
+		if (this.open) this.reposition();
+	});
 	},
 
 	validate() {
@@ -258,7 +266,7 @@
 		<input type="hidden" name="{{ .Name }}" :value="selected">
 	{{ end }}
 
-	<button type="button" x-ref="triggerButton" class="btn btn-block btn-xs border bg-base-100 btn-ghost flex items-center justify-between w-full focus:outline-none"
+	<button type="button" x-ref="triggerButton" class="btn btn-block btn-xs border bg-base-100 btn-ghost flex mt-0.5 items-center justify-between w-full focus:outline-none"
 		:class="[ isInvalid ? 'border border-error text-error' : 'border border-base-300 focus:border-info', $el.disabled ? 'opacity-50 cursor-not-allowed bg-base-300' : '' ]"
 		:disabled="{{ if .DisabledBinding }}{{ .DisabledBinding }}{{ else }}false{{ end }}"
 	{{ .Attr }} @click="!$el.disabled && toggle()">
@@ -270,33 +278,36 @@
 		{{ .Label }} ini wajib diisi.
 	</div>
 
-	<div x-show="open" x-ref="dropdownPopover" x-transition @click.outside="close()" class="absolute left-0 right-0 z-50 rounded-md border border-base-300 bg-base-100 shadow-xl overflow-hidden">
-		<div class="p-2 border-b border-base-200">
-			<input x-ref="searchInput" x-model="q" 
-				@input="{{ if not .SearchURL }}highlightedIndex = filtered().length ? 0 : -1{{ end }}" 
-				type="text" placeholder="{{ .Placeholder }}" class="w-full rounded-md border border-base-300 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-		</div>
+	<!-- ✅ DROPDOWN DI-TELEPORT KE BODY DAN MENGGUNAKAN FIXED POSITION -->
+	<template x-teleport="body">
+		<div x-show="open" x-ref="dropdownPopover" x-transition @click.outside="close()" class="fixed z-50 rounded-md border border-base-300 bg-base-100 shadow-xl overflow-hidden min-w-[220px]">
+			<div class="p-2 border-b border-base-200">
+				<input x-ref="searchInput" x-model="q" 
+					@input="{{ if not .SearchURL }}highlightedIndex = filtered().length ? 0 : -1{{ end }}" 
+					type="text" placeholder="{{ .Placeholder }}" class="w-full rounded-md border border-base-300 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+			</div>
 
-		<ul class="max-h-52 overflow-auto py-1">
-			<li x-show="isLoading" class="px-3 py-2 text-xs text-center text-base-content/60">
-				Memuat data...
-			</li>
-
-			<template x-for="(opt, i) in filtered()" :key="opt.id">
-				<li x-show="!isLoading">
-					<button type="button" :x-ref="'opt-' + i" class="w-full px-3 py-1.5 text-left text-sm hover:bg-base-200 flex items-center justify-between"
-						:class="[ isSelected(opt.id) ? 'bg-primary/10 text-primary font-medium' : '', highlightedIndex === i ? 'bg-base-200' : '' ]"
-						@mouseenter="highlightedIndex = i" @click="choose(opt)">
-						<span x-text="opt.label"></span>
-						<span x-show="isSelected(opt.id)" class="text-xs">✓</span>
-					</button>
+			<ul class="max-h-52 overflow-auto py-1">
+				<li x-show="isLoading" class="px-3 py-2 text-xs text-center text-base-content/60">
+					Memuat data...
 				</li>
-			</template>
 
-			<li x-show="!isLoading && filtered().length === 0" class="px-3 py-2 text-xs text-base-content/60">
-				Tidak ada hasil
-			</li>
-		</ul>
-	</div>
+				<template x-for="(opt, i) in filtered()" :key="opt.id">
+					<li x-show="!isLoading">
+						<button type="button" :x-ref="'opt-' + i" class="w-full px-3 py-1.5 text-left text-sm hover:bg-base-200 flex items-center justify-between"
+							:class="[ isSelected(opt.id) ? 'bg-primary/10 text-primary font-medium' : '', highlightedIndex === i ? 'bg-base-200' : '' ]"
+							@mouseenter="highlightedIndex = i" @click="choose(opt)">
+							<span x-text="opt.label"></span>
+							<span x-show="isSelected(opt.id)" class="text-xs">✓</span>
+						</button>
+					</li>
+				</template>
+
+				<li x-show="!isLoading && filtered().length === 0" class="px-3 py-2 text-xs text-base-content/60">
+					Tidak ada hasil
+				</li>
+			</ul>
+		</div>
+	</template>
 </fieldset>
 {{ end }}
